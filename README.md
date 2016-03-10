@@ -15,7 +15,7 @@ cxx-clean-include是一个用于清理c++文件中多余#include的工具。
 
 而其中只有useful.h被用到，那么a.h、b.h、c.h、d.h的#include语句将被移除掉，最终hello.cpp变为：
 
-```
+```cpp
 #include "useful.h"
 ```
 
@@ -25,13 +25,19 @@ cxx-clean-include目前支持清理visual studio项目（vs2005及以上版本�
 
 1. 对于visual studio项目，可以使用以下命令：
 
+```
 cxxclean -clean vs项目名称（最好是绝对路径，如: d:/vs2005/hello.vcproj、d:/vs2008/hello.vcxproj）
+```
 
 该命令将清理整个vs项目内的成员文件
 
 2. 对于单个文件夹，可以使用一下命令
 
+```
 cxxclean -clean 文件夹路径（最好是绝对路径，如: d:/a/b/hello/、/home/proj/hello/）
+```
+
+
 
 ## 具体参数
 

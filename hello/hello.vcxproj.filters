@@ -1,0 +1,37 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <ClInclude Include="nil1.h" />
+    <ClInclude Include="nil2.h" />
+    <ClInclude Include="a.h" />
+    <ClInclude Include="a_func.h" />
+    <ClInclude Include="b.h" />
+    <ClInclude Include="b_class.h" />
+    <ClInclude Include="c.h" />
+    <ClInclude Include="c_macro.h" />
+    <ClInclude Include="d_template.h" />
+    <ClInclude Include="e_typedef.h" />
+    <ClInclude Include="e.h" />
+    <ClInclude Include="type.h" />
+    <ClInclude Include="stdafx.h" />
+    <ClInclude Include="f_forwarddecl.h" />
+    <ClInclude Include="g_default_arg.h" />
+    <ClInclude Include="g.h" />
+    <ClInclude Include="g_1.h" />
+    <ClInclude Include="h_use_forwarddecl.h" />
+    <ClInclude Include="h.h" />
+    <ClInclude Include="i_deeply_include.h" />
+    <ClInclude Include="i_1.h" />
+    <ClInclude Include="i_2.h" />
+    <ClInclude Include="i_3.h" />
+    <ClInclude Include="j_enumeration.h" />
+    <ClInclude Include="j.h" />
+    <ClInclude Include="f_1.h" />
+    <ClInclude Include="f_2.h" />
+    <ClInclude Include="f_3.h" />
+    <ClInclude Include="f_4.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="hello.cpp" />
+  </ItemGroup>
+</Project>
