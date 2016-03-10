@@ -47,11 +47,19 @@ cxxclean -clean 文件夹路径 --
 
 比如：cxxclean -clean d:/a/b/hello/ --
 
+## 如果想把屏幕输出重定向到某个文件，可以使用重定向符号>
+
+```
+cxxclean -clean d:/vs2005/hello.vcproj -- > cxxclean_hello.log
+```
+
+屏幕打印将被存入当前文件夹下的cxxclean_hello.log文件
+
 ## 仔细看代码，里面有一个cxxclean.rar文件，还有一个hello文件夹
 
 cxxclean.rar里面有cxxclean.exe文件，即cxx-clean-include工具在windows下的执行文件（linux下后续仅会提供CentOs下的编译文件）
 
-hello则是一个visual studio项目，用于测试cxx-clean-include是否正常工作的，可以下载下来使用cxxclean -clean hello.vcxproj命令看执行后的清理效果
+hello则是一个visual studio 2008项目，可以编译通过，用于测试cxx-clean-include是否正常工作的，可以下载下来使用cxxclean -clean hello.vcxproj --命令看执行后的清理效果
 
 ## 注意：使用之前请备份你的c++代码
 
