@@ -2,14 +2,15 @@
 //< @file:   cxx_clean_tool.cpp
 //< @author: 洪坤安
 //< @date:   2016年2月22日
-//< @brief:	 
-//< Copyright (c) 2015 game. All rights reserved.
+//< @brief:
+//< Copyright (c) 2016. All rights reserved.
 ///<------------------------------------------------------------------------------
 
 #include "tool.h"
 
 #include <sys/stat.h>
 #include <io.h>
+#include <llvm/Support/FileSystem.h>
 
 #ifdef WIN32
 	#include <direct.h>
@@ -139,6 +140,68 @@ namespace filetool
 
 		_findclose(handle);
 		return true;
+	}
+
+	// 文件是否在指定文件夹下（含子文件夹）
+	bool is_at_folder(const char* folder, const char *file)
+	{
+		return start_with(string(file), folder);
+	}
+
+	// 列出指定文件夹下的文件名列表（含子文件夹下的文件）
+	// 例如，假设../../下有文件"a", "b", "c", "a.txt", "b.txt", "c.exe"
+	//     若path = ../../*.*,   则 files = { "a.txt", "b.txt", "c.exe" }
+	//     若path = ../../*.txt, 则 files = { "a.txt", "b.txt" }
+	typedef std::vector<string> FileVec;
+	bool ls(const string &path, FileVec &files)
+	{
+		std::string folder	= get_dir(path);
+		std::string pattern	= strip_dir(path);
+
+		if (pattern.empty())
+		{
+			pattern = "*";
+		}
+
+		string fixedPath = folder + "/" + pattern;
+
+		struct _finddata_t fileinfo;
+
+		int handle = _findfirst(fixedPath.c_str(), &fileinfo);
+		if(-1 == handle)
+		{
+			return false;
+		}
+
+		do
+		{
+			//判断是否有子目录
+			if (fileinfo.attrib & _A_SUBDIR)
+			{
+				//这个语句很重要
+				if( (strcmp(fileinfo.name,".") != 0) &&(strcmp(fileinfo.name,"..") != 0))
+				{
+					string subdir = folder + "/" + fileinfo.name + "/" + pattern;
+					ls(subdir, files);
+				}
+			}
+			else
+			{
+				// 不是目录，是文件
+				files.push_back(folder + "/" + fileinfo.name);
+			}
+		}
+		while (_findnext(handle, &fileinfo) == 0);
+
+		_findclose(handle);
+		return true;
+	}
+
+	std::string get_current_path()
+	{
+		llvm::SmallString<512> path;
+		std::error_code err = llvm::sys::fs::current_path(path);
+		return err ? "" : path.str();
 	}
 }
 

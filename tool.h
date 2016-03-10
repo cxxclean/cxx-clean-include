@@ -3,7 +3,7 @@
 //< @author: 洪坤安
 //< @date:   2016年2月22日
 //< @brief:
-//< Copyright (c) 2015 game. All rights reserved.
+//< Copyright (c) 2016. All rights reserved.
 ///<------------------------------------------------------------------------------
 
 #ifndef _cxx_clean_tool_h_
@@ -13,35 +13,6 @@
 #include <vector>
 
 using namespace std;
-
-namespace filetool
-{
-	inline bool is_slash(char c)
-	{
-		return (c == '\\' || c == '/');
-	}
-
-	// 令path_1为当前路径，返回path_2的相对路径
-	std::string get_relative_path(const char *path_1, const char *path_2);
-
-	bool cd(const char *path);
-
-	// 指定路径是否存在
-	// 例如：dir = "../../example"
-	bool is_dir_exist(const std::string &dir);
-
-	// 指定路径是否存在，可为文件路径或者文件夹路径
-	// 例如：path = "../../example"
-	// 又如：path = "../../abc.xml"
-	// 又如：path = "../../"
-	bool exist(const std::string &path);
-
-	// 列出指定文件夹下的文件名列表（子文件夹将被忽略），含义如windows命令行下的dir
-	// 例如：path = ../../*.*,   则 files = { "a.txt", "b.txt", "c.exe" }
-	// 又如：path = ../../*.txt, 则 files = { "a.txt", "b.txt" }
-	typedef std::vector<string> filevec_t;
-	bool dir(const std::string &path, /* out */filevec_t &files);
-}
 
 namespace strtool
 {
@@ -82,21 +53,13 @@ namespace strtool
 			return false;
 		}
 
-		for (int i = 0; i < prefix_len; ++i)
-		{
-			if (text[i] != prefix[i])
-			{
-				return false;
-			}
-		}
-
-		return true;
+		return 0 == strncmp(text.c_str(), prefix, prefix_len);
 	}
 
 	// 是否以指定字符串结尾
-	inline bool end_with(const string& text, const string& suffix)
+	inline bool end_with(const string& text, const char* suffix)
 	{
-		int suffix_len	= suffix.length();
+		int suffix_len	= strlen(suffix);
 		int text_len	= text.length();
 
 		if (suffix_len > text_len)
@@ -104,15 +67,7 @@ namespace strtool
 			return false;
 		}
 
-		for (int i = text_len - suffix_len; i < text_len; ++i)
-		{
-			if (text[i] != suffix[i])
-			{
-				return false;
-			}
-		}
-
-		return true;
+		return 0 == strncmp(text.c_str() + text_len - suffix_len, suffix, suffix_len);
 	}
 
 	// 是否包含指定字符
@@ -120,6 +75,12 @@ namespace strtool
 	{
 		while (*text && *text != x) { ++text; }
 		return *text == x;
+	}
+
+	// 是否包含指定字符串
+	inline bool contain(const std::string &text, const char *x)
+	{		
+		return text.find(x) != std::string::npos;
 	}
 
 	// 若以指定前缀开头，则移除前缀并返回剩下的字符串
@@ -133,8 +94,78 @@ namespace strtool
 
 		return false;
 	}
+
+	// 若以指定后缀开头，则移除后缀并返回剩下的字符串
+	inline bool try_strip_right(string& str, const string& suffix)
+	{
+		if (strtool::end_with(str, suffix.c_str()))
+		{
+			str = str.substr(0, str.length() - suffix.length());
+			return true;
+		}
+
+		return false;
+	}
 }
 
 using namespace strtool;
+
+
+namespace filetool
+{
+	inline bool is_slash(char c)
+	{
+		return (c == '\\' || c == '/');
+	}
+
+	// 令path_1为当前路径，返回path_2的相对路径
+	std::string get_relative_path(const char *path_1, const char *path_2);
+
+	// 返回当前路径
+	std::string get_current_path();
+
+	bool cd(const char *path);
+
+	// 指定路径是否存在
+	// 例如：dir = "../../example"
+	bool is_dir_exist(const std::string &dir);
+
+	// 指定路径是否存在，可为文件路径或者文件夹路径
+	// 例如：path = "../../example"
+	// 又如：path = "../../abc.xml"
+	// 又如：path = "../../"
+	bool exist(const std::string &path);
+
+	// 列出指定文件夹下的文件名列表（子文件夹将被忽略），含义如windows命令行下的dir
+	// 例如：path = ../../*.*,   则 files = { "a.txt", "b.txt", "c.exe" }
+	// 又如：path = ../../*.txt, 则 files = { "a.txt", "b.txt" }
+	typedef std::vector<string> filevec_t;
+	bool dir(const std::string &path, /* out */filevec_t &files);
+
+	// 文件是否在指定文件夹下（含子文件夹）
+	bool is_at_folder(const char* folder, const char *file);
+
+	// 列出指定文件夹下的文件名列表（含子文件夹下的文件）
+	// 例如，假设../../下有文件"a", "b", "c", "a.txt", "b.txt", "c.exe"
+	//     若path = ../../*.*,   则 files = { "a.txt", "b.txt", "c.exe" }
+	//     若path = ../../*.txt, 则 files = { "a.txt", "b.txt" }
+	typedef std::vector<string> FileVec;
+	bool ls(const string &path, FileVec &files);
+}
+
+namespace cpptool
+{
+	inline bool is_header(const std::string &ext)
+	{
+		// c++头文件的后缀：h、hpp、hh
+		return (ext == "h" || ext == "hpp" || ext == "hh");
+	}
+
+	inline bool is_cpp(const std::string &ext)
+	{
+		// c++源文件的后缀：c、cc、cpp、c++、cxx、m、mm
+		return (ext == "c" || ext == "cc" || ext == "cpp" || ext == "c++" || ext == "cxx" || ext == "m" || ext == "mm");
+	}
+}
 
 #endif // _cxx_clean_tool_h_

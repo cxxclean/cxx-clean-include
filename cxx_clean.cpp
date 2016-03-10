@@ -21,8 +21,9 @@
 #include "clang/Basic/Version.h"
 
 #include "tool.h"
-#include "vs_config.h"
+#include "vs_project.h"
 #include "parsing_cpp.h"
+#include "project.h"
 
 using namespace clang;
 using namespace clang::driver;
@@ -76,12 +77,12 @@ namespace cxxcleantool
 
 			if (prevFileID.isValid())
 			{
-				m_main->m_files[m_main->get_absolute_file_name(prevFileID)] = prevFileID;
+				m_main->m_files[m_main->GetAbsoluteFileName(prevFileID)] = prevFileID;
 			}
 
 			if (curFileID.isValid())
 			{
-				m_main->m_files[m_main->get_absolute_file_name(curFileID)] = curFileID;
+				m_main->m_files[m_main->GetAbsoluteFileName(curFileID)] = curFileID;
 			}
 
 
@@ -161,7 +162,7 @@ namespace cxxcleantool
 		// 宏被#undef
 		void MacroUndefined(const Token &macroName, const MacroDefinition &definition) override
 		{
-			m_main->use_macro(macroName.getLocation(), definition, macroName);
+			m_main->UseMacro(macroName.getLocation(), definition, macroName);
 		}
 
 		/// \brief Called by Preprocessor::HandleMacroExpandedIdentifier when a
@@ -171,7 +172,7 @@ namespace cxxcleantool
 		                  SourceRange range,
 		                  const MacroArgs *args) override
 		{
-			m_main->use_macro(range.getBegin(), definition, macroName);
+			m_main->UseMacro(range.getBegin(), definition, macroName);
 			// llvm::outs() << "text = " << m_main->m_rewriter->getRewrittenText(range) << "\n";
 			// llvm::outs() << "text = " << m_main->get_source_of_range(range) << "\n";
 		}
@@ -179,13 +180,13 @@ namespace cxxcleantool
 		// #ifdef
 		void Ifdef(SourceLocation loc, const Token &macroName, const MacroDefinition &definition) override
 		{
-			m_main->use_macro(loc, definition, macroName);
+			m_main->UseMacro(loc, definition, macroName);
 		}
 
 		// #ifndef
 		void Ifndef(SourceLocation loc, const Token &macroName, const MacroDefinition &definition) override
 		{
-			m_main->use_macro(loc, definition, macroName);
+			m_main->UseMacro(loc, definition, macroName);
 		}
 
 		ParsingFile *m_main;
@@ -355,7 +356,7 @@ namespace cxxcleantool
 				CastExpr *castExpr = cast<CastExpr>(s);
 				QualType castType = castExpr->getType();
 
-				m_main->use_type(loc, castType);
+				m_main->UseType(loc, castType);
 
 				// 这里注意，CastExpr有一个getSubExpr()函数，表示子表达式，但此处不需要继续处理，因为子表达式将作为Stmt仍然会被VisitStmt访问到
 			}
@@ -373,13 +374,13 @@ namespace cxxcleantool
 				if (isa<FunctionDecl>(calleeDecl))
 				{
 					FunctionDecl *func = cast<FunctionDecl>(calleeDecl);
-					m_main->on_use_decl(loc, func);
+					m_main->OnUseDecl(loc, func);
 				}
 			}
 			else if (isa<DeclRefExpr>(s))
 			{
 				DeclRefExpr *declRefExpr = cast<DeclRefExpr>(s);
-				m_main->on_use_decl(loc, declRefExpr->getDecl());
+				m_main->OnUseDecl(loc, declRefExpr->getDecl());
 			}
 			// return语句，例如：return 4;、return;
 			else if (isa<ReturnStmt>(s))
@@ -417,7 +418,7 @@ namespace cxxcleantool
 			else if (isa<MemberExpr>(s))
 			{
 				MemberExpr *memberExpr = cast<MemberExpr>(s);
-				m_main->on_use_decl(loc, memberExpr->getMemberDecl());
+				m_main->OnUseDecl(loc, memberExpr->getMemberDecl());
 			}
 			else if (isa<DeclStmt>(s))
 			{
@@ -436,7 +437,7 @@ namespace cxxcleantool
 					return false;
 				}
 
-				m_main->on_use_decl(loc, decl);
+				m_main->OnUseDecl(loc, decl);
 			}
 			else
 			{
@@ -458,7 +459,7 @@ namespace cxxcleantool
 			{
 				// 函数的返回值
 				QualType returnType = f->getReturnType();
-				m_main->use_var(f->getLocStart(), returnType);
+				m_main->UseVar(f->getLocStart(), returnType);
 			}
 
 			// 识别函数参数
@@ -468,7 +469,7 @@ namespace cxxcleantool
 				{
 					ParmVarDecl *vardecl = *itr;
 					QualType vartype = vardecl->getType();
-					m_main->use_var(f->getLocStart(), vartype);
+					m_main->UseVar(f->getLocStart(), vartype);
 				}
 			}
 
@@ -526,7 +527,7 @@ namespace cxxcleantool
 					}
 
 					// 引用对应的struct/union/class.
-					m_main->on_use_record(f->getLocStart(),	record);
+					m_main->OnUseRecord(f->getLocStart(),	record);
 				}
 			}
 
@@ -575,14 +576,14 @@ namespace cxxcleantool
 			for (CXXRecordDecl::base_class_iterator itr = r->bases_begin(), end = r->bases_end(); itr != end; ++itr)
 			{
 				CXXBaseSpecifier &base = *itr;
-				m_main->use_type(r->getLocStart(), base.getType());
+				m_main->UseType(r->getLocStart(), base.getType());
 			}
 
 			// 遍历成员变量（注意：不包括static成员变量，static成员变量将在VisitVarDecl中被访问到）
 			for (CXXRecordDecl::field_iterator itr = r->field_begin(), end = r->field_end(); itr != end; ++itr)
 			{
 				FieldDecl *field = *itr;
-				m_main->use_var(r->getLocStart(), field->getType());
+				m_main->UseVar(r->getLocStart(), field->getType());
 			}
 
 			// 成员函数不需要在这里遍历，因为VisitFunctionDecl将会访问成员函数
@@ -635,7 +636,7 @@ namespace cxxcleantool
 				const VarDecl *prevVar = var->getPreviousDecl();
 				if (prevVar)
 				{
-					m_main->use(var->getLocStart(), prevVar->getLocStart());
+					m_main->Use(var->getLocStart(), prevVar->getLocStart());
 					before << "static ";
 				}
 			}
@@ -682,7 +683,7 @@ namespace cxxcleantool
 			// llvm::outs() << "\n" << "VisitVarDecl" << m_main->debug_loc_text(var->getTypeSourceInfo()->getTypeLoc().getLocStart()) << "\n";
 
 			// 引用变量的类型
-			m_main->use_var(var->getLocStart(), var->getType());
+			m_main->UseVar(var->getLocStart(), var->getType());
 
 			// 类的static成员变量（支持模板类的成员）
 			if (var->isCXXClassMember())
@@ -701,7 +702,7 @@ namespace cxxcleantool
 				const VarDecl *prevVar = var->getPreviousDecl();
 				if (prevVar)
 				{
-					m_main->use(var->getLocStart(), prevVar->getLocStart());
+					m_main->OnUseDecl(var->getLocStart(), prevVar);
 				}
 			}
 
@@ -712,7 +713,7 @@ namespace cxxcleantool
 		{
 			// llvm::errs() << "Visiting " << d->getDeclKindName() << " " << d->getName() << "\n";
 
-			m_main->use_type(d->getLocStart(), d->getUnderlyingType());
+			m_main->UseType(d->getLocStart(), d->getUnderlyingType());
 			return true; // returning false aborts the traversal
 		}
 
@@ -773,7 +774,7 @@ namespace cxxcleantool
 
 		bool BeginSourceFileAction(CompilerInstance &CI, StringRef Filename) override
 		{
-			if (WholeProject::instance.m_isFirst)
+			if (ProjectHistory::instance.m_isFirst)
 			{
 				llvm::errs() << "analyze file: " << Filename << " ...\n";
 			}
@@ -794,23 +795,23 @@ namespace cxxcleantool
 			// llvm::errs() << "** EndSourceFileAction for: " << srcMgr.getFileEntryForID(srcMgr.getMainFileID())->getName() << "\n";
 			// CompilerInstance &compiler = this->getCompilerInstance();
 
-			c->m_main->generate_result();
+			c->m_main->GenerateResult();
 
 			{
-				if (WholeProject::instance.m_isFirst || WholeProject::instance.m_onlyHas1File)
+				if (ProjectHistory::instance.m_isFirst || Project::instance.m_onlyHas1File)
 				{
-					WholeProject::instance.AddFile(c->m_main);
-					c->m_main->print();
+					ProjectHistory::instance.AddFile(c->m_main);
+					c->m_main->Print();
 				}
 
 				bool can_clean	 = false;
-				can_clean		|= WholeProject::instance.m_onlyHas1File;;
-				can_clean		|= !WholeProject::instance.m_isOptimized;
-				can_clean		|= !WholeProject::instance.m_isFirst;
+				can_clean		|= Project::instance.m_onlyHas1File;;
+				can_clean		|= !Project::instance.m_isDeepClean;
+				can_clean		|= !ProjectHistory::instance.m_isFirst;
 
 				if (can_clean)
 				{
-					c->m_main->clean();
+					c->m_main->Clean();
 				}
 			}
 
@@ -825,9 +826,11 @@ namespace cxxcleantool
 		{
 			m_rewriter.setSourceMgr(compiler.getSourceManager(), compiler.getLangOpts());
 
-			ParsingFile *mainFile = new ParsingFile;
-			mainFile->m_rewriter = &m_rewriter;
-			mainFile->init_header_search_path(&compiler.getSourceManager(), compiler.getPreprocessor().getHeaderSearchInfo());
+			ParsingFile *mainFile	= new ParsingFile;
+			mainFile->m_rewriter	= &m_rewriter;
+			//mainFile->m_compiler	= &compiler;
+
+			mainFile->InitHeaderSearchPath(&compiler.getSourceManager(), compiler.getPreprocessor().getHeaderSearchInfo());
 
 			compiler.getPreprocessor().addPPCallbacks(llvm::make_unique<CxxCleanPreprocessor>(mainFile));
 			return llvm::make_unique<ListDeclASTConsumer>(m_rewriter, mainFile);
@@ -885,29 +888,34 @@ namespace cxxcleantool
 
 using namespace cxxcleantool;
 
-bool add_clean_vs_argument(const Vsproject &vs, ClangTool &tool)
+bool AddCleanVsArgument(const Vsproject &vs, ClangTool &tool)
 {
-	const VsConfiguration &vsconfig = vs.configs[0];
-
-	for (int i = 0, size = vsconfig.search_dirs.size(); i < size; i++)
+	if (vs.m_configs.empty())
 	{
-		const std::string &dir	= vsconfig.search_dirs[i];
+		return false;
+	}
+
+	const VsConfiguration &vsconfig = vs.m_configs[0];
+
+	for (int i = 0, size = vsconfig.searchDirs.size(); i < size; i++)
+	{
+		const std::string &dir	= vsconfig.searchDirs[i];
 		std::string arg			= "-I" + dir;
 
 		ArgumentsAdjuster argAdjuster = getInsertArgumentAdjuster(arg.c_str(), ArgumentInsertPosition::BEGIN);
 		tool.appendArgumentsAdjuster(argAdjuster);
 	}
 
-	for (int i = 0, size = vsconfig.force_includes.size(); i < size; i++)
+	for (int i = 0, size = vsconfig.forceIncludes.size(); i < size; i++)
 	{
-		const std::string &force_include	= vsconfig.force_includes[i];
+		const std::string &force_include	= vsconfig.forceIncludes[i];
 		std::string arg						= "-include" + force_include;
 
 		ArgumentsAdjuster argAdjuster = getInsertArgumentAdjuster(arg.c_str(), ArgumentInsertPosition::BEGIN);
 		tool.appendArgumentsAdjuster(argAdjuster);
 	}
 
-	for (auto predefine : vsconfig.pre_defines)
+	for (auto predefine : vsconfig.preDefines)
 	{
 		std::string arg = "-D" + predefine;
 
@@ -919,7 +927,7 @@ bool add_clean_vs_argument(const Vsproject &vs, ClangTool &tool)
 	tool.appendArgumentsAdjuster(getInsertArgumentAdjuster("-fms-compatibility", ArgumentInsertPosition::BEGIN));
 	tool.appendArgumentsAdjuster(getInsertArgumentAdjuster("-fms-compatibility-version=18", ArgumentInsertPosition::BEGIN));
 
-	filetool::cd(vs.project_dir.c_str());
+	filetool::cd(vs.m_project_dir.c_str());
 	return true;
 }
 
@@ -932,13 +940,34 @@ public:
 		: CxxCleanOptionsParser(argc, argv, Category, llvm::cl::OneOrMore,
 		                        Overview) {}
 
+	static FixedCompilationDatabase *CxxCleanOptionsParser::loadFromCommandLine
+	(int &Argc, const char *const *Argv, Twine Directory = ".")
+	{
+		const char *const *DoubleDash = std::find(Argv, Argv + Argc, StringRef("--"));
+		if (DoubleDash == Argv + Argc)
+			return nullptr;
+		std::vector<const char *> CommandLine(DoubleDash + 1, Argv + Argc);
+		Argc = DoubleDash - Argv;
+
+		std::vector<std::string> StrippedArgs;
+		StrippedArgs.reserve(CommandLine.size());
+
+		for (const char * arg : CommandLine)
+		{
+			StrippedArgs.push_back(arg);
+		}
+
+		return new FixedCompilationDatabase(Directory, StrippedArgs);
+	}
+
+
 	CxxCleanOptionsParser(int &argc, const char **argv,
 	                      llvm::cl::OptionCategory &category,
 	                      llvm::cl::NumOccurrencesFlag occurrencesFlag,
 	                      const char *Overview = nullptr)
 	{
 		static cl::opt<bool>		Help("h",			cl::desc("Alias for -help"), cl::NotHidden);
-		static cl::opt<std::string> g_source("src",	cl::desc("c++ source file"), cl::NotHidden);
+		static cl::opt<std::string> g_source("src",		cl::desc("c++ source file"), cl::NotHidden);
 
 		// static cl::list<std::string> SourcePaths(
 		//    cl::NormalFormatting, cl::desc("<source0> [... <sourceN>]"), occurrencesFlag,
@@ -946,16 +975,25 @@ public:
 
 		// cl::HideUnrelatedOptions(Category);
 
-		m_compilations.reset(FixedCompilationDatabase::loadFromCommandLine(argc, argv));
+		m_compilations.reset(CxxCleanOptionsParser::loadFromCommandLine(argc, argv));
 		cl::ParseCommandLineOptions(argc, argv, Overview);
 
 		std::string src = g_source;
 		if (!src.empty())
 		{
-			m_sourcePathList.push_back(src);
+			if (filetool::exist(src))
+			{
+				m_sourcePathList.push_back(src);
+			}
+			else
+			{
+				bool ok = filetool::ls(src, m_sourcePathList);
+				if (!ok)
+				{
+					return;
+				}
+			}
 		}
-
-		// m_sourcePathList = SourcePaths;
 
 		if ((occurrencesFlag == cl::ZeroOrMore || occurrencesFlag == cl::Optional) && m_sourcePathList.empty())
 		{
@@ -1010,12 +1048,12 @@ static cl::extrahelp MoreHelp(
     "\n"
 );
 
-static cl::opt<bool>	g_helpOption	("h1",			cl::desc("Alias for -help"),				cl::NotHidden);
-static cl::opt<string>	g_cleanOption	("clean",		cl::desc("clean <directory(eg. ./hello/)> or <vs 2005 project: ../hello.vcproj> or <vs 2008 and upper version: ../hello.vcxproj>\n"
-        "or <vs project solution: ../hello.sln>\n"), cl::NotHidden);
-static cl::opt<bool>	g_insteadOption	("i",			cl::desc("it means instead, output will overwrite the original c++ file"),	cl::NotHidden);
-static cl::opt<bool>	g_printVsConfig	("print-vs",	cl::desc("print vs configuration"),	cl::NotHidden);
-static cl::opt<bool>	g_isOptimized	("optimized",	cl::desc("try clean the whole project more deeply and need more time"),	cl::NotHidden);
+static cl::opt<bool>	g_helpOption	("h1",				cl::desc("Alias for -help"),				cl::NotHidden);
+static cl::opt<string>	g_cleanOption	("clean",			cl::desc("clean <directory(eg. ./hello/)> or <vs 2005 project: ../hello.vcproj> or <visual studio 2005 and upper version: ../hello.vcxproj>\n"), cl::NotHidden);
+static cl::opt<bool>	g_noWriteOption	("no",				cl::desc("means no overwrite, will not overwrite the original c++ file"),	cl::NotHidden);
+static cl::opt<bool>	g_onlyCleanCpp	("onlycpp",			cl::desc("only allow clean cpp"),	cl::NotHidden);
+static cl::opt<bool>	g_printVsConfig	("print-vs",		cl::desc("print vs configuration"),	cl::NotHidden);
+static cl::opt<bool>	g_printProject	("print-project",	cl::desc("print vs configuration"),	cl::NotHidden);
 
 static void PrintVersion()
 {
@@ -1023,118 +1061,8 @@ static void PrintVersion()
 	OS << clang::getClangToolFullVersion("clang-format") << '\n';
 }
 
-
-#include "clang/Rewrite/Core/RewriteBuffer.h"
-
-using namespace llvm;
-using namespace clang;
-
-namespace
-{
-	static void tagRange(unsigned Offset, unsigned Len, StringRef tagName,
-	                     RewriteBuffer &Buf)
-	{
-		std::string BeginTag;
-		raw_string_ostream(BeginTag) << '<' << tagName << '>';
-		std::string EndTag;
-		raw_string_ostream(EndTag) << "</" << tagName << '>';
-
-		Buf.InsertTextAfter(Offset, BeginTag);
-		Buf.InsertTextBefore(Offset+Len, EndTag);
-	}
-
-	void test()
-	{
-		StringRef Input = "hello world";
-		const char *Output = "<outer><inner>hello</inner></outer> ";
-
-		RewriteBuffer Buf;
-		Buf.Initialize(Input);
-		StringRef RemoveStr = "world";
-		size_t Pos = Input.find(RemoveStr);
-		Buf.RemoveText(Pos, RemoveStr.size());
-
-		StringRef TagStr = "hello";
-		Pos = Input.find(TagStr);
-		tagRange(Pos, TagStr.size(), "outer", Buf);
-		tagRange(Pos, TagStr.size(), "inner", Buf);
-
-		std::string Result;
-		raw_string_ostream OS(Result);
-		Buf.write(OS);
-		OS.flush();
-
-		llvm::outs() << "Output = " << Output << "\n";
-		llvm::outs() << "Result = " << Result << "\n";
-	}
-
-	void test2()
-	{
-		StringRef oldText =
-		    "#include 'a.h'\r\n"
-		    "#include 'b.h'\r\n"
-		    "#include 'c.h'\r\n"
-		    "#include 'd.h'\r\n"
-		    "#include 'e.h'\r\n"
-		    "#include 'f.h'\r\n"
-		    "#include 'g.h'\r\n"
-		    "#include 'h.h'\r\n"
-		    "#include 'i.h'\r\n";
-
-		std::string newText;
-
-		{
-			RewriteBuffer Buf;
-			Buf.Initialize(oldText);
-
-			{
-				StringRef RemoveStr = "#include 'a.h'\r\n";
-				size_t Pos = oldText.find(RemoveStr);
-				Buf.RemoveText(Pos, RemoveStr.size());
-			}
-
-			{
-				StringRef replaceStr = "#include 'b.h'\r\n";
-				size_t Pos = oldText.find(replaceStr);
-				Buf.ReplaceText(Pos, replaceStr.size(), "#include 'b_1.h'\r\n");
-			}
-
-			{
-				StringRef RemoveStr = "#include 'c.h'\r\n";
-				size_t Pos = oldText.find(RemoveStr);
-				Buf.RemoveText(Pos, RemoveStr.size());
-			}
-
-			{
-				StringRef insertStr = "#include 'c.h'\r\n";
-				size_t Pos = oldText.find(insertStr);
-				Buf.InsertText(Pos, "class C;\n");
-			}
-
-			{
-				StringRef replaceStr = "#include 'd.h'\r\n";
-				size_t Pos = oldText.find(replaceStr);
-				Buf.ReplaceText(Pos, replaceStr.size(), "#include 'd_1.h'\r\n");
-			}
-
-			raw_string_ostream OS(newText);
-			Buf.write(OS);
-			OS.flush();
-		}
-
-		llvm::outs() << "old =\n" << oldText << "\n";
-		llvm::outs() << "new =\n" << newText << "\n";
-	}
-} // anonymous namespace
-
 int main(int argc, const char **argv)
 {
-	if (argc == 0)
-	{
-		test2();
-		return 0;
-	}
-
 	llvm::InitializeNativeTarget();
 	llvm::InitializeNativeTargetAsmParser();
 
@@ -1144,18 +1072,22 @@ int main(int argc, const char **argv)
 		cl::PrintHelpMessage();
 	}
 
+	Vsproject &vs		= Vsproject::instance;
+	Project &project	= Project::instance;
+
+	project.m_workingDir = filetool::get_current_path();
+	Project::instance.m_isDeepClean = !g_onlyCleanCpp;
+
 	std::string clean_option = g_cleanOption;
 
-	std::vector<std::string> &source_list = optionParser.getSourcePathList();
-
-	Vsproject &vs = Vsproject::instance;
+	project.m_cpps = optionParser.getSourcePathList();
 
 	if (!clean_option.empty())
 	{
 		const string ext = strtool::get_ext(clean_option);
 		if (ext == "vcproj" || ext == "vcxproj")
 		{
-			if (!parse_vs(clean_option, vs))
+			if (!ParseVs(clean_option, vs))
 			{
 				llvm::errs() << "parse vs project<" << clean_option << "> failed!\n";
 				return 0;
@@ -1163,43 +1095,80 @@ int main(int argc, const char **argv)
 
 			llvm::outs() << "parse vs project<" << clean_option << "> succeed!\n";
 
-			if (source_list.empty())
-			{
-				add_source_file(vs, source_list);
-			}
+			vs.TakeSourceListTo(project);
 		}
 		else if (llvm::sys::fs::is_directory(clean_option))
 		{
-			llvm::outs() << "unsupport parsed " << clean_option << " directory\n";
+			std::string folder = ParsingFile::GetAbsoluteFileName(clean_option.c_str());
+
+			if (!strtool::end_with(folder, "/"))
+			{
+				folder += "/";
+			}
+
+			Project::instance.m_allowCleanDir = folder;
+
+			if (project.m_cpps.empty())
+			{
+				bool ok = filetool::ls(folder, project.m_cpps);
+				if (!ok)
+				{
+					llvm::errs() << "error: -clean " << folder << " failed!\n";
+					return 0;
+				}
+			}
 		}
 		else
 		{
 			llvm::errs() << "unsupport parsed <" << clean_option << ">!\n";
+			return 0;
 		}
 	}
+	else
+	{
+		project.GenerateAllowCleanList();
+	}
+
+	project.Fix();
+
+	if (project.m_cpps.size() == 1)
+	{
+		Project::instance.m_onlyHas1File = true;
+	}
+
 
 	if (g_printVsConfig)
 	{
-		vs.dump();
+		vs.Print();
 		return 0;
 	}
 
-	if (source_list.size() == 1)
+	if (g_printProject)
 	{
-		WholeProject::instance.m_onlyHas1File = true;
+		project.Print();
+		return 0;
 	}
 
-	ClangTool tool(optionParser.getCompilations(), source_list);
+	if (project.m_cpps.empty())
+	{
+		llvm::errs() << "error: parse argument failed, please check there is c++ file to parse!\n";
+		project.Print();
+		return 0;
+	}
+
+	ClangTool tool(optionParser.getCompilations(), project.m_cpps);
 	tool.clearArgumentsAdjusters();
 	tool.appendArgumentsAdjuster(getClangSyntaxOnlyAdjuster());
 
 	if (!clean_option.empty())
 	{
-		add_clean_vs_argument(vs, tool);
-		WholeProject::instance.m_isOptimized = g_isOptimized;
+		AddCleanVsArgument(vs, tool);
 	}
 
-	cxxcleantool::ParsingFile::m_isOverWriteOption = g_insteadOption;
+	//std::vector<CompileCommand> allCompileArgs = getAllCompileCommands();
+
+
+	cxxcleantool::ParsingFile::m_isOverWriteOption = !g_noWriteOption;
 
 	tool.appendArgumentsAdjuster(getInsertArgumentAdjuster("-fcxx-exceptions",			ArgumentInsertPosition::BEGIN));
 	tool.appendArgumentsAdjuster(getInsertArgumentAdjuster("-Winvalid-source-encoding", ArgumentInsertPosition::BEGIN));
@@ -1208,9 +1177,9 @@ int main(int argc, const char **argv)
 	std::unique_ptr<FrontendActionFactory> factory = newFrontendActionFactory<cxxcleantool::ListDeclAction>();
 	tool.run(factory.get());
 
-	if (WholeProject::instance.m_isOptimized && !WholeProject::instance.m_onlyHas1File)
+	if (Project::instance.m_isDeepClean && !Project::instance.m_onlyHas1File)
 	{
-		WholeProject::instance.m_isFirst = false;
+		ProjectHistory::instance.m_isFirst = false;
 
 		llvm::outs() << "\n\n////////////////////////////////////////////////////////////////\n";
 		llvm::outs() << "[ 2. second times parse" << "]";
@@ -1219,6 +1188,6 @@ int main(int argc, const char **argv)
 		tool.run(factory.get());
 	}
 
-	WholeProject::instance.print();
+	ProjectHistory::instance.Print();
 	return 0;
 }
