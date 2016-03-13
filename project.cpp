@@ -15,12 +15,14 @@
 
 Project Project::instance;
 
-void Project::Print()
+// 打印本次清理的文件列表
+void Project::Print() const
 {
 	llvm::outs() << "\n////////////////////////////////\n";
 	llvm::outs() << "print project \n";
 	llvm::outs() << "////////////////////////////////\n";
 
+	// 允许清理的c++文件列表
 	if (!m_allowCleanList.empty())
 	{
 		llvm::outs() << "\n";
@@ -31,12 +33,14 @@ void Project::Print()
 		}
 	}
 
+	// 允许清理的文件夹路径
 	if (!m_allowCleanDir.empty())
 	{
 		llvm::outs() << "\n";
 		llvm::outs() << "allow clean directory = " << m_allowCleanDir << "\n";
 	}
 
+	// 待清理的c++源文件列表
 	if (!m_cpps.empty())
 	{
 		llvm::outs() << "\n";
@@ -48,11 +52,7 @@ void Project::Print()
 	}
 }
 
-void Project::ToAbsolute()
-{
-
-}
-
+// 生成允许清理文件列表
 void Project::GenerateAllowCleanList()
 {
 	if (!m_allowCleanDir.empty())
@@ -60,21 +60,22 @@ void Project::GenerateAllowCleanList()
 		return;
 	}
 
-	// 将指定的.cpp文件存入可清理列表
+	// 将待清理的.cpp文件存入可清理列表
 	{
 		for (const string &cpp : m_cpps)
 		{
-			string absolutePath = ParsingFile::GetAbsoluteFileName(cpp.c_str());
+			string absolutePath = pathtool::get_absolute_path(cpp.c_str());
 			m_allowCleanList.insert(absolutePath);
 		}
 	}
 }
 
-bool Project::CanClean(const char* filename)
+// 该文件是否允许被清理
+bool Project::CanClean(const char* filename) const
 {
 	if (!m_allowCleanDir.empty())
 	{
-		return filetool::is_at_folder(m_allowCleanDir.c_str(), filename);
+		return pathtool::is_at_folder(m_allowCleanDir.c_str(), filename);
 	}
 	else
 	{
@@ -84,8 +85,10 @@ bool Project::CanClean(const char* filename)
 	return false;
 }
 
+// 移除非c++后缀的源文件
 void Project::Fix()
 {
+	// 遍历清理目标，将非c++后缀的文件从列表中移除
 	for (int i = 0, size = m_cpps.size(); i < size;)
 	{
 		std::string &cpp = m_cpps[i];
@@ -102,20 +105,9 @@ void Project::Fix()
 		}
 	}
 
-	/*
-	for (auto itr = m_allowCleanList.begin(), end = m_allowCleanList.end(); itr != end;)
-	{
-		const std::string &file = *itr;
-		string ext = strtool::get_ext(file);
-
-		if (cpptool::is_header(ext) || cpptool::is_cpp(ext))
-		{
-			++itr;
-		}
-		else
-		{
-			m_allowCleanList.erase(itr++);
-		}
-	}
-	*/
+	// 附：
+	//     对于允许清理的文件列表，则不检测后缀，因为很可能在某个cpp文件内有这样的语句：
+	//         #include "common.def"
+	//     甚至是:
+	//		   #include "common.cpp"
 }

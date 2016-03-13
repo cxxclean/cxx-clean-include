@@ -22,40 +22,41 @@ namespace cxxcleantool
 
 	struct UselessLineInfo
 	{
-		int		m_beg;
-		int		m_end;
-		string	m_text;
+		int							m_beg;			// 起始偏移
+		int							m_end;			// 结束偏移
+		string						m_text;			// 废弃的文本串
 	};
 
 	struct ForwardLine
 	{
-		int					m_offsetAtFile; // 本行末在文件内的偏移量
-		string				m_oldText;
-		std::set<string>	m_classes;
-
+		int							m_offsetAtFile; // 本行首在文件内的偏移量
+		string						m_oldText;		// 本行原来的文本
+		std::set<string>			m_classes;		// 新增前置声明列表
 	};
 
 	struct ReplaceInfo
 	{
-		string				m_fileName;		// 该#include对应的文件
-		string				m_inFile;		// 该#include被哪个文件包含
-		int					m_line;			// 该#include所在的行
-		string				m_oldText;		// 替换前的#include串，如: #include "../b/../b/../a.h“
-		string				m_newText;		// 替换后的#include串，如: #include "../a.h"
+		string						m_fileName;		// 该#include对应的文件
+		string						m_inFile;		// 该#include被哪个文件包含
+		int							m_line;			// 该#include所在的行
+		string						m_oldText;		// 替换前的#include串，如: #include "../b/../b/../a.h“
+		string						m_newText;		// 替换后的#include串，如: #include "../a.h"
 	};
 
 	struct ReplaceLine
 	{
 		bool						m_isSkip;		// 记录本条替换是否应被跳过，因为有些#include是被-include参数所引入的，并无法被替换，但仍然有打印的必要
-		int							m_beg;
-		int							m_end;
+		int							m_beg;			// 起始偏移
+		int							m_end;			// 结束偏移
 		string						m_oldText;		// 替换前的#include文本，如: #include "../b/../b/../a.h“
 		string						m_oldFile;		// 替换前的#include对应的文件
 		std::vector<ReplaceInfo>	m_newInclude;	// 替换后的#include串列表
 	};
 
-	struct FileHistory
+	// 项目历史，记录各c++文件的待清理记录
+	class FileHistory
 	{
+	public:
 		FileHistory()
 			: m_oldBeIncludeCount(0)
 			, m_newBeIncludeCount(0)
@@ -111,28 +112,28 @@ namespace cxxcleantool
 			m_cleanedFiles.insert(file);
 		}
 
-		bool HasCleaned(const string &file)
+		bool HasCleaned(const string &file) const
 		{
 			return m_cleanedFiles.find(file) != m_cleanedFiles.end();
 		}
 
-		bool HasFile(const string &file)
+		bool HasFile(const string &file) const
 		{
 			return m_files.find(file) != m_files.end();
 		}
 
 		void AddFile(ParsingFile *file);
 
-		void PrintUnusedLine();
+		void PrintUnusedLine() const;
 
-		void PrintCanForwarddeclClass();
+		void PrintCanForwarddeclClass() const;
 
-		void PrintReplace();
+		void PrintReplace() const;
 
 		// 打印文件被使用次数（未完善）
-		void PrintCount();
+		void PrintCount() const;
 
-		void Print();
+		void Print() const;
 
 	public:
 		static ProjectHistory	instance;

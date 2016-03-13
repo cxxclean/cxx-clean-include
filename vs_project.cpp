@@ -18,7 +18,7 @@
 
 Vsproject Vsproject::instance;
 
-void VsConfiguration::FixWrongOption()
+void VsConfiguration::Fix()
 {
 	// 删除以下格式的选项：$(NOINHERIT)(vs2005格式)、%(AdditionalIncludeDirectories)(vs2008及以上版本格式)
 	{
@@ -106,7 +106,7 @@ VsConfiguration* Vsproject::GetVsconfigByMode(const std::string &mode_and_platfo
 	return &m_configs.back();
 }
 
-void VsConfiguration::Print()
+void VsConfiguration::Print() const
 {
 	llvm::outs() << "\n////////////////////////////////\n";
 	llvm::outs() << "\nvs configuration of: " << mode << "\n";
@@ -137,7 +137,8 @@ void VsConfiguration::Print()
 	}
 }
 
-void Vsproject::Print()
+// 打印vs工程配置
+void Vsproject::Print() const
 {
 	llvm::outs() << "\n////////////////////////////////\n";
 	llvm::outs() << "print vs configuration of: " << m_project_full_path << "\n";
@@ -161,27 +162,26 @@ void Vsproject::Print()
 	}
 }
 
-
 void Vsproject::GenerateMembers()
 {
 	for (int i = 0, size = m_headers.size(); i < size; ++i)
 	{
 		string &file = m_headers[i];
 
-		string absolutePath = ParsingFile::GetAbsoluteFileName(ParsingFile::GetAbsolutePath(m_project_dir.c_str(), file.c_str()).c_str());
+		string absolutePath = pathtool::get_absolute_path(m_project_dir.c_str(), file.c_str());
 		m_all.insert(absolutePath);
 	}
 
 	for (int i = 0, size = m_cpps.size(); i < size; ++i)
 	{
 		string &file = m_cpps[i];
-		string absolutePath = ParsingFile::GetAbsoluteFileName(ParsingFile::GetAbsolutePath(m_project_dir.c_str(), file.c_str()).c_str());
+		string absolutePath = pathtool::get_absolute_path(m_project_dir.c_str(), file.c_str());
 		m_all.insert(absolutePath);
 	}
 }
 
 
-bool ParseVs2005(const char* vcproj, Vsproject &vs2005)
+bool Vsproject::ParseVs2005(const char* vcproj, Vsproject &vs2005)
 {
 	rapidxml::file<> xml_file(vcproj);
 	rapidxml::xml_document<> doc;
@@ -304,7 +304,7 @@ bool ParseVs2005(const char* vcproj, Vsproject &vs2005)
 				strtool::split(extra_option_attr->value(),	vsconfig->extraOptions, ' ');
 			}
 
-			vsconfig->FixWrongOption();
+			vsconfig->Fix();
 		}
 	}
 
@@ -313,7 +313,7 @@ bool ParseVs2005(const char* vcproj, Vsproject &vs2005)
 }
 
 // 解析vs2008及vs2008以上版本
-bool ParseVs2008AndUppper(const char* vcxproj, Vsproject &vs2008)
+bool Vsproject::ParseVs2008AndUppper(const char* vcxproj, Vsproject &vs2008)
 {
 	rapidxml::file<> xml_file(vcxproj);
 	rapidxml::xml_document<> doc;
@@ -421,14 +421,14 @@ bool ParseVs2008AndUppper(const char* vcxproj, Vsproject &vs2008)
 			strtool::split(extra_option_node->value(),	vsconfig->extraOptions, ' ');
 		}
 
-		vsconfig->FixWrongOption();
+		vsconfig->Fix();
 	}
 
 	vs2008.GenerateMembers();
 	return true;
 }
 
-bool ParseVs(std::string &vsproj_path, Vsproject &vs)
+bool Vsproject::ParseVs(std::string &vsproj_path)
 {
 	if (!llvm::sys::fs::exists(vsproj_path))
 	{
@@ -436,23 +436,23 @@ bool ParseVs(std::string &vsproj_path, Vsproject &vs)
 		return false;
 	}
 
-	vs.m_project_full_path	= vsproj_path;
-	vs.m_project_dir			= strtool::get_dir(vsproj_path);
+	m_project_full_path	= vsproj_path;
+	m_project_dir		= strtool::get_dir(vsproj_path);
 
-	std::string ext = strtool::get_ext(vsproj_path);
+	std::string ext		= strtool::get_ext(vsproj_path);
 
-	if (vs.m_project_dir.empty())
+	if (m_project_dir.empty())
 	{
-		vs.m_project_dir = "./";
+		m_project_dir = "./";
 	}
 
 	if(ext == "vcproj")
 	{
-		return ParseVs2005(vsproj_path.c_str(), vs);
+		return ParseVs2005(vsproj_path.c_str(), *this);
 	}
 	else if(ext == "vcxproj")
 	{
-		return ParseVs2008AndUppper(vsproj_path.c_str(), vs);
+		return ParseVs2008AndUppper(vsproj_path.c_str(), *this);
 	}
 
 	return false;

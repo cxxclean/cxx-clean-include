@@ -54,7 +54,6 @@ namespace cxxcleantool
 		                 SrcMgr::CharacteristicKind FileType,
 		                 FileID prevFileID = FileID()) override
 		{
-			SourceManager &srcMgr = m_main->m_rewriter->getSourceMgr();
 			if (reason != PPCallbacks::ExitFile)
 			{
 				// 注意：PPCallbacks::EnterFile时的prevFileID无效，无法有效利用所以不予考虑
@@ -62,12 +61,17 @@ namespace cxxcleantool
 			}
 
 			/*
-				假设有a.cpp中#include "b.h"，则此处，prevFileID代表b.h
-				loc则表示a.cpp中#include "b.h"最后一个双引号的后面一个位置，如下
-				#include "b.h"
-							  ^
-							  loc的位置
+				关于函数参数的含义，以a.cpp中有#include "b.h"为例
+
+				则此处，prevFileID代表b.h，loc则表示a.cpp中#include "b.h"最后一个双引号的后面一个位置
+
+				例如：
+			        #include "b.h"
+			                      ^
+			                      loc代表的位置
 			*/
+
+			SourceManager &srcMgr		= m_main->GetSrcMgr();
 
 			FileID curFileID = srcMgr.getFileID(loc);
 			if (!prevFileID.isValid() || !curFileID.isValid())
@@ -75,19 +79,11 @@ namespace cxxcleantool
 				return;
 			}
 
-			if (prevFileID.isValid())
-			{
-				m_main->m_files[m_main->GetAbsoluteFileName(prevFileID)] = prevFileID;
-			}
+			m_main->AddFile(prevFileID);
+			m_main->AddFile(curFileID);
 
-			if (curFileID.isValid())
-			{
-				m_main->m_files[m_main->GetAbsoluteFileName(curFileID)] = curFileID;
-			}
-
-
-			PresumedLoc presumed_loc = srcMgr.getPresumedLoc(loc);
-			string curFileName = presumed_loc.getFilename();
+			PresumedLoc presumed_loc	= srcMgr.getPresumedLoc(loc);
+			string curFileName			= presumed_loc.getFilename();
 
 			if (curFileName.empty() || nullptr == srcMgr.getFileEntryForID(prevFileID))
 			{
@@ -106,12 +102,8 @@ namespace cxxcleantool
 				return;
 			}
 
-			m_main->m_parentIDs[prevFileID] = curFileID;
-
-			if (srcMgr.getMainFileID() == curFileID)
-			{
-				m_main->m_topIncludeIDs.push_back(prevFileID);
-			}
+			m_main->AddParent(prevFileID, curFileID);
+			m_main->AddInclude(curFileID, prevFileID);
 		}
 
 		void FileSkipped(const FileEntry &SkippedFile,
@@ -131,7 +123,7 @@ namespace cxxcleantool
 				return;
 			}
 
-			FileID curFileID = m_main->m_srcMgr->getFileID(HashLoc);
+			FileID curFileID = m_main->GetSrcMgr().getFileID(HashLoc);
 			if (!curFileID.isValid())
 			{
 				return;
@@ -139,17 +131,10 @@ namespace cxxcleantool
 
 			SourceRange range(HashLoc, filenameRange.getEnd());
 
-			m_main->m_locToFileName[filenameRange.getAsRange().getBegin()] = file->getName();
-			m_main->m_locToRange[filenameRange.getAsRange().getBegin()] = range;
-
-			if (isAngled)
-			{
-
-			}
-
-			// llvm::outs() << "file relativePath = " << relativePath << "\n";
+			m_main->AddIncludeLoc(filenameRange.getAsRange().getBegin(), range);
 		}
 
+		// 定义宏，如#define DEBUG
 		void Defined(const Token &macroName, const MacroDefinition &md, SourceRange range) override
 		{
 		}
@@ -192,7 +177,7 @@ namespace cxxcleantool
 		ParsingFile *m_main;
 	};
 
-	// 通过实现RecursiveASTVisitor，自定义访问到c++抽象语法树时的操作
+	// 通过实现RecursiveASTVisitor基类，自定义访问c++抽象语法树时的操作
 	class DeclASTVisitor : public RecursiveASTVisitor<DeclASTVisitor>
 	{
 	public:
@@ -776,11 +761,19 @@ namespace cxxcleantool
 		{
 			if (ProjectHistory::instance.m_isFirst)
 			{
-				llvm::errs() << "analyze file: " << Filename << " ...\n";
+				bool only1Step = (!Project::instance.m_isDeepClean || Project::instance.m_onlyHas1File);
+				if (only1Step)
+				{
+					llvm::errs() << "cleaning file: " << Filename << " ...\n";
+				}
+				else
+				{
+					llvm::errs() << "step 1. analyze file: " << Filename << " ...\n";
+				}
 			}
 			else
 			{
-				llvm::errs() << "cleaning file: " << Filename << " ...\n";
+				llvm::errs() << "step 2. cleaning file: " << Filename << " ...\n";
 			}
 
 			return true;
@@ -826,14 +819,11 @@ namespace cxxcleantool
 		{
 			m_rewriter.setSourceMgr(compiler.getSourceManager(), compiler.getLangOpts());
 
-			ParsingFile *mainFile	= new ParsingFile;
-			mainFile->m_rewriter	= &m_rewriter;
-			//mainFile->m_compiler	= &compiler;
+			ParsingFile *parsingCpp	= new ParsingFile(m_rewriter, compiler);
+			parsingCpp->Init();
 
-			mainFile->InitHeaderSearchPath(&compiler.getSourceManager(), compiler.getPreprocessor().getHeaderSearchInfo());
-
-			compiler.getPreprocessor().addPPCallbacks(llvm::make_unique<CxxCleanPreprocessor>(mainFile));
-			return llvm::make_unique<ListDeclASTConsumer>(m_rewriter, mainFile);
+			compiler.getPreprocessor().addPPCallbacks(llvm::make_unique<CxxCleanPreprocessor>(parsingCpp));
+			return llvm::make_unique<ListDeclASTConsumer>(m_rewriter, parsingCpp);
 		}
 
 	private:
@@ -888,66 +878,84 @@ namespace cxxcleantool
 
 using namespace cxxcleantool;
 
-bool AddCleanVsArgument(const Vsproject &vs, ClangTool &tool)
-{
-	if (vs.m_configs.empty())
-	{
-		return false;
-	}
+static cl::opt<string>	g_cleanOption	("clean",			cl::desc("clean <directory(eg. ./hello/)> or <vs 2005 project: ../hello.vcproj> or <visual studio 2005 and upper version: ../hello.vcxproj>\n"), cl::NotHidden);
+static cl::opt<bool>	g_noWriteOption	("no",				cl::desc("means no overwrite, will not overwrite the original c++ file"),	cl::NotHidden);
+static cl::opt<bool>	g_onlyCleanCpp	("onlycpp",			cl::desc("only allow clean cpp"),	cl::NotHidden);
+static cl::opt<bool>	g_printVsConfig	("print-vs",		cl::desc("print vs configuration"),	cl::NotHidden);
+static cl::opt<bool>	g_printProject	("print-project",	cl::desc("print vs configuration"),	cl::NotHidden);
+static cl::opt<bool>	g_helpOption	("h",				cl::desc("alias for -help"),		cl::NotHidden);
+static cl::opt<string>	g_src			("src",				cl::desc("c++ source file"),		cl::NotHidden);
+static cl::opt<int>		g_verbose		("v",				cl::desc("verbose level, can use v 1 ~ v 9, default is v 1"),	cl::NotHidden);
 
-	const VsConfiguration &vsconfig = vs.m_configs[0];
-
-	for (int i = 0, size = vsconfig.searchDirs.size(); i < size; i++)
-	{
-		const std::string &dir	= vsconfig.searchDirs[i];
-		std::string arg			= "-I" + dir;
-
-		ArgumentsAdjuster argAdjuster = getInsertArgumentAdjuster(arg.c_str(), ArgumentInsertPosition::BEGIN);
-		tool.appendArgumentsAdjuster(argAdjuster);
-	}
-
-	for (int i = 0, size = vsconfig.forceIncludes.size(); i < size; i++)
-	{
-		const std::string &force_include	= vsconfig.forceIncludes[i];
-		std::string arg						= "-include" + force_include;
-
-		ArgumentsAdjuster argAdjuster = getInsertArgumentAdjuster(arg.c_str(), ArgumentInsertPosition::BEGIN);
-		tool.appendArgumentsAdjuster(argAdjuster);
-	}
-
-	for (auto predefine : vsconfig.preDefines)
-	{
-		std::string arg = "-D" + predefine;
-
-		ArgumentsAdjuster argAdjuster = getInsertArgumentAdjuster(arg.c_str(), ArgumentInsertPosition::BEGIN);
-		tool.appendArgumentsAdjuster(argAdjuster);
-	}
-
-	tool.appendArgumentsAdjuster(getInsertArgumentAdjuster("-fms-extensions", ArgumentInsertPosition::BEGIN));
-	tool.appendArgumentsAdjuster(getInsertArgumentAdjuster("-fms-compatibility", ArgumentInsertPosition::BEGIN));
-	tool.appendArgumentsAdjuster(getInsertArgumentAdjuster("-fms-compatibility-version=18", ArgumentInsertPosition::BEGIN));
-
-	filetool::cd(vs.m_project_dir.c_str());
-	return true;
-}
-
+// cxx-clean-include命令行参数解析器，参照clang库的CommonOptionParser类实现而成
 class CxxCleanOptionsParser
 {
 public:
-	CxxCleanOptionsParser(int &argc, const char **argv,
-	                      llvm::cl::OptionCategory &Category,
-	                      const char *Overview = nullptr)
-		: CxxCleanOptionsParser(argc, argv, Category, llvm::cl::OneOrMore,
-		                        Overview) {}
+	CxxCleanOptionsParser() {}
 
-	static FixedCompilationDatabase *CxxCleanOptionsParser::loadFromCommandLine
-	(int &Argc, const char *const *Argv, Twine Directory = ".")
+	// 解析选项并将解析结果存入相应的对象，若应中途退出则返回true，否则返回false
+	bool ParseOptions(int &argc, const char **argv, llvm::cl::OptionCategory &category)
 	{
-		const char *const *DoubleDash = std::find(Argv, Argv + Argc, StringRef("--"));
-		if (DoubleDash == Argv + Argc)
+		m_compilation.reset(CxxCleanOptionsParser::SplitCommandLine(argc, argv));
+
+		cl::ParseCommandLineOptions(argc, argv, nullptr);
+
+		// 解析-h选项
+		if (g_helpOption)
+		{
+			cl::PrintHelpMessage();
+			return false;
+		}
+
+		if (!ParseVerboseOption())
+		{
+			return false;
+		}
+
+		if (!ParseSrcOption())
+		{
+			return false;
+		}
+
+		if (!ParseCleanOption())
+		{
+			return false;
+		}
+
+		if (g_printVsConfig)
+		{
+			Vsproject::instance.Print();
+			return false;
+		}
+
+		if (g_printProject)
+		{
+			Project::instance.Print();
+			return false;
+		}
+
+		if (Project::instance.m_cpps.empty())
+		{
+			llvm::errs() << "error: parse command line failed, please check there is c++ file to parse.\n";
+			Project::instance.Print();
+			return 0;
+		}
+
+		return true;
+	}
+
+	// 拆分传入的命令行参数，"--"分隔符前面的命令行参数将被cxx-clean-include解析，后面的命令行参数将被clang库解析
+	// 注意：argc将被更改为"--"分隔符前的参数个数
+	// 例如：
+	//		假设使用cxx-clean-include -clean ./hello/ -- -include log.h
+	//		则-clean ./hello/将被本工具解析，-include log.h将被clang库解析
+	static FixedCompilationDatabase *CxxCleanOptionsParser::SplitCommandLine(int &argc, const char *const *Argv, Twine Directory = ".")
+	{
+		const char *const *DoubleDash = std::find(Argv, Argv + argc, StringRef("--"));
+		if (DoubleDash == Argv + argc)
 			return nullptr;
-		std::vector<const char *> CommandLine(DoubleDash + 1, Argv + Argc);
-		Argc = DoubleDash - Argv;
+		std::vector<const char *> CommandLine(DoubleDash + 1, Argv + argc);
+		argc = DoubleDash - Argv;
 
 		std::vector<std::string> StrippedArgs;
 		StrippedArgs.reserve(CommandLine.size());
@@ -960,83 +968,184 @@ public:
 		return new FixedCompilationDatabase(Directory, StrippedArgs);
 	}
 
-
-	CxxCleanOptionsParser(int &argc, const char **argv,
-	                      llvm::cl::OptionCategory &category,
-	                      llvm::cl::NumOccurrencesFlag occurrencesFlag,
-	                      const char *Overview = nullptr)
+	bool AddCleanVsArgument(const Vsproject &vs, ClangTool &tool)
 	{
-		static cl::opt<bool>		Help("h",			cl::desc("Alias for -help"), cl::NotHidden);
-		static cl::opt<std::string> g_source("src",		cl::desc("c++ source file"), cl::NotHidden);
-
-		// static cl::list<std::string> SourcePaths(
-		//    cl::NormalFormatting, cl::desc("<source0> [... <sourceN>]"), occurrencesFlag,
-		//    cl::cat(category));
-
-		// cl::HideUnrelatedOptions(Category);
-
-		m_compilations.reset(CxxCleanOptionsParser::loadFromCommandLine(argc, argv));
-		cl::ParseCommandLineOptions(argc, argv, Overview);
-
-		std::string src = g_source;
-		if (!src.empty())
+		if (vs.m_configs.empty())
 		{
-			if (filetool::exist(src))
+			return false;
+		}
+
+		const VsConfiguration &vsconfig = vs.m_configs[0];
+
+		for (int i = 0, size = vsconfig.searchDirs.size(); i < size; i++)
+		{
+			const std::string &dir	= vsconfig.searchDirs[i];
+			std::string arg			= "-I" + dir;
+
+			ArgumentsAdjuster argAdjuster = getInsertArgumentAdjuster(arg.c_str(), ArgumentInsertPosition::BEGIN);
+			tool.appendArgumentsAdjuster(argAdjuster);
+		}
+
+		for (int i = 0, size = vsconfig.forceIncludes.size(); i < size; i++)
+		{
+			const std::string &force_include	= vsconfig.forceIncludes[i];
+			std::string arg						= "-include" + force_include;
+
+			ArgumentsAdjuster argAdjuster = getInsertArgumentAdjuster(arg.c_str(), ArgumentInsertPosition::BEGIN);
+			tool.appendArgumentsAdjuster(argAdjuster);
+		}
+
+		for (auto predefine : vsconfig.preDefines)
+		{
+			std::string arg = "-D" + predefine;
+
+			ArgumentsAdjuster argAdjuster = getInsertArgumentAdjuster(arg.c_str(), ArgumentInsertPosition::BEGIN);
+			tool.appendArgumentsAdjuster(argAdjuster);
+		}
+
+		tool.appendArgumentsAdjuster(getInsertArgumentAdjuster("-fms-extensions", ArgumentInsertPosition::BEGIN));
+		tool.appendArgumentsAdjuster(getInsertArgumentAdjuster("-fms-compatibility", ArgumentInsertPosition::BEGIN));
+		tool.appendArgumentsAdjuster(getInsertArgumentAdjuster("-fms-compatibility-version=18", ArgumentInsertPosition::BEGIN));
+
+		pathtool::cd(vs.m_project_dir.c_str());
+		return true;
+	}
+
+	// 解析-src选项
+	bool ParseSrcOption()
+	{
+		std::string src = g_src;
+		if (src.empty())
+		{
+			return true;
+		}
+
+		if (pathtool::exist(src))
+		{
+			m_sourceList.push_back(src);
+		}
+		else
+		{
+			bool ok = pathtool::ls(src, m_sourceList);
+			if (!ok)
 			{
-				m_sourcePathList.push_back(src);
+				llvm::errs() << "error: parse argument -src " << src << " failed, not found the c++ files.\n";
+				return false;
 			}
-			else
+		}
+
+		return true;
+	}
+
+	// 解析-clean选项
+	bool ParseCleanOption()
+	{
+		Vsproject &vs				= Vsproject::instance;
+		Project &project			= Project::instance;
+
+		project.m_isDeepClean		= !g_onlyCleanCpp;
+		project.m_isOverWrite		= !g_noWriteOption;
+		project.m_workingDir		= pathtool::get_current_path();
+		project.m_cpps				= m_sourceList;
+
+		std::string clean_option	= g_cleanOption;
+
+		if (!clean_option.empty())
+		{
+			const string ext = strtool::get_ext(clean_option);
+			if (ext == "vcproj" || ext == "vcxproj")
 			{
-				bool ok = filetool::ls(src, m_sourcePathList);
-				if (!ok)
+				if (!vs.ParseVs(clean_option))
 				{
-					return;
+					llvm::errs() << "parse vs project<" << clean_option << "> failed!\n";
+					return false;
+				}
+
+				llvm::outs() << "parse vs project<" << clean_option << "> succeed!\n";
+
+				vs.TakeSourceListTo(project);
+			}
+			else if (llvm::sys::fs::is_directory(clean_option))
+			{
+				std::string folder = pathtool::get_absolute_path(clean_option.c_str());
+
+				if (!strtool::end_with(folder, "/"))
+				{
+					folder += "/";
+				}
+
+				Project::instance.m_allowCleanDir = folder;
+
+				if (project.m_cpps.empty())
+				{
+					bool ok = pathtool::ls(folder, project.m_cpps);
+					if (!ok)
+					{
+						llvm::errs() << "error: -clean " << folder << " failed!\n";
+						return false;
+					}
 				}
 			}
-		}
-
-		if ((occurrencesFlag == cl::ZeroOrMore || occurrencesFlag == cl::Optional) && m_sourcePathList.empty())
-		{
-			return;
-		}
-
-		if (!m_compilations)
-		{
-			std::string ErrorMessage;
-			if (m_sourcePathList.empty())
-			{
-				m_compilations = CompilationDatabase::autoDetectFromDirectory("./", ErrorMessage);
-			}
 			else
 			{
-				m_compilations = CompilationDatabase::autoDetectFromSource(m_sourcePathList[0], ErrorMessage);
-			}
-			if (!m_compilations)
-			{
-				llvm::errs() << "Error while trying to load a compilation database:\n"
-				             << ErrorMessage << "Running without flags.\n";
-				m_compilations.reset(
-				    new FixedCompilationDatabase(".", std::vector<std::string>()));
+				llvm::errs() << "unsupport parsed <" << clean_option << ">!\n";
+				return false;
 			}
 		}
+		else
+		{
+			project.GenerateAllowCleanList();
+		}
+
+		// 移除非c++后缀的源文件
+		project.Fix();
+
+		if (project.m_cpps.size() == 1)
+		{
+			project.m_onlyHas1File = true;
+		}
+
+		return true;
+	}
+
+	// 解析-v选项
+	bool ParseVerboseOption()
+	{
+		Project::instance.m_verboseLvl = g_verbose;
+
+		if (g_verbose < 0 || g_verbose > VerboseLvl_Max)
+		{
+			return false;
+		}
+
+		if (0 == g_verbose)
+		{
+			Project::instance.m_verboseLvl = 1;
+		}
+
+		return true;
 	}
 
 	/// Returns a reference to the loaded compilations database.
-	CompilationDatabase &getCompilations() {return *m_compilations;}
+	CompilationDatabase &getCompilations() {return *m_compilation;}
 
 	/// Returns a list of source file paths to process.
-	std::vector<std::string>& getSourcePathList() {return m_sourcePathList;}
+	std::vector<std::string>& getSourcePathList() {return m_sourceList;}
 
 	static const char *const HelpMessage;
 
+public:
+	bool									m_exit;
+
 private:
-	std::unique_ptr<CompilationDatabase> m_compilations;
-	std::vector<std::string> m_sourcePathList;
+	std::unique_ptr<CompilationDatabase>	m_compilation;
+	std::vector<std::string>				m_sourceList;
 };
 
 const char *const CxxCleanOptionsParser::HelpMessage =
     "\n"
     "\n";
+
 
 static cl::extrahelp CommonHelp(CxxCleanOptionsParser::HelpMessage);
 static cl::extrahelp MoreHelp(
@@ -1048,17 +1157,11 @@ static cl::extrahelp MoreHelp(
     "\n"
 );
 
-static cl::opt<bool>	g_helpOption	("h1",				cl::desc("Alias for -help"),				cl::NotHidden);
-static cl::opt<string>	g_cleanOption	("clean",			cl::desc("clean <directory(eg. ./hello/)> or <vs 2005 project: ../hello.vcproj> or <visual studio 2005 and upper version: ../hello.vcxproj>\n"), cl::NotHidden);
-static cl::opt<bool>	g_noWriteOption	("no",				cl::desc("means no overwrite, will not overwrite the original c++ file"),	cl::NotHidden);
-static cl::opt<bool>	g_onlyCleanCpp	("onlycpp",			cl::desc("only allow clean cpp"),	cl::NotHidden);
-static cl::opt<bool>	g_printVsConfig	("print-vs",		cl::desc("print vs configuration"),	cl::NotHidden);
-static cl::opt<bool>	g_printProject	("print-project",	cl::desc("print vs configuration"),	cl::NotHidden);
+// static cl::opt<bool>	g_helpOption	("h1",				cl::desc("Alias for -help"),				cl::NotHidden);
 
-static void PrintVersion()
+static void PrintClangVersion()
 {
-	raw_ostream &OS = outs();
-	OS << clang::getClangToolFullVersion("clang-format") << '\n';
+	llvm::outs() << clang::getClangToolFullVersion("cxx-clean-include") << '\n';
 }
 
 int main(int argc, const char **argv)
@@ -1066,109 +1169,19 @@ int main(int argc, const char **argv)
 	llvm::InitializeNativeTarget();
 	llvm::InitializeNativeTargetAsmParser();
 
-	CxxCleanOptionsParser optionParser(argc, argv, cxxcleantool::g_optionCategory);
-	if (g_helpOption)
+	CxxCleanOptionsParser optionParser;
+
+	bool ok = optionParser.ParseOptions(argc, argv, cxxcleantool::g_optionCategory);
+	if (!ok)
 	{
-		cl::PrintHelpMessage();
-	}
-
-	Vsproject &vs		= Vsproject::instance;
-	Project &project	= Project::instance;
-
-	project.m_workingDir = filetool::get_current_path();
-	Project::instance.m_isDeepClean = !g_onlyCleanCpp;
-
-	std::string clean_option = g_cleanOption;
-
-	project.m_cpps = optionParser.getSourcePathList();
-
-	if (!clean_option.empty())
-	{
-		const string ext = strtool::get_ext(clean_option);
-		if (ext == "vcproj" || ext == "vcxproj")
-		{
-			if (!ParseVs(clean_option, vs))
-			{
-				llvm::errs() << "parse vs project<" << clean_option << "> failed!\n";
-				return 0;
-			}
-
-			llvm::outs() << "parse vs project<" << clean_option << "> succeed!\n";
-
-			vs.TakeSourceListTo(project);
-		}
-		else if (llvm::sys::fs::is_directory(clean_option))
-		{
-			std::string folder = ParsingFile::GetAbsoluteFileName(clean_option.c_str());
-
-			if (!strtool::end_with(folder, "/"))
-			{
-				folder += "/";
-			}
-
-			Project::instance.m_allowCleanDir = folder;
-
-			if (project.m_cpps.empty())
-			{
-				bool ok = filetool::ls(folder, project.m_cpps);
-				if (!ok)
-				{
-					llvm::errs() << "error: -clean " << folder << " failed!\n";
-					return 0;
-				}
-			}
-		}
-		else
-		{
-			llvm::errs() << "unsupport parsed <" << clean_option << ">!\n";
-			return 0;
-		}
-	}
-	else
-	{
-		project.GenerateAllowCleanList();
-	}
-
-	project.Fix();
-
-	if (project.m_cpps.size() == 1)
-	{
-		Project::instance.m_onlyHas1File = true;
-	}
-
-
-	if (g_printVsConfig)
-	{
-		vs.Print();
 		return 0;
 	}
 
-	if (g_printProject)
-	{
-		project.Print();
-		return 0;
-	}
-
-	if (project.m_cpps.empty())
-	{
-		llvm::errs() << "error: parse argument failed, please check there is c++ file to parse!\n";
-		project.Print();
-		return 0;
-	}
-
-	ClangTool tool(optionParser.getCompilations(), project.m_cpps);
+	ClangTool tool(optionParser.getCompilations(), Project::instance.m_cpps);
 	tool.clearArgumentsAdjusters();
 	tool.appendArgumentsAdjuster(getClangSyntaxOnlyAdjuster());
 
-	if (!clean_option.empty())
-	{
-		AddCleanVsArgument(vs, tool);
-	}
-
-	//std::vector<CompileCommand> allCompileArgs = getAllCompileCommands();
-
-
-	cxxcleantool::ParsingFile::m_isOverWriteOption = !g_noWriteOption;
+	optionParser.AddCleanVsArgument(Vsproject::instance, tool);
 
 	tool.appendArgumentsAdjuster(getInsertArgumentAdjuster("-fcxx-exceptions",			ArgumentInsertPosition::BEGIN));
 	tool.appendArgumentsAdjuster(getInsertArgumentAdjuster("-Winvalid-source-encoding", ArgumentInsertPosition::BEGIN));

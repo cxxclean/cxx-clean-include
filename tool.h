@@ -16,6 +16,18 @@ using namespace std;
 
 namespace strtool
 {
+	// 是否为空白字符
+	inline bool is_blank(char c)
+	{
+		return (c == ' ' || c == '\t');
+	}
+
+	// 是否为斜杠符号：\或/
+	inline bool is_slash(char c)
+	{
+		return (c == '\\' || c == '/');
+	}
+
 	std::string itoa(int n);
 
 	// 替换字符串，传入的字符串将被修改
@@ -79,7 +91,7 @@ namespace strtool
 
 	// 是否包含指定字符串
 	inline bool contain(const std::string &text, const char *x)
-	{		
+	{
 		return text.find(x) != std::string::npos;
 	}
 
@@ -110,20 +122,48 @@ namespace strtool
 
 using namespace strtool;
 
-
-namespace filetool
+namespace pathtool
 {
-	inline bool is_slash(char c)
-	{
-		return (c == '\\' || c == '/');
-	}
+	// 将路径转成linux路径格式：将路径中的每个'\'字符均替换为'/'
+	string to_linux_path(const char *path);
 
-	// 令path_1为当前路径，返回path_2的相对路径
+	// 强制将路径以/结尾，将路径中的每个'\'字符均替换为'/'
+	string fix_path(const string& path);
+
+	// 简化路径
+	// 例如：d:/a/b/c/../../d/ -> d:/d/
+	std::string simplify_path(const char* path);
+
+	/*
+		令path_1为当前路径，返回path_2的相对路径
+		例如：
+			get_relative_path("d:/a/b/c/hello1.cpp", "d:/a/b/c/d/e/f/g/hello2.cpp") = d/e/f/g/hello2.cpp
+			get_relative_path("d:/a/b/c/d/e/f/g/hello2.cpp", "d:/a/b/c/hello1.cpp") = ../../../../hello1.cpp
+
+	*/
 	std::string get_relative_path(const char *path_1, const char *path_2);
+
+	/*
+		返回简化后的绝对路径，若传入相对路径，则结果 = 简化（当前路径 + 相对路径），若传入绝对路径，结果 = 简化后的绝对路径
+		例如：
+			假设当前路径为：d:/a/b/c/
+			get_absolute_path("../../d/e/hello2.cpp") = "d:/a/b/d/e/hello2.cpp"
+			get_absolute_path("d:/a/b/c/../../d/") = "d:/a/d/"
+
+	*/
+	string get_absolute_path(const char *path);
+
+	/*
+		返回简化后的绝对路径，结果 = 简化（基础路径 + 相对路径）
+		例如：
+			get_absolute_path("d:/a/b/c/", "../../d/") = "d:/a/d/"
+	*/
+	string get_absolute_path(const char *base_path, const char* relative_path);
 
 	// 返回当前路径
 	std::string get_current_path();
 
+	// 改变当前文件夹
 	bool cd(const char *path);
 
 	// 指定路径是否存在
@@ -155,12 +195,14 @@ namespace filetool
 
 namespace cpptool
 {
+	// 是否是c++头文件后缀
 	inline bool is_header(const std::string &ext)
 	{
 		// c++头文件的后缀：h、hpp、hh
 		return (ext == "h" || ext == "hpp" || ext == "hh");
 	}
 
+	// 是否是c++源文件后缀
 	inline bool is_cpp(const std::string &ext)
 	{
 		// c++源文件的后缀：c、cc、cpp、c++、cxx、m、mm

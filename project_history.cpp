@@ -16,7 +16,7 @@ namespace cxxcleantool
 {
 	ProjectHistory ProjectHistory::instance;
 
-	void ProjectHistory::Print()
+	void ProjectHistory::Print() const
 	{
 		if (m_files.empty())
 		{
@@ -24,7 +24,7 @@ namespace cxxcleantool
 		}
 
 		llvm::outs() << "\n\n////////////////////////////////////////////////////////////////\n";
-		llvm::outs() << "[whole project]";
+		llvm::outs() << "[project summary: cpp file count = " << Project::instance.m_cpps.size() << ", all c++ file count = " << m_files.size() << "]";
 		llvm::outs() << "\n////////////////////////////////////////////////////////////////\n";
 
 		PrintUnusedLine();
@@ -38,7 +38,7 @@ namespace cxxcleantool
 		newFile->MergeTo(m_files);
 	}
 
-	void ProjectHistory::PrintUnusedLine()
+	void ProjectHistory::PrintUnusedLine() const
 	{
 		if (m_files.empty())
 		{
@@ -58,7 +58,7 @@ namespace cxxcleantool
 		ParsingFile::PrintUnusedIncludeOfFiles(m_files);
 	}
 
-	void ProjectHistory::PrintCanForwarddeclClass()
+	void ProjectHistory::PrintCanForwarddeclClass() const
 	{
 		if (m_files.empty())
 		{
@@ -78,7 +78,7 @@ namespace cxxcleantool
 		ParsingFile::PrintCanForwarddeclOfFiles(m_files);
 	}
 
-	void ProjectHistory::PrintReplace()
+	void ProjectHistory::PrintReplace() const
 	{
 		if (m_files.empty())
 		{
@@ -99,7 +99,7 @@ namespace cxxcleantool
 	}
 
 	// 打印文件被使用次数（未完善）
-	void ProjectHistory::PrintCount()
+	void ProjectHistory::PrintCount() const
 	{
 		if (m_files.empty())
 		{
