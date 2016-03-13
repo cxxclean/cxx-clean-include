@@ -27,9 +27,15 @@ void test_b() { printf(""); }     // 函数printf来自于stdio.h
 C c;                              // 类C来自于c.h
 ```
 
-其中，hello.cpp仅使用到a.h、b.h、d.h的内容，经过分析，hello.cpp仅使用了a.h中类A的指针，仅使用b.h所包含的stdio.h
+cxx-clean-include将对hello.cpp文件进行分析：
 
-使用cxx-clean-include对hello.cpp进行清理后，hello.cpp将变为
+~ 1. 首先，由于hello.cpp仅使用到a.h、b.h、d.h的内容，因此，可移除#include "d.h"语句
+
+~ 2. 其次，经过分析，hello.cpp仅使用了a.h中类A的指针，因此，可新增前置声明class A，并移除#include "a.h"语句
+
+~ 3. 最后，hello.cpp虽然包含了b.h，却仅使用到b.h所包含的stdio.h文件，因此，可将#include "b.h"语句替换为#include <stdio.h>
+
+于是，在使用cxx-clean-include对hello.cpp进行清理后，hello.cpp将变为
 
 ```cpp
 class A;
@@ -41,7 +47,7 @@ void test_b() { printf(""); }     // 函数printf来自于stdio.h
 C c;                              // 类C来自于c.h
 ```
 
-可以看出hello.cpp第1行和第2行均被替换为更合适的语句。第4行则被移除
+可以看出，hello.cpp第1行和第2行均被替换为更合适的语句。第4行则被移除
 
 ## 下载cxx-clean-include
 
