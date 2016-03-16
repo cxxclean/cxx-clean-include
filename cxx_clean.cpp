@@ -880,8 +880,9 @@ namespace cxxcleantool
 using namespace cxxcleantool;
 
 static cl::opt<string>	g_cleanOption	("clean",
-        cl::desc("1. clean directory, for example: -clean ../hello/\n"
-                 "2. clean visual studio project(version 2005 or upper): for example: -clean ./hello.vcproj or -clean ./hello.vcxproj\n"),
+        cl::desc("you can use this option to:\n"
+                 "    1. clean directory, for example: -clean ../hello/\n"
+                 "    2. clean visual studio project(version 2005 or upper): for example: -clean ./hello.vcproj or -clean ./hello.vcxproj\n"),
         cl::cat(g_optionCategory));
 
 static cl::opt<string>	g_src			("src",
@@ -953,8 +954,7 @@ public:
 
 		if (Project::instance.m_cpps.empty())
 		{
-			llvm::errs() << "error: parse command line failed, please check there is c++ file to parse.\n";
-			Project::instance.Print();
+			llvm::errs() << "cxx-clean-include: \n    try use -help argument to see more information.\n";
 			return 0;
 		}
 
@@ -1169,7 +1169,6 @@ static cl::extrahelp MoreHelp(
     "\n    there are 2 ways to use cxx-clean-include"
     "\n"
     "\n    1. if your project is msvc project(visual studio 2005 and upper)"
-    "\n"
     "\n        if you want to clean the whole vs project: you can use:"
     "\n            cxxclean -clean hello.vcproj -src hello.cpp"
     "\n"
@@ -1177,7 +1176,6 @@ static cl::extrahelp MoreHelp(
     "\n            cxxclean -clean hello.vcproj -src hello.cpp"
     "\n"
     "\n    2. if all your c++ file is in a directory\n"
-    "\n"
     "\n        if you wan to clean all c++ file in the directory, you can use:"
     "\n            cxxclean -clean ./hello"
     "\n"
