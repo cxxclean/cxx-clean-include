@@ -23,8 +23,16 @@ namespace cxxcleantool
 			return;
 		}
 
+		int canCleanFileCount = 0;
+
+		for (auto itr : m_files)
+		{
+			const FileHistory &fileHistory = itr.second;
+			canCleanFileCount += (fileHistory.IsNeedClean() ? 1 : 0);
+		}
+
 		llvm::outs() << "\n\n////////////////////////////////////////////////////////////////\n";
-		llvm::outs() << "[project summary: cpp file count = " << Project::instance.m_cpps.size() << ", all c++ file count = " << m_files.size() << "]";
+		llvm::outs() << "[project summary: cpp file count = " << Project::instance.m_cpps.size() << ", can cleaned c++ file count = " << canCleanFileCount << "]";
 		llvm::outs() << "\n////////////////////////////////////////////////////////////////\n";
 
 		PrintUnusedLine();

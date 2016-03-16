@@ -958,6 +958,7 @@ public:
 			return 0;
 		}
 
+		Project::instance.Print();
 		return true;
 	}
 

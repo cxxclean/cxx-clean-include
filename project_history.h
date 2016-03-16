@@ -65,6 +65,11 @@ namespace cxxcleantool
 		{
 		}
 
+		bool IsNeedClean() const
+		{
+			return !m_unusedLines.empty() || !m_replaces.empty() || !m_forwards.empty();
+		}
+
 		bool IsLineUnused(int line) const
 		{
 			return m_unusedLines.find(line) != m_unusedLines.end();

@@ -19,17 +19,17 @@ Project Project::instance;
 void Project::Print() const
 {
 	llvm::outs() << "\n////////////////////////////////\n";
-	llvm::outs() << "print project \n";
+	llvm::outs() << "allow clean c++ files and c++ source list \n";
 	llvm::outs() << "////////////////////////////////\n";
 
 	// 允许清理的c++文件列表
 	if (!m_allowCleanList.empty())
 	{
 		llvm::outs() << "\n";
-		llvm::outs() << "allow clean file in project:\n";
+		llvm::outs() << "    allow clean file in project:\n";
 		for (const string &file : m_allowCleanList)
 		{
-			llvm::outs() << "    file = " << file << "\n";
+			llvm::outs() << "        file = " << file << "\n";
 		}
 	}
 
@@ -37,17 +37,17 @@ void Project::Print() const
 	if (!m_allowCleanDir.empty())
 	{
 		llvm::outs() << "\n";
-		llvm::outs() << "allow clean directory = " << m_allowCleanDir << "\n";
+		llvm::outs() << "    allow clean directory = " << m_allowCleanDir << "\n";
 	}
 
 	// 待清理的c++源文件列表
 	if (!m_cpps.empty())
 	{
 		llvm::outs() << "\n";
-		llvm::outs() << "source list in project:\n";
+		llvm::outs() << "    source list in project:\n";
 		for (const string &file : m_cpps)
 		{
-			llvm::outs() << "    file = " << file << "\n";
+			llvm::outs() << "        file = " << file << "\n";
 		}
 	}
 }
