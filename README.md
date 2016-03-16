@@ -1,11 +1,9 @@
-cxx-clean-include
+cxx-clean-include说明
 =====
 
 cxx-clean-include是一个用于清理c++文件中多余#include的工具，既支持对visual studio 2005及以上版本的c++项目进行清理，也支持对单个文件夹下（含子文件夹）的c++源文件进行清理。
 
 同时，由于cxx-clean-include基于llvm+clang库编写而成，依托于clang库对现有编译器的兼容，所以本项目也支持msvc、gcc/g++的语法，并完整支持c++11标准。
-
-本项目在windows和linux系统下均可进行编译，但仅提供windows下的32位编译文件，如果想在linux系统下使用cxx-clean-include，则需要参考clang插件的编译方法，对本项目重新进行编译。
 
 cxx-clean-include可以做到
 
@@ -51,9 +49,9 @@ C c;                              // 类C来自于c.h
 
 ## 下载cxx-clean-include
 
-本项目中已上传了cxx-clean-include在windows下的32位编译版本，下载项目中的cxxclean.rar压缩文件并解压，将得到可执行文件cxxclean.exe，在命令行中输入cxxclean -help可获取详细的命令行参数信息
+本项目中已上传了cxx-clean-include在windows下的32位可执行文件，下载项目中的cxxclean.rar压缩文件并解压，将得到可执行文件cxxclean.exe，在命令行中输入cxxclean -help获取详细的命令行参数信息
 
-（linux下后续仅会提供CentOs下的编译文件）
+注意：本项目在windows和linux系统下均可进行编译，具体编译过程可参考clang插件的编译方法。
 
 ## cxx-clean-include的使用方法
 
