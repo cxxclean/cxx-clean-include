@@ -18,6 +18,7 @@
 #include "clang/Lex/HeaderSearch.h"
 #include "clang/Rewrite/Core/Rewriter.h"
 #include "llvm/Support/TargetSelect.h"
+#include "llvm/Support/Signals.h"
 #include "clang/Basic/Version.h"
 
 #include "tool.h"
@@ -38,7 +39,7 @@ using namespace llvm::sys::fs;
 
 namespace cxxcleantool
 {
-	static llvm::cl::OptionCategory g_optionCategory("List Decl");
+	static llvm::cl::OptionCategory g_optionCategory("cxx-clean-include category");
 
 	// 预处理器，当#define、#if、#else等预处理关键字被预处理时使用本预处理器
 	class CxxCleanPreprocessor : public PPCallbacks
@@ -878,14 +879,37 @@ namespace cxxcleantool
 
 using namespace cxxcleantool;
 
-static cl::opt<string>	g_cleanOption	("clean",			cl::desc("clean <directory(eg. ./hello/)> or <vs 2005 project: ../hello.vcproj> or <visual studio 2005 and upper version: ../hello.vcxproj>\n"), cl::NotHidden);
-static cl::opt<bool>	g_noWriteOption	("no",				cl::desc("means no overwrite, will not overwrite the original c++ file"),	cl::NotHidden);
-static cl::opt<bool>	g_onlyCleanCpp	("onlycpp",			cl::desc("only allow clean cpp"),	cl::NotHidden);
-static cl::opt<bool>	g_printVsConfig	("print-vs",		cl::desc("print vs configuration"),	cl::NotHidden);
-static cl::opt<bool>	g_printProject	("print-project",	cl::desc("print vs configuration"),	cl::NotHidden);
-static cl::opt<bool>	g_helpOption	("h",				cl::desc("alias for -help"),		cl::NotHidden);
-static cl::opt<string>	g_src			("src",				cl::desc("c++ source file"),		cl::NotHidden);
-static cl::opt<int>		g_verbose		("v",				cl::desc("verbose level, can use v 1 ~ v 9, default is v 1"),	cl::NotHidden);
+static cl::opt<string>	g_cleanOption	("clean",
+        cl::desc("1. clean directory, for example: -clean ../hello/\n"
+                 "2. clean visual studio project(version 2005 or upper): for example: -clean ./hello.vcproj or -clean ./hello.vcxproj\n"),
+        cl::cat(g_optionCategory));
+
+static cl::opt<string>	g_src			("src",
+        cl::desc("target c++ source file to be cleaned, must have valid path, if this option was valued, only the target c++ file will be cleaned\n"
+                 "this option can be used with -clean option, for example, you can use: \n"
+                 "    cxxclean -clean hello.vcproj -src ./hello.cpp\n"
+                 "it will clean hello.cpp and using hello.vcproj configuration"),
+        cl::cat(g_optionCategory));
+
+static cl::opt<bool>	g_noWriteOption	("no",
+        cl::desc("means no overwrite, if this option is checked, all of the c++ file will not be changed"),
+        cl::cat(g_optionCategory));
+
+static cl::opt<bool>	g_onlyCleanCpp	("onlycpp",
+        cl::desc("only allow clean cpp file(cpp, cc, cxx), don't clean the header file(h, hxx, hh)"),
+        cl::cat(g_optionCategory));
+
+static cl::opt<bool>	g_printVsConfig	("print-vs",
+        cl::desc("print vs configuration, for example, print header search path, print c++ file list, print predefine macro and so on"),
+        cl::cat(g_optionCategory));
+
+static cl::opt<bool>	g_printProject	("print-project",
+        cl::desc("print project configuration, for example, print c++ source list to be cleaned, print allowed clean directory or allowed clean c++ file list, and so on"),
+        cl::cat(g_optionCategory));
+
+static cl::opt<int>		g_verbose		("v",
+        cl::desc("verbose level, level can be 1 ~ 5, default is 1, higher level will print more detail"),
+        cl::NotHidden);
 
 // cxx-clean-include命令行参数解析器，参照clang库的CommonOptionParser类实现而成
 class CxxCleanOptionsParser
@@ -899,13 +923,6 @@ public:
 		m_compilation.reset(CxxCleanOptionsParser::SplitCommandLine(argc, argv));
 
 		cl::ParseCommandLineOptions(argc, argv, nullptr);
-
-		// 解析-h选项
-		if (g_helpOption)
-		{
-			cl::PrintHelpMessage();
-			return false;
-		}
 
 		if (!ParseVerboseOption())
 		{
@@ -949,23 +966,26 @@ public:
 	// 例如：
 	//		假设使用cxx-clean-include -clean ./hello/ -- -include log.h
 	//		则-clean ./hello/将被本工具解析，-include log.h将被clang库解析
-	static FixedCompilationDatabase *CxxCleanOptionsParser::SplitCommandLine(int &argc, const char *const *Argv, Twine Directory = ".")
+	static FixedCompilationDatabase *CxxCleanOptionsParser::SplitCommandLine(int &argc, const char *const *argv, Twine directory = ".")
 	{
-		const char *const *DoubleDash = std::find(Argv, Argv + argc, StringRef("--"));
-		if (DoubleDash == Argv + argc)
-			return nullptr;
-		std::vector<const char *> CommandLine(DoubleDash + 1, Argv + argc);
-		argc = DoubleDash - Argv;
-
-		std::vector<std::string> StrippedArgs;
-		StrippedArgs.reserve(CommandLine.size());
-
-		for (const char * arg : CommandLine)
+		const char *const *doubleDash = std::find(argv, argv + argc, StringRef("--"));
+		if (doubleDash == argv + argc)
 		{
-			StrippedArgs.push_back(arg);
+			return new FixedCompilationDatabase(directory, std::vector<std::string>());
 		}
 
-		return new FixedCompilationDatabase(Directory, StrippedArgs);
+		std::vector<const char *> commandLine(doubleDash + 1, argv + argc);
+		argc = doubleDash - argv;
+
+		std::vector<std::string> strippedArgs;
+		strippedArgs.reserve(commandLine.size());
+
+		for (const char * arg : commandLine)
+		{
+			strippedArgs.push_back(arg);
+		}
+
+		return new FixedCompilationDatabase(directory, strippedArgs);
 	}
 
 	bool AddCleanVsArgument(const Vsproject &vs, ClangTool &tool)
@@ -1142,32 +1162,44 @@ private:
 	std::vector<std::string>				m_sourceList;
 };
 
-const char *const CxxCleanOptionsParser::HelpMessage =
-    "\n"
-    "\n";
-
-
-static cl::extrahelp CommonHelp(CxxCleanOptionsParser::HelpMessage);
 static cl::extrahelp MoreHelp(
-    "Example Usage:\n"
     "\n"
-    "\tmsvc project, use:\n"
+    "\nExample Usage:"
     "\n"
-    "\t  ./cxxclean -clean hello.vcproj -src hello.cpp\n"
+    "\n    there are 2 ways to use cxx-clean-include"
     "\n"
+    "\n    1. if your project is msvc project(visual studio 2005 and upper)"
+    "\n"
+    "\n        if you want to clean the whole vs project: you can use:"
+    "\n            cxxclean -clean hello.vcproj -src hello.cpp"
+    "\n"
+    "\n        if your only want to clean a single c++ file, and use the vs configuration, you can use:"
+    "\n            cxxclean -clean hello.vcproj -src hello.cpp"
+    "\n"
+    "\n    2. if all your c++ file is in a directory\n"
+    "\n"
+    "\n        if you wan to clean all c++ file in the directory, you can use:"
+    "\n            cxxclean -clean ./hello"
+    "\n"
+    "\n        if your only want to clean a single c++ file, you can use:"
+    "\n            cxxclean -clean ./hello -src hello.cpp"
 );
 
-// static cl::opt<bool>	g_helpOption	("h1",				cl::desc("Alias for -help"),				cl::NotHidden);
-
-static void PrintClangVersion()
+static void PrintVersion()
 {
-	llvm::outs() << clang::getClangToolFullVersion("cxx-clean-include") << '\n';
+	llvm::outs() << "cxx-clean-include version is 1.0\n";
+	llvm::outs() << clang::getClangToolFullVersion("clang lib which cxx-clean-include using is") << '\n';
 }
 
 int main(int argc, const char **argv)
 {
+	llvm::sys::PrintStackTraceOnErrorSignal();
+	cl::HideUnrelatedOptions(g_optionCategory);	// 使用-help选项时，仅打印cxx-clean-include工具的选项
+
 	llvm::InitializeNativeTarget();
-	llvm::InitializeNativeTargetAsmParser();
+	llvm::InitializeNativeTargetAsmParser();	// 支持解析asm
+
+	cl::SetVersionPrinter(PrintVersion);
 
 	CxxCleanOptionsParser optionParser;
 
