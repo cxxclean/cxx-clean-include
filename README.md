@@ -31,7 +31,7 @@ cxx-clean-include将对hello.cpp文件进行分析：
 
 ~ 2. 其次，经过分析，hello.cpp仅使用了a.h中类A的指针，因此，可新增前置声明class A，并移除#include "a.h"语句
 
-~ 3. 最后，hello.cpp虽然包含了b.h，却仅使用到b.h所包含的stdio.h文件，因此，可将#include "b.h"语句替换为#include <stdio.h>
+~ 3. 最后，hello.cpp虽然包含了b.h，却仅使用到b.h所包含的stdio.h文件，因此，可将#include "b.h"语句替换为`#include <stdio.h>`
 
 于是，在使用cxx-clean-include对hello.cpp进行清理后，hello.cpp将变为
 
