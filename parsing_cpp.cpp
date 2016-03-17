@@ -153,11 +153,6 @@ namespace cxxcleantool
 	*/
 	void ParsingFile::GenerateRootCycleUse()
 	{
-		if (m_uses.empty())
-		{
-			return;
-		}
-
 		FileID mainFileID = m_srcMgr->getMainFileID();
 
 		GetCycleUseFile(mainFileID, m_rootCycleUse);

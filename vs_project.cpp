@@ -16,11 +16,48 @@
 #include "parsing_cpp.h"
 #include "rapidxml_utils.hpp"
 
+namespace vstool
+{
+	// 取出vs2005项目配置中，单个xml结点下的所有文件列表
+	void TakeVs2005NodeFiles(rapidxml::xml_node<char> *files_node, Vsproject &vs2005)
+	{
+		// 1. 依次取出File子结点文件
+		for (rapidxml::xml_node<char> *file_node = files_node->first_node("File"); file_node != NULL; file_node = file_node->next_sibling("File"))
+		{
+			rapidxml::xml_attribute<char> *file_attr = file_node->first_attribute("RelativePath");
+			if (nullptr == file_attr)
+			{
+				continue;
+			}
+
+			string file(file_attr->value());
+			string ext = strtool::get_ext(file);
+
+			// c++头文件的后缀：h、hpp、hh
+			if (cpptool::is_header(ext))
+			{
+				vs2005.m_headers.push_back(file);
+			}
+			// c++源文件的后缀：c、cc、cpp、c++、cxx、m、mm
+			else if (cpptool::is_cpp(ext))
+			{
+				vs2005.m_cpps.push_back(file);
+			}
+		}
+
+		// 2. 依次找到Filter子结点文件夹，递归获取其子文件列表
+		for (rapidxml::xml_node<char> *filter_node = files_node->first_node("Filter"); filter_node != NULL; filter_node = filter_node->next_sibling("Filter"))
+		{
+			TakeVs2005NodeFiles(filter_node, vs2005);
+		}
+	}
+}
+
 Vsproject Vsproject::instance;
 
 void VsConfiguration::Fix()
 {
-	// 删除以下格式的选项：$(NOINHERIT)(vs2005格式)、%(AdditionalIncludeDirectories)(vs2008及以上版本格式)
+	// 删除类似以下格式的选项：$(NOINHERIT)(vs2005格式)、%(AdditionalIncludeDirectories)(vs2008及以上版本格式)
 	{
 		if (!searchDirs.empty())
 		{
@@ -215,31 +252,7 @@ bool Vsproject::ParseVs2005(const char* vcproj, Vsproject &vs2005)
 	}
 
 	// 解析工程内成员文件
-	for(rapidxml::xml_node<char> *filter_node = files_node->first_node("Filter"); filter_node != NULL; filter_node = filter_node->next_sibling("Filter"))
-	{
-		for(rapidxml::xml_node<char> *file_node = filter_node->first_node("File"); file_node != NULL; file_node = file_node->next_sibling("File"))
-		{
-			rapidxml::xml_attribute<char> *file_attr = file_node->first_attribute("RelativePath");
-			if (nullptr == file_attr)
-			{
-				continue;
-			}
-
-			string file(file_attr->value());
-			string ext = strtool::get_ext(file);
-
-			// c++头文件的后缀：h、hpp、hh
-			if (cpptool::is_header(ext))
-			{
-				vs2005.m_headers.push_back(file);
-			}
-			// c++源文件的后缀：c、cc、cpp、c++、cxx、m、mm
-			else
-			{
-				vs2005.m_cpps.push_back(file);
-			}
-		}
-	}
+	vstool::TakeVs2005NodeFiles(files_node, vs2005);
 
 	for(rapidxml::xml_node<char> *node = configs_node->first_node("Configuration"); node != NULL; node = node->next_sibling("Configuration"))
 	{
