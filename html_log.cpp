@@ -23,10 +23,146 @@ const char* g_beginHtml = R"--(
                 font: 12px/1.5 tahoma, arial, "ËÎÌו"!important;
             }
             #main{top:50px;left:0px;right:0px;width:80%;z-index:1;position:absolute;MARGIN-RIGHT:auto;MARGIN-LEFT:auto;}
+
+			body,div,dl,dt,dd,ul,ol,li,h1,h2,h3,h4,h5,h6,pre,code,form,textarea,select,optgroup,option,fieldset,legend,p,blockquote,th,td {
+				margin: 0;
+				padding: 0
+			}
+
+			body {
+				background: #fff
+			}
+
+			ul,li,ol {
+				list-style: none
+			}
+
+			h1 {
+				font-size: 3.0em;
+				font-weight: bold;
+				color: #0c3762;
+				border-bottom: dotted #e0e0e0;
+				margin-bottom: 20px;
+				margin-top: 50px;
+			}
+
+			table {
+				border-collapse: collapse;
+				border-spacing: 0
+			}
+
+			body,button,input,select,textarea {
+				font: 12px/1.5 "Microsoft YaHei",arial,SimSun,"ËÎÌו";
+				color: #000
+			}
+
+			a {
+				color: #06c;
+				text-decoration: none;
+				outline: 0
+			}
+
+			a:hover,a:active,a:focus {
+				color: #06c;
+				text-decoration: underline
+			}
+
+			.include-text {
+				color: #743481;
+				font-weight: bold;
+			}
+
+			.number-text {
+				color: #FF6C00;
+				font-weight: bold;
+			}
+
+			.box {
+				margin-top: 30px;	
+				margin-bottom: 150px;
+				padding: 5px 5px;
+				border: 3px solid #cce1ef;
+				border-radius: 15px;
+				background: #eff6fA;
+				box-shadow: 1px 1px 0 rgba(255,255,255,.5) inset,5px 5px 0px rgba(0,0,0,.2);
+			}
+
+			.title {
+				position: relative;
+				z-index: 1;
+				height: 43px;
+				background: #f7f7f7	
+			}
+
+			.title ul {
+				box-shadow: 1px 1px 0 rgba(255,255,255,.2) inset,3px 3px 0 rgba(0,0,0,.2);    
+				border: 1px solid #0D6EB8;    
+				background: #f7f7f7;
+				border-radius: 2px;
+				border: 2px solid #d2d2d2;
+				color: #FF4C00;
+				height: 41px;
+				line-height: 41px;
+				overflow: hidden;
+				font-weight: bold;
+				font-size: 1.7em;
+				border-radius: 10px;
+			}
+
+			.title .col {
+				float: left;
+				border-left: 2px solid #fff;
+				border-right: 2px solid #e5e5e5;
+				cursor: pointer;
+				text-indent: 10px
+			}
+
+			.title .col:hover {
+				background: #e8f5fd
+			}
+
+			.chart {
+				position: relative;
+				overflow: hidden;
+				*margin-left: -40px;
+				margin-top: 8px;
+				border-radius: 10px;
+			}
+
+			.chart .row {
+				position: relative;
+				height: 28px;
+				line-height: 28px;
+				border-bottom: 1px solid #ebebeb;
+				white-space: nowrap;
+				text-overflow: ellipsis;
+				background: #FFF
+			}
+
+			.chart .row:hover {
+				background: #DDD;
+			}
+
+			.chart .row .grid {
+				position: relative;
+				float: left;
+				white-space: nowrap;
+				overflow: hidden
+				text-indent: 60px;
+				text-overflow: ellipsis;
+			}
+
+			.chart .row .grid a {
+				cursor: default;
+				text-decoration: none
+			}
+
+			.chart .row .grid a:hover,.chart .row .grid a:active {
+				cursor: pointer;
+				text-decoration: underline
+			}
         </style>
-        <link rel="stylesheet" type="text/css" href="1.css"/>
     </head>
-    
     <body>
         <div id="main">
 )--";
