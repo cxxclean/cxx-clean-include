@@ -55,29 +55,31 @@ C c;                              // 类C来自于c.h
 
 ## cxx-clean-include的使用方法
 
-cxx-clean-include目前支持清理visual studio项目（vs2005及以上版本），同时支持清理指定文件夹下的c++文件，
+使用前，请确保已安装visual studio 2013的32位运行时组件，如未安装，可到官网地址：https://www.microsoft.com/zh-cn/download/details.aspx?id=40784 ，下载其中的vcredist_x86.exe并运行安装
+
+cxx-clean-include目前支持清理visual studio项目（vs2005及以上版本），同时支持清理指定文件夹下的c++文件，同时输出结果是html格式，方便查看
 
 * 1. 对于visual studio项目，可以使用以下命令：
 
 ```cpp
 cxxclean -clean vs项目名称
 
-// 比如：cxxclean -clean d:/vs2005/hello.vcproj
+// 比如：cxxclean -clean d:/vs2005/hello.vcproj > cxxclean_hello.html
 // vs项目名称最好是绝对路径，如: d:/vs2005/hello.vcproj、d:/vs2008/hello.vcxproj
 ```
 
-该命令将清理整个vs项目内的c++文件
+该命令将清理整个vs项目内的c++文件，同时日志存入cxxclean_hello.html
 
 * 2. 对于单个文件夹，可以使用以下命令
 
 ```cpp
 cxxclean -clean 文件夹路径
 
-// 比如：cxxclean -clean d:/a/b/hello/
+// 比如：cxxclean -clean d:/a/b/hello/ > cxxclean_hello.html
 // 文件夹路径最好是绝对路径，如: d:/a/b/hello/、/home/proj/hello/
 ```
 
-该命令将清理该文件夹内的c++文件
+该命令将清理该文件夹内的c++文件，同时日志存入cxxclean_hello.html
 
 但很多情况下需要指定更详细的编译条件，如指定头文件路径、预定义宏等，clang库已内置提供了相应的命令行参数供使用，可使用如下方式（注意添加--号）：
 
@@ -92,8 +94,8 @@ cxxclean -clean 文件夹路径 -- -I 头文件搜索路径 -D 需要预定义�
 
 如果想把屏幕输出重定向到某个文件，可以使用重定向符号>（windows及linux均可采用此方法）
 ```
-cxxclean -clean d:/vs2005/hello.vcproj > cxxclean_hello.log
-// 屏幕打印将被存入当前文件夹下的cxxclean_hello.log文件
+cxxclean -clean d:/vs2005/hello.vcproj > cxxclean_hello.html
+// 屏幕打印将被存入当前文件夹下的cxxclean_hello.html文件
 ```
 ## 示例工程
 
@@ -102,10 +104,10 @@ cxxclean -clean d:/vs2005/hello.vcproj > cxxclean_hello.log
 使用方式：下载hello文件夹，在命令行中执行以下命令
 
 ```
-cxxclean -clean hello.vcxproj > cxxclean_hello.log
+cxxclean -clean hello.vcxproj > cxxclean_hello.html
 ```
 
-打开cxxclean_hello.log查看执行后的清理效果
+用浏览器打开cxxclean_hello.html查看执行后的清理效果
 
 ## 注意事项
 

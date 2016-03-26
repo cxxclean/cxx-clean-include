@@ -1,10 +1,13 @@
+#define _CRT_SECURE_NO_WARNINGS
 #include <sstream>
 #include <fstream>
 #include <sys/stat.h>
 #include <io.h>
+#include <time.h>						// ²âÊÔlocaltimeÎ´³É¹¦ÒıÓÃµÄÇé¿ö
 
 
 #include <windows.h>
+#include <math.h>
 
 #include <stdio.h>
 #include <stdio.h>
@@ -17,18 +20,18 @@
 #include <stdio.h>
 #include <stdio.h>
 #include <stdio.h>
-#include "a_func.h"						// ²âÊÔ×¢ÊÍ:a_func.h
-#include "b_class.h"					// ²âÊÔ×¢ÊÍ:b_class.h
-#include "c_macro.h"					// ²âÊÔ×¢ÊÍ:c_macro.h
-#include "d_template.h"					// ²âÊÔ×¢ÊÍ:d_template.h
-#include "e_typedef.h"					// ²âÊÔ×¢ÊÍ:e_typedef.h
-#include "f_forwarddecl.h"				// ²âÊÔ×¢ÊÍ:f_forwarddecl.h
-#include "g_default_arg.h"				// ²âÊÔ×¢ÊÍ:g_default_arg.h
-#include "h_use_forwarddecl.h"			// ²âÊÔ×¢ÊÍ:h_use_forwarddecl.h
-#include "i_deeply_include.h"			// ²âÊÔ×¢ÊÍ:i_deeply_include.h
-#include "j_enumeration.h"				// ²âÊÔ×¢ÊÍ:j_enumeration.h
+#include "a_func.h"						// ²âÊÔº¯Êı			:a_func.h
+#include "b_class.h"					// ²âÊÔÀà			:b_class.h
+#include "c_macro.h"					// ²âÊÔºê			:c_macro.h
+#include "d_template.h"					// ²âÊÔÄ£°å			:d_template.h
+#include "e_typedef.h"					// ²âÊÔ×Ô¶¨Òå		:e_typedef.h
+#include "f_forwarddecl.h"				// ²âÊÔÇ°ÖÃÉùÃ÷		:f_forwarddecl.h
+#include "g_default_arg.h"				// ²âÊÔÄ¬ÈÏ²ÎÊı		:g_default_arg.h
+#include "h_use_forwarddecl.h"			// ²âÊÔÊ¹ÓÃÇ°ÖÃÉùÃ÷	:h_use_forwarddecl.h
+#include "i_deeply_include.h"			// ²âÊÔ¶à²ã#include	:i_deeply_include.h
+#include "j_enumeration.h"				// ²âÊÔÃ¶¾Ù			:j_enumeration.h
 
-#include "../hello/../hello/nil1.h"
+#include "../hello/../hello/nil1.h"		// ²âÊÔÎŞÓÃ#include	:j_enumeration.h
 #include "nil1.h"
 #include "nil1.h"
 #include "nil1.h"
@@ -360,6 +363,14 @@ void test_relative_path()
 		std::string relative_path1 = get_relative_path(path_1, path_2);
 		std::string relative_path2 = get_relative_path(path_2, path_1);
 	}
+}
+
+void test_bug1_localtime()
+{
+	time_t now;
+    //time(&now);
+
+	struct tm *local_now = localtime(&now); //È¡µÃµ±µØÊ±¼ä
 }
 
 void test()
