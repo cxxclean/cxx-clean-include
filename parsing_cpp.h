@@ -128,6 +128,9 @@ namespace cxxcleantool
 		// 开始清理文件（将改动c++源文件）
 		void Clean();
 		
+		// 打印索引 + 1
+		std::string AddPrintIdx() const;
+
 		// 打印信息
 		void Print();
 		
@@ -517,6 +520,9 @@ namespace cxxcleantool
 
 		// 当前打印索引，仅用于日志调试
 		mutable int									m_i;
+
+		// 当前打印索引，仅用于日志打印
+		mutable int									m_printIdx;
 	};
 }
 

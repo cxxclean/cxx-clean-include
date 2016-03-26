@@ -21,6 +21,7 @@
 
 #include "tool.h"
 #include "project.h"
+#include "html_log.h"
 
 namespace cxxcleantool
 {
@@ -1497,7 +1498,8 @@ namespace cxxcleantool
 	// 打印各文件的父文件
 	void ParsingFile::PrintParentsById()
 	{
-		llvm::outs() << "    " << ++m_i << ". list of parent id:" << m_parentIDs.size() << "\n";
+		HtmlDiv &div = HtmlLog::instance.m_newDiv;
+		div.AddRow(AddPrintIdx() + ". list of parent id: has parent file count = " + htmltool::get_number_html(m_parentIDs.size()), 1);
 
 		for (auto childparent : m_parentIDs)
 		{
@@ -1510,10 +1512,12 @@ namespace cxxcleantool
 				continue;
 			}
 
-			llvm::outs() << "        [" << GetFileName(childFileID) << "] parent = [" << GetFileName(parentFileID) << "]\n";
+			div.AddRow(htmltool::get_file_html(GetFileName(childFileID)), 2, 50);
+			div.AddGrid("parent = ", 10);
+			div.AddGrid(htmltool::get_file_html(GetFileName(parentFileID)), 39);
 		}
 
-		llvm::outs() << "\n";
+		div.AddRow("");
 	}
 
 	// 获取该文件的被包含信息，返回内容包括：该文件名、父文件名、被父文件#include的行号、被父文件#include的原始文本串
@@ -1546,13 +1550,13 @@ namespace cxxcleantool
 			parentFileName = pathtool::get_absolute_path(parentPresumedLoc.getFilename());
 		}
 
-		text << "[" << fileName << "]";
+		text << "[" << htmltool::get_file_html(fileName) << "]";
 
 		if (file != m_srcMgr->getMainFileID())
 		{
 			text << " in { [";
-			text << parentFileName;
-			text << "] -> [" << includeToken << "] line = " << (parentPresumedLoc.isValid() ? parentPresumedLoc.getLine() : 0);
+			text << htmltool::get_file_html(parentFileName);
+			text << "] -> [" << htmltool::get_include_html(includeToken) << "] line = " << (parentPresumedLoc.isValid() ? parentPresumedLoc.getLine() : 0);
 			text << "}";
 		}
 
@@ -1580,9 +1584,9 @@ namespace cxxcleantool
 			fileName = GetFileName(file);
 		}
 
-		text << "{line = " << (presumedLoc.isValid() ? presumedLoc.getLine() : 0) << " [" << includeToken << "]";
+		text << "{line = " << htmltool::get_number_html(presumedLoc.isValid() ? presumedLoc.getLine() : 0) << " [" << htmltool::get_include_html(includeToken) << "]";
 		text << "} -> ";
-		text << "[" << fileName << "]";
+		text << "[" << htmltool::get_file_html(fileName) << "]";
 
 		return text.str();
 	}
@@ -1630,7 +1634,8 @@ namespace cxxcleantool
 	// 打印引用记录
 	void ParsingFile::PrintUse() const
 	{
-		llvm::outs() << "    " << ++m_i << ". list of include referenced: " << m_uses.size() << "\n";
+		HtmlDiv &div = HtmlLog::instance.m_newDiv;
+		div.AddRow(AddPrintIdx() + ". list of include referenced : use count = " + strtool::itoa(m_uses.size()), 1);
 
 		for (auto use_list : m_uses)
 		{
@@ -1641,23 +1646,22 @@ namespace cxxcleantool
 				continue;
 			}
 
-			llvm::outs() << "        file = " << GetAbsoluteFileName(file) << "\n";
+			div.AddRow("file = " + htmltool::get_file_html(GetAbsoluteFileName(file)), 2);
 
 			for (FileID beuse : use_list.second)
 			{
-				// llvm::outs() << "            use = " << get_file_name(beuse) << "\n";
-				// llvm::outs() << "            use = " << get_file_name(beuse) << " [" << token << "] in [" << presumedLoc.getFilename() << "] line = " << presumedLoc.getLine() << "\n";
-				llvm::outs() << "            use = " << DebugBeIncludeText(beuse) << "\n";
+				div.AddRow("use = " + DebugBeIncludeText(beuse), 3);
 			}
 
-			llvm::outs() << "\n";
+			div.AddRow("");
 		}
 	}
 
 	// 打印#include记录
 	void ParsingFile::PrintInclude() const
 	{
-		llvm::outs() << "    " << ++m_i << ". list of include: " << m_includes.size() << "\n";
+		HtmlDiv &div = HtmlLog::instance.m_newDiv;
+		div.AddRow(AddPrintIdx() + ". list of include : include count = " + htmltool::get_number_html(m_includes.size()), 1);
 
 		for (auto includeList : m_includes)
 		{
@@ -1668,21 +1672,22 @@ namespace cxxcleantool
 				continue;
 			}
 
-			llvm::outs() << "        file = " << GetAbsoluteFileName(file) << "\n";
+			div.AddRow("file = " + htmltool::get_file_html(GetAbsoluteFileName(file)), 2);
 
 			for (FileID beinclude : includeList.second)
 			{
-				llvm::outs() << "            include = " << DebugBeDirectIncludeText(beinclude) << "\n";
+				div.AddRow("include = " + DebugBeDirectIncludeText(beinclude), 3);
 			}
 
-			llvm::outs() << "\n";
+			div.AddRow("");
 		}
 	}
 
 	// 打印引用类名、函数名、宏名等的记录
 	void ParsingFile::PrintUsedNames() const
 	{
-		llvm::outs() << "    " << ++m_i << ". list of use name: " << m_uses.size() << "\n";
+		HtmlDiv &div = HtmlLog::instance.m_newDiv;
+		div.AddRow(AddPrintIdx() + ". list of use name : use count = " + htmltool::get_number_html(m_uses.size()), 1);
 
 		for (auto useItr : m_useNames)
 		{
@@ -1701,11 +1706,12 @@ namespace cxxcleantool
 	// 获取文件所使用名称信息：文件名、所使用的类名、函数名、宏名等以及对应行号
 	void ParsingFile::DebugUsedNames(FileID file, const std::vector<UseNameInfo> &useNames) const
 	{
-		llvm::outs() << "        file = " << GetAbsoluteFileName(file) << "\n";
+		HtmlDiv &div = HtmlLog::instance.m_newDiv;
+		div.AddRow("file = " + htmltool::get_file_html(GetAbsoluteFileName(file)), 2);
 
 		for (const UseNameInfo &beuse : useNames)
 		{
-			llvm::outs() << "            use = " << DebugBeIncludeText(beuse.file) << "\n";
+			div.AddRow("use = " + DebugBeIncludeText(beuse.file), 3);
 
 			for (const string& name : beuse.nameVec)
 			{
@@ -1716,7 +1722,7 @@ namespace cxxcleantool
 				{
 					for (int line : linesItr->second)
 					{
-						linesStream << line << ", ";
+						linesStream << htmltool::get_number_html(line) << ", ";
 					}
 				}
 
@@ -1724,17 +1730,19 @@ namespace cxxcleantool
 
 				strtool::try_strip_right(linesText, std::string(", "));
 
-				llvm::outs() << "                name = " << name << " -> [line = " << linesText << "]" << "\n";
+				div.AddRow("name = " + name, 4, 70);
+				div.AddGrid("lines = " + linesText, 29);
 			}
 
-			llvm::outs() << "\n";
+			div.AddRow("");
 		}
 	}
 
 	// 打印主文件循环引用的名称记录
 	void ParsingFile::PrintRootCycleUsedNames() const
 	{
-		llvm::outs() << "    " << ++m_i << ". list of root cycle use name: " << m_rootCycleUse.size() << "\n";
+		HtmlDiv &div = HtmlLog::instance.m_newDiv;
+		div.AddRow(AddPrintIdx() + ". list of root cycle use name : file count = " + strtool::itoa(m_rootCycleUse.size()), 1);
 
 		for (auto useItr : m_useNames)
 		{
@@ -1758,7 +1766,8 @@ namespace cxxcleantool
 	// 打印循环引用的名称记录
 	void ParsingFile::PrintAllCycleUsedNames() const
 	{
-		llvm::outs() << "    " << ++m_i << ". list of all cycle use name: " << m_allCycleUse.size() << "\n";
+		HtmlDiv &div = HtmlLog::instance.m_newDiv;
+		div.AddRow(AddPrintIdx() + ". list of all cycle use name : file count = " + htmltool::get_number_html(m_allCycleUse.size()), 1);
 
 		for (auto useItr : m_useNames)
 		{
@@ -1804,7 +1813,9 @@ namespace cxxcleantool
 	// 打印主文件循环引用的文件列表
 	void ParsingFile::PrintRootCycleUse() const
 	{
-		llvm::outs() << "    " << ++m_i << ". list of root cycle use: " << m_rootCycleUse.size() << "\n";
+		HtmlDiv &div = HtmlLog::instance.m_newDiv;
+		div.AddRow(AddPrintIdx() + ". list of root cycle use : file count = " + htmltool::get_number_html(m_rootCycleUse.size()), 1);
+
 		for (auto file : m_rootCycleUse)
 		{
 			if (!IsNeedPrintFile(file))
@@ -1812,7 +1823,7 @@ namespace cxxcleantool
 				continue;
 			}
 
-			llvm::outs() << "        file = " << GetFileName(file) << "\n";
+			div.AddRow("file = " + htmltool::get_file_html(GetFileName(file)), 2);
 		}
 
 		llvm::outs() << "\n";
@@ -1821,7 +1832,9 @@ namespace cxxcleantool
 	// 打印循环引用的文件列表
 	void ParsingFile::PrintAllCycleUse() const
 	{
-		llvm::outs() << "    " << ++m_i << ". list of all cycle use: " << m_allCycleUse.size() << "\n";
+		HtmlDiv &div = HtmlLog::instance.m_newDiv;
+		div.AddRow(AddPrintIdx() + ". list of all cycle use : file count = " + htmltool::get_number_html(m_allCycleUse.size()), 1);
+
 		for (auto file : m_allCycleUse)
 		{
 			if (!IsNeedPrintFile(file))
@@ -1831,19 +1844,20 @@ namespace cxxcleantool
 
 			if (!IsRootCyclyUsed(file))
 			{
-				llvm::outs() << "        <--------- new add cycle use file --------->\n";
+				div.AddRow("<--------- new add cycle use file --------->", 2, 100, true);
 			}
 
-			llvm::outs() << "        file = " << GetFileName(file) << "\n";
+			div.AddRow("file = " + htmltool::get_file_html(GetFileName(file)), 2);
 		}
 
-		llvm::outs() << "\n";
+		div.AddRow("");
 	}
 
 	// 打印各文件对应的有用孩子文件记录
 	void ParsingFile::PrintCycleUsedChildren() const
 	{
-		llvm::outs() << "    " << ++m_i << ". list of cycle used children file: " << m_cycleUsedChildren.size() << "\n";
+		HtmlDiv &div = HtmlLog::instance.m_newDiv;
+		div.AddRow(AddPrintIdx() + ". list of cycle used children file: file count = " + htmltool::get_number_html(m_cycleUsedChildren.size()), 1);
 
 		for (auto usedItr : m_cycleUsedChildren)
 		{
@@ -1854,21 +1868,22 @@ namespace cxxcleantool
 				continue;
 			}
 
-			llvm::outs() << "        file = " << GetAbsoluteFileName(file) << "\n";
+			div.AddRow("file = " + htmltool::get_file_html(GetAbsoluteFileName(file)), 2);
 
 			for (auto usedChild : usedItr.second)
 			{
-				llvm::outs() << "            use children = " << DebugBeIncludeText(usedChild) << "\n";
+				div.AddRow("use children " + DebugBeIncludeText(usedChild), 3);
 			}
 
-			llvm::outs() << "\n";
+			div.AddRow("");
 		}
 	}
 
 	// 打印允许被清理的所有文件列表
 	void ParsingFile::PrintAllFile() const
 	{
-		llvm::outs() << "\n    " << ++m_i << ". list of all file: " << m_files.size() << "\n";
+		HtmlDiv &div = HtmlLog::instance.m_newDiv;
+		div.AddRow(AddPrintIdx() + ". list of all file: file count = " + htmltool::get_number_html(m_files.size()), 1);
 
 		for (FileID file : m_files)
 		{
@@ -1879,15 +1894,18 @@ namespace cxxcleantool
 				continue;
 			}
 
-			llvm::outs() << "        file id = " << file.getHashValue() << ", filename = " << name << "\n";
+			div.AddRow("file id = " + strtool::itoa(file.getHashValue()), 2, 20);
+			div.AddGrid("filename = " + htmltool::get_file_html(name), 79);
 		}
 
-		llvm::outs() << "\n";
+		div.AddRow("");
 	}
 
 	// 打印各文件内的可被删#include记录
 	void ParsingFile::PrintUnusedIncludeOfFiles(const FileHistoryMap &files)
 	{
+		HtmlDiv &div = HtmlLog::instance.m_newDiv;
+
 		for (auto fileItr : files)
 		{
 			const string &file	= fileItr.first;
@@ -1903,7 +1921,8 @@ namespace cxxcleantool
 				continue;
 			}
 
-			llvm::outs() << "\n        file = {" << file << "}\n";
+			// 打印带url的文件名
+			div.AddRow(strtool::get_text(cn_file_unused_count, htmltool::get_file_html(file).c_str(), htmltool::get_number_html(eachFile.m_unusedLines.size()).c_str()), 2);
 
 			for (auto unusedLineItr : eachFile.m_unusedLines)
 			{
@@ -1911,52 +1930,19 @@ namespace cxxcleantool
 
 				UselessLineInfo &unusedLine = unusedLineItr.second;
 
-				llvm::outs() << "            unused: [line = " << line << "] -> [" << unusedLine.m_text << "]\n";
+				div.AddRow(strtool::get_text(cn_file_unused_line, htmltool::get_number_html(line).c_str()), 3, 25);
+				div.AddGrid(strtool::get_text(cn_file_unused_include, htmltool::get_include_html(unusedLine.m_text).c_str()), 74, true);
 			}
+
+			div.AddRow("");
 		}
 	}
-
-	// 打印各文件内的可新增前置声明记录
-	void ParsingFile::PrintCanForwarddeclOfFiles(const FileHistoryMap &files)
-	{
-		for (auto fileItr : files)
-		{
-			const string &file	= fileItr.first;
-			FileHistory &eachFile	= fileItr.second;
-
-			if (!Project::instance.CanClean(file))
-			{
-				continue;
-			}
-
-			if (eachFile.m_forwards.empty())
-			{
-				continue;
-			}
-
-			llvm::outs() << "\n        file = {" << file << "}\n";
-
-			for (auto forwardItr : eachFile.m_forwards)
-			{
-				int line = forwardItr.first;
-
-				ForwardLine &forwardLine = forwardItr.second;
-
-				llvm::outs() << "            [line = " << line << "] -> {old text = [" << forwardLine.m_oldText << "]}\n";
-
-				for (const string &name : forwardLine.m_classes)
-				{
-					llvm::outs() << "                add forward [" << name << "]\n";
-				}
-
-				llvm::outs() << "\n";
-			}
-		}
-	}
-
+	
 	// 打印各文件内的可被替换#include记录
 	void ParsingFile::PrintCanReplaceOfFiles(const FileHistoryMap &files)
 	{
+		HtmlDiv &div = HtmlLog::instance.m_newDiv;
+
 		for (auto fileItr : files)
 		{
 			const string &file	= fileItr.first;
@@ -1972,7 +1958,8 @@ namespace cxxcleantool
 				continue;
 			}
 
-			llvm::outs() << "\n        file = {" << file << "}\n";
+			// 打印带url的文件名
+			div.AddRow(strtool::get_text(cn_file_can_replace_num, htmltool::get_file_html(file).c_str(), htmltool::get_number_html(eachFile.m_replaces.size()).c_str()), 2);
 
 			for (auto replaceItr : eachFile.m_replaces)
 			{
@@ -1981,14 +1968,16 @@ namespace cxxcleantool
 				ReplaceLine &replaceLine = replaceItr.second;
 
 				// 比如，输出: [line = 1] -> {old text = [#include "a.h"]}
-				llvm::outs() << "            [line = " << line << "] -> {old text = [" << replaceLine.m_oldText << "]}";
 
+				div.AddRow(strtool::get_text(cn_file_can_replace_line, htmltool::get_number_html(line).c_str()), 3, 30);
+
+				std::string oldText = cn_line_old_text + htmltool::get_include_html(replaceLine.m_oldText);
 				if (replaceLine.m_isSkip)
 				{
-					llvm::outs() << "  ==>  [warn: will skip this replacement, for it's force included]";
+					oldText += cn_file_force_include_text;
 				}
 
-				llvm::outs() << "\n";
+				div.AddGrid(oldText, 69);
 
 				// 比如，输出: replace to = #include <../1.h> in [./2.h : line = 3]
 				for (const ReplaceInfo &replaceInfo : replaceLine.m_newInclude)
@@ -1996,19 +1985,62 @@ namespace cxxcleantool
 					// 若替换的串内容不变，则只打印一个
 					if (replaceInfo.m_newText == replaceInfo.m_oldText)
 					{
-						llvm::outs() << "                replace to = " << replaceInfo.m_oldText;
+						div.AddRow(strtool::get_text(cn_file_replace_same_text, htmltool::get_include_html(replaceInfo.m_oldText).c_str()), 4, 40, true);
 					}
 					// 否则，打印替换前和替换后的#include整串
 					else
 					{
-						llvm::outs() << "                replace to = [old]" << replaceInfo.m_oldText << "-> [new]" << replaceInfo.m_newText;
+						div.AddRow(strtool::get_text(cn_file_replace_old_text, htmltool::get_include_html(replaceInfo.m_oldText).c_str()), 4, 20, true);
+						div.AddGrid(strtool::get_text(cn_file_replace_new_text, htmltool::get_include_html(replaceInfo.m_newText).c_str()), 20);
 					}
 
 					// 在行尾添加[in 所处的文件 : line = xx]
-					llvm::outs() << " in [" << replaceInfo.m_inFile << " : line = " << replaceInfo.m_line << "]\n";
+					div.AddGrid(strtool::get_text(cn_file_replace_in_file, htmltool::get_file_html(replaceInfo.m_inFile).c_str(), htmltool::get_number_html(replaceInfo.m_line).c_str()), 59);
 				}
 
-				llvm::outs() << "\n";
+				div.AddRow("");
+			}
+		}
+	}
+
+	// 打印各文件内的可新增前置声明记录
+	void ParsingFile::PrintCanForwarddeclOfFiles(const FileHistoryMap &files)
+	{
+		HtmlDiv &div = HtmlLog::instance.m_newDiv;
+
+		for (auto fileItr : files)
+		{
+			const string &file	= fileItr.first;
+			FileHistory &eachFile	= fileItr.second;
+
+			if (!Project::instance.CanClean(file))
+			{
+				continue;
+			}
+
+			if (eachFile.m_forwards.empty())
+			{
+				continue;
+			}
+
+			// 打印带url的文件名
+			div.AddRow(strtool::get_text(cn_file_add_forward_num, htmltool::get_file_html(file).c_str(), htmltool::get_number_html(eachFile.m_forwards.size()).c_str()), 2);
+
+			for (auto forwardItr : eachFile.m_forwards)
+			{
+				int line = forwardItr.first;
+
+				ForwardLine &forwardLine = forwardItr.second;
+
+				div.AddRow(strtool::get_text(cn_file_add_forward_line, htmltool::get_number_html(line).c_str()), 3, 30);
+				div.AddGrid(strtool::get_text(cn_file_add_forward_old_text, htmltool::get_include_html(forwardLine.m_oldText).c_str()), 69, true);
+
+				for (const string &name : forwardLine.m_classes)
+				{
+					div.AddRow(strtool::get_text(cn_file_add_forward_new_text, htmltool::get_include_html(name).c_str()), 4);
+				}
+
+				div.AddRow("");
 			}
 		}
 	}
@@ -2033,9 +2065,41 @@ namespace cxxcleantool
 			num += eachFile.m_unusedLines.empty() ? 0 : 1;
 		}
 
-		llvm::outs() << "\n    " << ++m_i << ". list of unused include : file count = " << num << "";
+		HtmlDiv &div = HtmlLog::instance.m_newDiv;
+		div.AddRow(AddPrintIdx() + ". " + strtool::get_text(cn_file_count_unused, htmltool::get_number_html(num).c_str()), 1);
 
 		PrintUnusedIncludeOfFiles(files);
+	}
+
+	// 打印可替换记录
+	void ParsingFile::PrintCanReplace() const
+	{
+		// 如果本文件内及本文件内的其他文件中的#include均无法被替换，则不打印
+		if (m_replaces.empty())
+		{
+			return;
+		}
+
+		FileHistoryMap files;
+		TakeAllInfoTo(files);
+
+		if (files.empty())
+		{
+			return;
+		}
+
+		int num = 0;
+
+		for (auto itr : files)
+		{
+			const FileHistory &eachFile = itr.second;
+			num += eachFile.m_replaces.empty() ? 0 : 1;
+		}
+
+		HtmlDiv &div = HtmlLog::instance.m_newDiv;
+		div.AddRow(AddPrintIdx() + ". " + strtool::get_text(cn_file_count_can_replace, htmltool::get_number_html(num).c_str()), 1);
+
+		PrintCanReplaceOfFiles(files);
 	}
 
 	// 打印项目总的可新增前置声明记录
@@ -2057,7 +2121,8 @@ namespace cxxcleantool
 			num += eachFile.m_forwards.empty() ? 0 : 1;
 		}
 
-		llvm::outs() << "\n    " << ++m_i << ". forward declaration list : file count = " << num << "\n";
+		HtmlDiv &div = HtmlLog::instance.m_newDiv;
+		div.AddRow(AddPrintIdx() + ". " + strtool::get_text(cn_file_count_add_forward, htmltool::get_number_html(num).c_str()), 1);
 
 		PrintCanForwarddeclOfFiles(files);
 	}
@@ -2360,37 +2425,7 @@ namespace cxxcleantool
 
 		CleanBy(root);
 	}
-
-	// 打印可替换记录
-	void ParsingFile::PrintCanReplace() const
-	{
-		// 如果本文件内及本文件内的其他文件中的#include均无法被替换，则不打印
-		if (m_replaces.empty())
-		{
-			return;
-		}
-
-		FileHistoryMap files;
-		TakeAllInfoTo(files);
-
-		if (files.empty())
-		{
-			return;
-		}
-
-		int num = 0;
-
-		for (auto itr : files)
-		{
-			const FileHistory &eachFile = itr.second;
-			num += eachFile.m_replaces.empty() ? 0 : 1;
-		}
-
-		llvm::outs() << "\n    " << ++m_i << ". list of can replace #include : file count = " << num << "";
-
-		PrintCanReplaceOfFiles(files);
-	}
-
+	
 	// 打印头文件搜索路径
 	void ParsingFile::PrintHeaderSearchPath() const
 	{
@@ -2399,20 +2434,22 @@ namespace cxxcleantool
 			return;
 		}
 
-		llvm::outs() << "    " << ++m_i << ". header search path list :" << m_headerSearchPaths.size() << "\n";
+		HtmlDiv &div = HtmlLog::instance.m_newDiv;
+		div.AddRow(AddPrintIdx() + ". header search path list : path count = " + htmltool::get_number_html(m_headerSearchPaths.size()), 1);
 
 		for (const HeaderSearchDir &path : m_headerSearchPaths)
 		{
-			llvm::outs() << "        search path = " << path.m_dir << "\n";
+			div.AddRow("search path = " + htmltool::get_file_html(path.m_dir), 2);
 		}
 
-		llvm::outs() << "\n";
+		div.AddRow("");
 	}
 
 	// 用于调试：打印各文件引用的文件集相对于该文件的#include文本
 	void ParsingFile::PrintRelativeInclude() const
 	{
-		llvm::outs() << "    " << ++m_i << ". relative include list :" << m_uses.size() << "\n";
+		HtmlDiv &div = HtmlLog::instance.m_newDiv;
+		div.AddRow(AddPrintIdx() + ". relative include list : use = " + htmltool::get_number_html(m_uses.size()), 1);
 
 		FileID mainFileID = m_srcMgr->getMainFileID();
 
@@ -2427,20 +2464,24 @@ namespace cxxcleantool
 
 			std::set<FileID> &be_uses = itr.second;
 
-			llvm::outs() << "        file = [" << pathtool::simplify_path(pathtool::get_absolute_path(GetFileName(file)).c_str()) << "]\n";
+			std::string filePath = pathtool::simplify_path(pathtool::get_absolute_path(GetFileName(file)).c_str());
+
+			div.AddRow("file = " + htmltool::get_file_html(filePath), 2);
+
 			for (FileID be_used_file : be_uses)
 			{
-				llvm::outs() << "            use relative include = [" << GetRelativeIncludeStr(file, be_used_file) << "]\n";
+				div.AddRow("use relative include = " + htmltool::get_include_html(GetRelativeIncludeStr(file, be_used_file)), 3);
 			}
 
-			llvm::outs() << "\n";
+			div.AddRow("");
 		}
 	}
 
 	// 用于调试跟踪：打印是否有文件的被包含串被遗漏
 	void ParsingFile::PrintNotFoundIncludeLocForDebug()
 	{
-		llvm::outs() << "    " << ++m_i << ". not found include loc: " << "" << "\n";
+		HtmlDiv &div = HtmlLog::instance.m_newDiv;
+		div.AddRow(AddPrintIdx() + ". not found include loc:", 1);
 
 		for (auto itr : m_uses)
 		{
@@ -2451,17 +2492,20 @@ namespace cxxcleantool
 				SourceLocation loc = m_srcMgr->getIncludeLoc(beuse_file);
 				if (m_includeLocs.find(loc) == m_includeLocs.end())
 				{
-					llvm::outs() << "        not found = " << GetAbsoluteFileName(beuse_file) << "\n";
+					div.AddRow("not found = " + htmltool::get_file_html(GetAbsoluteFileName(beuse_file)), 2);
 					continue;
 				}
 			}
 		}
+
+		div.AddRow("");
 	}
 
 	// 用于调试跟踪：打印各文件中是否同一行出现了2个#include
 	void ParsingFile::PrintSameLineForDebug()
 	{
-		llvm::outs() << "    " << ++m_i << ". same line include loc: " << "" << "\n";
+		HtmlDiv &div = HtmlLog::instance.m_newDiv;
+		div.AddRow(AddPrintIdx() + ". same line include loc:", 1);
 
 		std::map<string, std::set<int>> all_lines;
 
@@ -2482,21 +2526,31 @@ namespace cxxcleantool
 			std::set<int> &lines = all_lines[fileName];
 			if (lines.find(line) != lines.end())
 			{
-				llvm::outs() << "        " << "found same line : " << line << "int [" << fileName << "]\n";
+				div.AddRow("found same line : " + htmltool::get_number_html(line) + " in " + htmltool::get_file_html(fileName), 2);
 			}
 
 			lines.insert(line);
 		}
+
+		div.AddRow("");
+	}
+
+	// 打印索引 + 1
+	std::string ParsingFile::AddPrintIdx() const
+	{
+		return strtool::itoa(++m_printIdx);
 	}
 
 	// 打印信息
 	void ParsingFile::Print()
 	{
-		llvm::outs() << "\n\n////////////////////////////////////////////////////////////////\n";
-		llvm::outs() << "[file = " << GetAbsoluteFileName(m_srcMgr->getMainFileID()) << "]";
-		llvm::outs() << "\n////////////////////////////////////////////////////////////////\n";
+		HtmlDiv &div = HtmlLog::instance.m_newDiv;
+		div.Clear();
 
-		m_i = 0;
+		std::string rootFileName	= GetAbsoluteFileName(m_srcMgr->getMainFileID());
+		div.AddTitle(strtool::get_text(cn_parsing_file, htmltool::get_file_html(rootFileName).c_str()));
+
+		m_printIdx = 0;
 
 		int verbose = Project::instance.m_verboseLvl;
 
@@ -2539,6 +2593,8 @@ namespace cxxcleantool
 			PrintNotFoundIncludeLocForDebug();
 			PrintSameLineForDebug();
 		}
+
+		HtmlLog::instance.AddDiv(div);
 	}
 
 	// 合并可被移除的#include行

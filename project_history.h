@@ -107,6 +107,7 @@ namespace cxxcleantool
 	{
 		ProjectHistory()
 			: m_isFirst(true)
+			, m_printIdx(0)
 		{
 		}
 
@@ -138,6 +139,9 @@ namespace cxxcleantool
 		// 打印文件被使用次数（未完善）
 		void PrintCount() const;
 
+		// 打印索引 + 1
+		std::string AddPrintIdx() const;
+
 		void Print() const;
 
 	public:
@@ -147,6 +151,10 @@ namespace cxxcleantool
 		bool				m_isFirst;
 		FileHistoryMap		m_files;
 		std::set<string>	m_cleanedFiles;
+
+	private:
+		// 当前打印索引，仅用于日志打印
+		mutable int			m_printIdx;
 	};
 }
 

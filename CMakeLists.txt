@@ -1,10 +1,63 @@
 set(LLVM_LINK_COMPONENTS support)
 
-add_clang_executable(loop-convert
-  LoopConvert.cpp
+add_clang_executable(cxxclean
+	cxx_clean.cpp
+	parsing_cpp.cpp	
+	project.cpp
+	project_history.cpp
+	test.cpp
+	tool.cpp
+	vs_project.cpp
 )
-target_link_libraries(loop-convert
-  clangTooling
-  clangBasic
-  clangASTMatchers
+
+target_link_libraries(cxxclean
+	clangTooling
+	clangBasic
+	clangASTMatchers
+	clangTooling.lib
+	clangBasic.lib
+	clangASTMatchers.lib
+	clangFrontend.lib
+	clangDriver.lib
+	clangParse.lib
+	clangSerialization.lib
+	clangSema.lib
+	clangEdit.lib
+	clangAnalysis.lib
+	clangToolingCore.lib
+	clangAST.lib
+	clangRewrite.lib
+	clangLex.lib
+	LLVMOption.lib
+	LLVMMCParser.lib
+	LLVMBitReader.lib
+	LLVMSupport.lib
+	LLVMCore.lib
+	LLVMMC.lib
+	LLVMAnalysis.lib
+	LLVMCodeGen.lib
+	LLVMipo.lib
+	LLVMInstCombine.lib
+	LLVMInstrumentation.lib
+	LLVMObjCARCOpts.lib
+	LLVMScalarOpts.lib
+	LLVMTransformUtils.lib
+	LLVMVectorize.lib
+	LLVMAsmPrinter.lib
+	LLVMSelectionDAG.lib
+	LLVMX86Utils.lib
+	LLVMMCDisassembler.lib
+	LLVMTarget.lib
+	LLVMBitWriter.lib
+	LLVMIRReader.lib
+	LLVMAsmParser.lib
+	LLVMLinker.lib
+	LLVMProfileData.lib
+	LLVMObject.lib
+	LLVMX86CodeGen.lib
+	LLVMX86AsmPrinter.lib
+	LLVMX86AsmParser.lib
+	LLVMX86Desc.lib
+	LLVMX86Info.lib
+	LLVMX86Disassembler.lib
 )

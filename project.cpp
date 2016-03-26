@@ -12,44 +12,63 @@
 
 #include "tool.h"
 #include "parsing_cpp.h"
+#include "html_log.h"
 
 Project Project::instance;
 
 // 打印本次清理的文件列表
 void Project::Print() const
 {
-	llvm::outs() << "\n////////////////////////////////\n";
-	llvm::outs() << "allow clean c++ files and c++ source list \n";
-	llvm::outs() << "////////////////////////////////\n";
+	HtmlLog::instance.BeginLog();
+
+	llvm::outs() << timetool::nowText() << "<hr/>\n";
+
+	HtmlLog::instance.AddBigTitle(HtmlLog::instance.m_htmlTitle);
+
+	HtmlDiv div;
+	div.AddTitle(cn_project_text);
 
 	// 允许清理的c++文件列表
 	if (!m_allowCleanList.empty())
 	{
-		llvm::outs() << "\n";
-		llvm::outs() << "    allow clean file in project:\n";
+		div.AddRow(AddPrintIdx() + ". " + cn_project_allow_files);
+
 		for (const string &file : m_allowCleanList)
 		{
-			llvm::outs() << "        file = " << file << "\n";
+			div.AddRow(strtool::get_text(cn_project_allow_file, htmltool::get_file_html(file).c_str()), 2);
 		}
+
+		div.AddRow("");
 	}
 
 	// 允许清理的文件夹路径
 	if (!m_allowCleanDir.empty())
 	{
-		llvm::outs() << "\n";
-		llvm::outs() << "    allow clean directory = " << m_allowCleanDir << "\n";
+		div.AddRow(AddPrintIdx() + ". " + cn_project_allow_dir + m_allowCleanDir);
+		div.AddRow("");
 	}
 
 	// 待清理的c++源文件列表
 	if (!m_cpps.empty())
 	{
-		llvm::outs() << "\n";
-		llvm::outs() << "    source list in project:\n";
+		div.AddRow(AddPrintIdx() + ". " + cn_project_source_list);
+
 		for (const string &file : m_cpps)
 		{
-			llvm::outs() << "        file = " << file << "\n";
+			const string absoluteFile = pathtool::get_absolute_path(file.c_str());
+			div.AddRow(strtool::get_text(cn_project_source, htmltool::get_file_html(absoluteFile).c_str()), 2);
 		}
+
+		div.AddRow("");
 	}
+
+	HtmlLog::instance.AddDiv(div);
+}
+
+// 打印索引 + 1
+std::string Project::AddPrintIdx() const
+{
+	return strtool::itoa(++m_printIdx);
 }
 
 // 生成允许清理文件列表

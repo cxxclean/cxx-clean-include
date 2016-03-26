@@ -54,6 +54,9 @@ namespace strtool
 	// 例如：get_ext("../../abc.txt", '_') = txt
 	string get_ext(const string &path);
 
+	// 根据传入的格式文本和参数返回最终的文本串
+	const char* get_text(const char* fmt, ...);
+
 	// 是否以指定字符串开头
 	inline bool start_with(const string &text, const char *prefix)
 	{
@@ -208,6 +211,24 @@ namespace cpptool
 		// c++源文件的后缀：c、cc、cpp、c++、cxx、m、mm
 		return (ext == "c" || ext == "cc" || ext == "cpp" || ext == "c++" || ext == "cxx" || ext == "m" || ext == "mm");
 	}
+}
+
+namespace htmltool
+{
+	std::string escape_html(const char* html);
+
+	std::string escape_html(const std::string &html);
+
+	std::string get_file_html(const std::string &filename);
+	
+	std::string get_include_html(const std::string &text);
+
+	std::string get_number_html(int num);
+}
+
+namespace timetool
+{
+	std::string nowText();
 }
 
 #endif // _cxx_clean_tool_h_

@@ -10,7 +10,8 @@
 
 #include "parsing_cpp.h"
 #include "project.h"
-
+#include "html_log.h"
+#include "tool.h"
 
 namespace cxxcleantool
 {
@@ -31,15 +32,27 @@ namespace cxxcleantool
 			canCleanFileCount += (fileHistory.IsNeedClean() ? 1 : 0);
 		}
 
-		llvm::outs() << "\n\n////////////////////////////////////////////////////////////////\n";
-		llvm::outs() << "[project summary: cpp file count = " << Project::instance.m_cpps.size() << ", can cleaned c++ file count = " << canCleanFileCount << "]";
-		llvm::outs() << "\n////////////////////////////////////////////////////////////////\n";
+		HtmlLog::instance.AddBigTitle(cn_project_history_title);
+
+		HtmlDiv &div = HtmlLog::instance.m_newDiv;
+		div.Clear();
+
+		div.AddTitle(strtool::get_text(cn_project_history_clean_count,	htmltool::get_number_html(canCleanFileCount).c_str()), 50);
+		div.AddTitle(strtool::get_text(cn_project_history_src_count,	htmltool::get_number_html(Project::instance.m_cpps.size()).c_str()), 49);
 
 		PrintUnusedLine();
 		PrintCanForwarddeclClass();
 		PrintReplace();
+
+		HtmlLog::instance.AddDiv(div);
+		HtmlLog::instance.EndLog();
 	}
 
+	// ´òÓ¡Ë÷Òý + 1
+	std::string ProjectHistory::AddPrintIdx() const
+	{
+		return strtool::itoa(++m_printIdx);
+	}
 
 	void ProjectHistory::AddFile(ParsingFile *newFile)
 	{
@@ -61,7 +74,8 @@ namespace cxxcleantool
 			num += eachFile.m_unusedLines.empty() ? 0 : 1;
 		}
 
-		llvm::outs() << "\n    " << 1 << ". list of unused line : file count = " << num << "";
+		HtmlDiv &div = HtmlLog::instance.m_newDiv;
+		div.AddRow(AddPrintIdx() + ". " + strtool::get_text(cn_file_count_unused, htmltool::get_number_html(num).c_str()), 1);
 
 		ParsingFile::PrintUnusedIncludeOfFiles(m_files);
 	}
@@ -81,7 +95,8 @@ namespace cxxcleantool
 			num += eachFile.m_forwards.empty() ? 0 : 1;
 		}
 
-		llvm::outs() << "\n    " << 2 << ". list of can forward decl class : file count = " << num << "";
+		HtmlDiv &div = HtmlLog::instance.m_newDiv;
+		div.AddRow(AddPrintIdx() + ". " + strtool::get_text(cn_file_count_add_forward, htmltool::get_number_html(num).c_str()), 1);
 
 		ParsingFile::PrintCanForwarddeclOfFiles(m_files);
 	}
@@ -101,7 +116,8 @@ namespace cxxcleantool
 			num += eachFile.m_replaces.empty() ? 0 : 1;
 		}
 
-		llvm::outs() << "\n    " << 3 << ". list of can replace #include : file count = " << num << "";
+		HtmlDiv &div = HtmlLog::instance.m_newDiv;
+		div.AddRow(AddPrintIdx() + ". " + strtool::get_text(cn_file_count_can_replace, htmltool::get_number_html(num).c_str()), 1);
 
 		ParsingFile::PrintCanReplaceOfFiles(m_files);
 	}

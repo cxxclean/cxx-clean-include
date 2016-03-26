@@ -10,6 +10,7 @@
 
 #include <sys/stat.h>
 #include <io.h>
+#include <stdarg.h>
 #include <llvm/Support/FileSystem.h>
 #include <llvm/Support/Path.h>
 
@@ -152,6 +153,20 @@ namespace strtool
 		}
 
 		return r_trip_at(file, '.');
+	}
+
+	// 打印
+	char g_sprintfBuf[2048] = {0};
+
+	const char* get_text(const char* fmt, ...)
+	{
+		va_list args;
+		va_start(args, fmt);
+
+		vsprintf_s(g_sprintfBuf, sizeof(g_sprintfBuf), fmt, args);
+
+		va_end(args);
+		return g_sprintfBuf;
 	}
 }
 
@@ -486,5 +501,60 @@ namespace pathtool
 		llvm::SmallString<512> path;
 		std::error_code err = llvm::sys::fs::current_path(path);
 		return err ? "" : path.str();
+	}
+}
+
+namespace htmltool
+{
+	std::string escape_html(const char* html)
+	{
+		return escape_html(std::string(html));
+	}
+
+	std::string escape_html(const std::string &html)
+	{
+		std::string ret(html);
+
+		strtool::replace(ret, "<", "&lt;");
+		strtool::replace(ret, ">", "&gt;");
+
+		return ret;
+	}
+
+	std::string get_file_html(const std::string &filename)
+	{
+		std::string html = R"--(<a href="#{file}">#{file}</a>)--";
+		strtool::replace(html, "#{file}", filename.c_str());
+
+		return html;
+	}
+
+	std::string get_include_html(const std::string &text)
+	{
+		return strtool::get_text(R"--(<span class="include-text"">%s</a>)--", htmltool::escape_html(text).c_str());
+	}
+
+	std::string get_number_html(int num)
+	{
+		return strtool::get_text(R"--(<span class="number-text"">%s</span>)--", strtool::itoa(num).c_str());
+	}
+}
+
+namespace timetool
+{
+	std::string  nowText()
+	{
+		time_t now;
+		time(&now);// time函数读取现在的时间(国际标准时间非北京时间)，然后传值给now
+
+		tm *localnow = localtime(&now); // 转为本时区时间
+
+		char buf[128] = { 0 };
+		sprintf_s(buf, sizeof buf, "%04d/%02d/%02d-%02d:%02d:%02d",
+		          1900 + localnow->tm_year, 1 + localnow->tm_mon, localnow->tm_mday,
+		          localnow->tm_hour, localnow->tm_min, localnow->tm_sec
+		         );
+
+		return buf;
 	}
 }

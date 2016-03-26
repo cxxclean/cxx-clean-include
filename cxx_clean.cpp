@@ -25,6 +25,7 @@
 #include "vs_project.h"
 #include "parsing_cpp.h"
 #include "project.h"
+#include "html_log.h"
 
 using namespace clang;
 using namespace clang::driver;
@@ -116,7 +117,7 @@ namespace cxxcleantool
 		// 处理#include
 		void InclusionDirective(SourceLocation HashLoc /*#的位置*/, const Token &includeTok,
 		                        StringRef fileName, bool isAngled/*是否被<>包含，否则是被""包围*/, CharSourceRange filenameRange,
-		                        const FileEntry *file, StringRef searchPath, StringRef relativePath, const Module *Imported) override
+		                        const FileEntry *file, StringRef searchPath, StringRef relativePath, const clang::Module *Imported) override
 		{
 			// 当编译时采用-include<c++头文件>选项，但却又找不到该头文件时，将导致file无效
 			if (nullptr == file)
@@ -958,7 +959,11 @@ public:
 			return 0;
 		}
 
-		Project::instance.Print();
+		if (Project::instance.m_cpps.size() < 10)
+		{
+			Project::instance.Print();
+		}
+
 		return true;
 	}
 
@@ -1043,6 +1048,7 @@ public:
 
 		if (pathtool::exist(src))
 		{
+			HtmlLog::instance.SetTitle(src + " c++ " + cn_file);
 			m_sourceList.push_back(src);
 		}
 		else
@@ -1053,6 +1059,8 @@ public:
 				llvm::errs() << "error: parse argument -src " << src << " failed, not found the c++ files.\n";
 				return false;
 			}
+
+			HtmlLog::instance.SetTitle(src + " " + cn_folder);
 		}
 
 		return true;
@@ -1082,7 +1090,9 @@ public:
 					return false;
 				}
 
-				llvm::outs() << "parse vs project<" << clean_option << "> succeed!\n";
+				// llvm::outs() << "parse vs project<" << clean_option << "> succeed!\n";
+
+				HtmlLog::instance.SetTitle(clean_option + " visual studio " + cn_project);
 
 				vs.TakeSourceListTo(project);
 			}
@@ -1105,6 +1115,8 @@ public:
 						llvm::errs() << "error: -clean " << folder << " failed!\n";
 						return false;
 					}
+
+					HtmlLog::instance.SetTitle(clean_option + " visual studio " + cn_project);
 				}
 			}
 			else

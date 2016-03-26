@@ -32,6 +32,7 @@ public:
 		, m_onlyHas1File(false)
 		, m_isOverWrite(false)
 		, m_verboseLvl(0)
+		, m_printIdx(0)
 	{
 	}
 
@@ -50,6 +51,9 @@ public:
 
 	// 移除非c++后缀的源文件
 	void Fix();
+
+	// 打印索引 + 1
+	std::string AddPrintIdx() const;
 
 	// 打印本次清理的文件列表
 	void Print() const;
@@ -81,6 +85,9 @@ public:
 
 	// 命令行选项：打印的详细程度，0 ~ 9，0表示不打印，默认为1，最详细的是9
 	int							m_verboseLvl;
+
+	// 当前打印索引，仅用于日志打印
+	mutable int					m_printIdx;
 };
 
 #endif // _project_h_
