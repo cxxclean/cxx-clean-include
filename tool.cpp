@@ -367,7 +367,7 @@ namespace pathtool
 		{
 			return "";
 		}
-		
+
 		filepath = simplify_path(filepath.c_str());
 		return filepath.str();
 	}
@@ -379,10 +379,19 @@ namespace pathtool
 	*/
 	string get_absolute_path(const char *base_path, const char* relative_path)
 	{
-		llvm::SmallString<512> path(base_path);
-		llvm::sys::path::append(path, relative_path);
+		if (llvm::sys::path::is_absolute(relative_path))
+		{
+			return get_absolute_path(relative_path);
+		}
+		else
+		{
+			llvm::SmallString<512> path(base_path);
+			llvm::sys::path::append(path, relative_path);
 
-		return get_absolute_path(path.c_str());
+			return get_absolute_path(path.c_str());
+		}
+
+		return "";
 	}
 
 	// 改变当前文件夹

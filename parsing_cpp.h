@@ -32,6 +32,10 @@ namespace clang
 	class NamedDecl;
 	class Rewriter;
 	class CompilerInstance;
+	class NestedNameSpecifier;
+	class Type;
+	class NamespaceDecl;
+	class UsingDirectiveDecl;
 }
 
 namespace cxxcleantool
@@ -57,6 +61,12 @@ namespace cxxcleantool
 			FileID									file;
 			std::vector<string>						nameVec;
 			std::map<string, std::set<int>>			nameMap;
+		};
+
+		struct NamespaceInfo
+		{
+			std::string ns_decl;		// 命名空间的声明，如：namespace A{ namespace B { namespace C {} } }
+			std::string ns_name;		// 命名空间的名称，如：A::B::C
 		};
 
 	public:
@@ -122,8 +132,30 @@ namespace cxxcleantool
 		// cur位置的代码使用src位置的代码
 		void Use(SourceLocation cur, SourceLocation src, const char* name = nullptr);
 		
-		// 当前位置使用目标类型
-		void UseType(SourceLocation loc, const QualType &t);
+		// 当前位置使用目标类型（注：QualType包含对某个类型的const、volatile、static等的修饰）
+		void UseQualType(SourceLocation loc, const QualType &t);
+
+		// 当前位置使用目标类型（注：Type代表某个类型，但不含const、volatile、static等的修饰）
+		void UseType(SourceLocation loc, const Type *t);
+
+		// 当前位置使用定位
+		void UseQualifier(SourceLocation loc, const NestedNameSpecifier*);
+
+		// 声明了命名空间
+		void DeclareNamespace(const NamespaceDecl *d);
+
+		// using了命名空间
+		void UsingNamespace(const UsingDirectiveDecl *d);
+
+		// 获取可能缺失的using namespace
+		bool GetMissingNamespace(SourceLocation loc, std::map<std::string, std::string> &miss) const;
+
+		// 获取可能缺失的using namespace
+		bool GetMissingNamespace(SourceLocation topLoc, SourceLocation oldLoc, 
+			std::map<std::string, std::string> &frontMiss, std::map<std::string, std::string> &backMiss) const;
+
+		// 获取命名空间的全部路径，例如，返回namespace A{ namespace B{ class C; }}
+		std::string GetNestedNamespace(const NamespaceDecl *d);
 
 		// 开始清理文件（将改动c++源文件）
 		void Clean();
@@ -205,6 +237,9 @@ namespace cxxcleantool
 
 		// 生成文件替换列表
 		void GenerateCanReplace();
+
+		// 生成应保留的using namespace
+		void GenerateRemainUsingNamespace();
 
 		// 生成新增前置声明列表
 		void GenerateCanForwardDeclaration();
@@ -329,6 +364,9 @@ namespace cxxcleantool
 		// 是否有必要打印该文件
 		bool IsNeedPrintFile(FileID) const;
 
+		// 获取属于本项目的允许被清理的文件数
+		int GetCanCleanFileCount() const;
+
 		// 打印引用记录
 		void PrintUse() const;
 
@@ -361,6 +399,15 @@ namespace cxxcleantool
 
 		// 打印项目总的可新增前置声明记录
 		void PrintCanForwarddecl() const;
+
+		// 打印各文件内的命名空间
+		void PrintNamespace() const;
+
+		// 打印各文件内的using namespace
+		void PrintUsingNamespace() const;
+
+		// 打印各文件内应保留的using namespace
+		void PrintRemainUsingNamespace() const;
 
 		// 获取文件名（通过clang库接口，文件名未经过处理，可能是绝对路径，也可能是相对路径）
 		// 例如：
@@ -512,6 +559,15 @@ namespace cxxcleantool
 
 		// 15. 各文件所使用的类名、函数名、宏名等的名称记录：[文件] -> [该文件所使用的类名、函数名、宏名等]
 		std::map<FileID, std::vector<UseNameInfo>>	m_useNames;
+
+		// 16. 各文件内声明的命名空间记录：[文件] -> [该文件内的命名空间记录]
+		std::map<FileID, std::set<std::string>>		m_namespaces;
+
+		// 17. 各文件内声明的using namespace记录：[文件] -> [该文件内的using namespace记录]
+		std::map<FileID, std::set<std::string>>		m_usingNamespaces;
+
+		// 18. 应保留的using namespace记录：[using namespace的位置] -> [using namespace的全称]
+		std::map<SourceLocation, NamespaceInfo>		m_remainUsingNamespaces;
 
 	private:
 		clang::Rewriter*							m_rewriter;

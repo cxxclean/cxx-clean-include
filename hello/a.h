@@ -1,50 +1,4 @@
-enum Fruit
-{
-	Apple,
-	Orange,
-	Banana
-};
-
-void a_top_echo(const char *text)
-{
-}
-
-static inline void a_top_print()
-{
-}
-
-class A
-{
-public:
-	void A_func1()
-	{
-
-	}
-
-	void A_func2();
-
-private:
-	char m_name[128];
-};
-
-void A::A_func2()
-{
-
-}
-
-int hello1()   ;
-
-void hello2()   ;
-
-const char* hello3();
-
-template <typename T>
-bool is_equal(T &x, T &y)
-{
-	return x == y;
-}
-
-int sum(int n)
+int A_TopFunc(int n)
 {
 	int s = 0;
 
@@ -63,23 +17,38 @@ int sum(int n)
 	return s;
 }
 
-Fruit getFruit()
+static inline void A_TopStaticInlineFunc()
 {
-	return Banana;
 }
 
-template<typename T>
-class A_Color
+class A
 {
-	enum Color
+public:
+	void A_ClassMemberFunc()
 	{
-		// constants for file positioning options
-		Green,
-		Yellow,
-		Blue,
-		Red
-	};
+
+	}
+
+	void A_ClassMemberDelayImplementFunc3();
+
+	static int A_StaticClassMemberFunc()
+	{
+		return 0;
+	}
+
+	static int A_FuncPointer()
+	{
+		return 0;
+	}
 
 private:
-	static const Color color = (Color)2;
+	char m_name[128];
 };
+
+const char* A_DeclareFunc()   ;
+
+template <typename T>
+int A_TemplateFunc(T x, T y)
+{
+	return x > y ? x : y;
+}

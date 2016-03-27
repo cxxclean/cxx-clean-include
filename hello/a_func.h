@@ -2,4 +2,7 @@
 
 #include "a.h"
 
-A g_a;
+void A::A_ClassMemberDelayImplementFunc3()
+{
+
+}

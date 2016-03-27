@@ -20,37 +20,40 @@ namespace cxxcleantool
 {
 	class ParsingFile;
 
-	struct UselessLineInfo
+	struct UselessLine
 	{
-		int							m_beg;			// 起始偏移
-		int							m_end;			// 结束偏移
-		string						m_text;			// 废弃的文本串
+		int							m_beg;				// 起始偏移
+		int							m_end;				// 结束偏移
+		string						m_text;				// 废弃的文本串
+		std::map<string, string>	m_usingNamespace;	// 本行应添加的using namespace
 	};
 
 	struct ForwardLine
 	{
-		int							m_offsetAtFile; // 本行首在文件内的偏移量
-		string						m_oldText;		// 本行原来的文本
-		std::set<string>			m_classes;		// 新增前置声明列表
+		int							m_offsetAtFile;		// 本行首在文件内的偏移量
+		string						m_oldText;			// 本行原来的文本
+		std::set<string>			m_classes;			// 新增前置声明列表
 	};
 
 	struct ReplaceInfo
 	{
-		string						m_fileName;		// 该#include对应的文件
-		string						m_inFile;		// 该#include被哪个文件包含
-		int							m_line;			// 该#include所在的行
-		string						m_oldText;		// 替换前的#include串，如: #include "../b/../b/../a.h“
-		string						m_newText;		// 替换后的#include串，如: #include "../a.h"
+		string						m_fileName;			// 该#include对应的文件
+		string						m_inFile;			// 该#include被哪个文件包含
+		int							m_line;				// 该#include所在的行
+		string						m_oldText;			// 替换前的#include串，如: #include "../b/../b/../a.h“
+		string						m_newText;			// 替换后的#include串，如: #include "../a.h"
 	};
 
 	struct ReplaceLine
 	{
-		bool						m_isSkip;		// 记录本条替换是否应被跳过，因为有些#include是被-include参数所引入的，并无法被替换，但仍然有打印的必要
-		int							m_beg;			// 起始偏移
-		int							m_end;			// 结束偏移
-		string						m_oldText;		// 替换前的#include文本，如: #include "../b/../b/../a.h“
-		string						m_oldFile;		// 替换前的#include对应的文件
-		std::vector<ReplaceInfo>	m_newInclude;	// 替换后的#include串列表
+		bool						m_isSkip;			// 记录本条替换是否应被跳过，因为有些#include是被-include参数所引入的，并无法被替换，但仍然有打印的必要
+		int							m_beg;				// 起始偏移
+		int							m_end;				// 结束偏移
+		string						m_oldText;			// 替换前的#include文本，如: #include "../b/../b/../a.h“
+		string						m_oldFile;			// 替换前的#include对应的文件
+		std::vector<ReplaceInfo>	m_newInclude;		// 替换后的#include串列表
+		std::map<string, string>	m_frontNamespace;	// 本行首应添加的using namespace
+		std::map<string, string>	m_backNamespace;	// 本行末应添加的using namespace
 	};
 
 	// 项目历史，记录各c++文件的待清理记录
@@ -63,6 +66,11 @@ namespace cxxcleantool
 			, m_beUseCount(0)
 			, m_isWindowFormat(false)
 		{
+		}
+
+		const char* GetNewLineWord() const
+		{
+			return (m_isWindowFormat ? "\r\n" : "\n");
 		}
 
 		bool IsNeedClean() const
@@ -85,7 +93,7 @@ namespace cxxcleantool
 			return m_forwards.find(line) != m_forwards.end();
 		}
 
-		typedef std::map<int, UselessLineInfo> UnusedLineMap;
+		typedef std::map<int, UselessLine> UnusedLineMap;
 		typedef std::map<int, ForwardLine> ForwardLineMap;
 		typedef std::map<int, ReplaceLine> ReplaceLineMap;
 

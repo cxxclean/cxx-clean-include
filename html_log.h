@@ -14,10 +14,10 @@
 
 namespace cxxcleantool
 {
-	static const char* cn_file							= "文件";
-	static const char* cn_folder						= "文件夹";
-	static const char* cn_project						= "工程";
-	static const char* cn_clean							= "清理#{beclean}的日志";
+	static const char* cn_cpp_file							= "%s c++ 文件";
+	static const char* cn_folder						= "%s 文件夹";
+	static const char* cn_project						= "%s visual studio 工程";
+	static const char* cn_clean							= "清理%s的日志";
 	static const char* cn_project_text					= "允许清理的c++文件列表以及待分析的c++源文件列表";
 	static const char* cn_project_allow_files			= "允许清理的c++文件列表（不属于该列表的c++文件不允许被改动）";
 	static const char* cn_project_allow_file			= "允许清理的文件 = %s";
@@ -30,11 +30,14 @@ namespace cxxcleantool
 	static const char* cn_file_count_unused				= "共有%s个文件有多余的#include";
 	static const char* cn_file_unused_count				= "文件%s中有%s行多余的#include";
 	static const char* cn_file_unused_line				= "可移除第%s行";
-	static const char* cn_file_unused_include			= "原来的#include文本 = %s";
+	static const char* cn_file_unused_include			= "该行原来的#include文本 = %s";
+	static const char* cn_file_add_using_namespace		= "应新增%s";
+	static const char* cn_file_add_front_using_ns		= "应在行首新增%s";
+	static const char* cn_file_add_back_using_ns		= "应在行末新增%s";
 
 	static const char* cn_file_count_can_replace		= "共有%s个文件可以替换#include";
 	static const char* cn_file_can_replace_num			= "文件%s中可以有%s个#include可被替换";
-	static const char* cn_file_can_replace_line			= "第%s行可以被替换";
+	static const char* cn_file_can_replace_line			= "第%s行可以被替换，该行原来的内容 = %s";
 	static const char* cn_file_replace_same_text		= "可以被替换为 = %s";
 	static const char* cn_file_replace_old_text			= "原本的#include = %s";
 	static const char* cn_file_replace_new_text			= "根据路径搜索得出的新的#include = %s";
@@ -43,7 +46,7 @@ namespace cxxcleantool
 
 	static const char* cn_file_count_add_forward		= "共有%s个文件可以新增前置声明";
 	static const char* cn_file_add_forward_num			= "文件%s中可以新增%s个前置声明";
-	static const char* cn_file_add_forward_line			= "可在第%s行新增前置声明";
+	static const char* cn_file_add_forward_line			= "可在第%s行新增前置声明，该行原来的内容 = %s";
 	static const char* cn_file_add_forward_old_text		= "该行原来的内容 = %s";
 	static const char* cn_file_add_forward_new_text		= "新增前置声明 = %s";
 
@@ -105,7 +108,11 @@ namespace cxxcleantool
 	class HtmlLog
 	{
 	public:
-		void SetTitle(const std::string &title);
+		// 设置网页文件的标题
+		void SetHtmlTitle(const std::string &title);
+
+		// 设置网页内大标题
+		void SetBigTitle(const std::string &title);
 
 		void BeginLog();
 
@@ -124,6 +131,7 @@ namespace cxxcleantool
 
 	public:
 		std::string		m_htmlTitle;
+		std::string		m_bigTitle;
 		HtmlDiv			m_newDiv;
 	};
 }

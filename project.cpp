@@ -23,7 +23,7 @@ void Project::Print() const
 
 	llvm::outs() << timetool::nowText() << "<hr/>\n";
 
-	HtmlLog::instance.AddBigTitle(HtmlLog::instance.m_htmlTitle);
+	HtmlLog::instance.AddBigTitle(HtmlLog::instance.m_bigTitle);
 
 	HtmlDiv div;
 	div.AddTitle(cn_project_text);

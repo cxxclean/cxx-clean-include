@@ -11,6 +11,6 @@
 
 #include "g.h"
 
-typedef G<GG, G1> G_Typedef;
+typedef G<G3, G2> G_DefaultArgument;
 
 #endif // _g_default_arg_h_

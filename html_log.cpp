@@ -251,15 +251,25 @@ namespace cxxcleantool
 		return beginHtml;
 	}
 
-	void HtmlLog::SetTitle(const std::string &title)
+	void HtmlLog::SetHtmlTitle(const std::string &title)
 	{
 		if (!m_htmlTitle.empty())
 		{
 			return;
 		}
 
-		m_htmlTitle = cn_clean;
-		replace(m_htmlTitle, "#{beclean}", title.c_str());
+		m_htmlTitle = strtool::get_text(cn_clean, title.c_str());
+	}
+
+	// 设置网页内大标题
+	void HtmlLog::SetBigTitle(const std::string &title)
+	{
+		if (!m_bigTitle.empty())
+		{
+			return;
+		}
+
+		m_bigTitle = strtool::get_text(cn_clean, title.c_str());
 	}
 
 	void HtmlLog::BeginLog()

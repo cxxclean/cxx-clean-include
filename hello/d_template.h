@@ -8,3 +8,18 @@ std::set<T> split_str_to_int_set()
 
 	return intset;
 }
+
+template<typename T>
+class D_Color
+{
+	enum Color
+	{
+		Green,
+		Yellow,
+		Blue,
+		Red
+	};
+
+private:
+	static const Color color = (Color)2;
+};

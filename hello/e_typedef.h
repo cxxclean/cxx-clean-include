@@ -11,9 +11,10 @@
 
 #include "e.h"
 
-// ÉêÇëĞÂµÄsocket
-socket_t createSocket();
+E_TypedefInt GetTypedefInt();
 
-typedef E<socket_t> E_Typedef;
+typedef E_Typedef3 E_Typedef4;
+
+typedef E<E_Typedef4> E_TypedefTemplateClass;
 
 #endif // _e_typedef_h_

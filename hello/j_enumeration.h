@@ -11,6 +11,6 @@
 
 #include "j.h"
 
-void eat_fruit(FruitType fruit);
+void J_EnumArgFunc(J_Enum fruit);
 
 #endif // _j_enumeration_h_

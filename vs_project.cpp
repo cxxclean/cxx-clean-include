@@ -478,7 +478,7 @@ void Vsproject::TakeSourceListTo(Project &project) const
 	{
 		for (const string &cpp : m_cpps)
 		{
-			std::string absolute_path = m_project_dir + "/" + cpp;
+			std::string absolute_path = pathtool::get_absolute_path(m_project_dir.c_str(), cpp.c_str());
 			project.m_cpps.push_back(absolute_path);
 		}
 	}

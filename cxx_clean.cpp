@@ -188,150 +188,6 @@ namespace cxxcleantool
 		{
 		}
 
-		void ModifyFunc(FunctionDecl *f)
-		{
-			// 函数名
-			DeclarationName declName = f->getNameInfo().getName();
-			std::string funcName = declName.getAsString();
-
-			if (f->isTemplateDecl() || f->isLateTemplateParsed())
-			{
-				// 在前面加上注释
-				std::stringstream before;
-				before << "// function <" << funcName << "> is template\n";
-				SourceLocation location = f->getSourceRange().getBegin();
-				m_rewriter.InsertText(location, before.str(), true, true);
-			}
-
-			if (f->isReferenced() || f->isThisDeclarationReferenced() || f->isUsed())
-			{
-				// 在前面加上注释
-				std::stringstream before;
-				before << "// function <" << funcName << "> is referenced\n";
-				SourceLocation location = f->getSourceRange().getBegin();
-				m_rewriter.InsertText(location, before.str(), true, true);
-			}
-
-			// 函数实现
-			if (f->hasBody())
-			{
-				Stmt *funcBody = f->getBody();
-				if (NULL == funcBody)
-				{
-					return;
-				}
-
-				// 函数的返回值
-				QualType returnType = f->getReturnType();
-
-				// 在前面加上注释
-				std::stringstream before;
-				before << "// Begin function " << funcName << " returning " << returnType.getAsString() << "\n";
-				SourceLocation location = f->getSourceRange().getBegin();
-				m_rewriter.InsertText(location, before.str(), true, true);
-
-				// 在后面加上注释
-				std::stringstream after;
-				after << "\n// End function " << funcName;
-				location = funcBody->getLocEnd().getLocWithOffset(1);
-				m_rewriter.InsertText(location, after.str(), true, true);
-			}
-			// 函数声明，不含实现
-			else
-			{
-				// 在前面加上注释
-				std::stringstream before;
-				before << "// begin function <" << funcName << "> only declaration\n";
-				SourceLocation location = f->getSourceRange().getBegin();
-				m_rewriter.InsertText(location, before.str(), true, true);
-
-				// 在后面加上注释
-				std::stringstream after;
-				after << "\n// end function <" << funcName << "> only declaration";
-				location = f->getLocEnd().getLocWithOffset(1);
-				m_rewriter.InsertText(location, after.str(), true, true);
-			}
-		}
-
-		bool ModifyStmt(Stmt *s)
-		{
-			// Only care about If statements.
-			if (isa<IfStmt>(s))
-			{
-				IfStmt *IfStatement = cast<IfStmt>(s);
-				Stmt *Then = IfStatement->getThen();
-
-				m_rewriter.InsertText(Then->getLocStart(), "// the 'if' part\n", true,
-				                      true);
-
-				Stmt *Else = IfStatement->getElse();
-				if (Else)
-					m_rewriter.InsertText(Else->getLocStart(), "// the 'else' part\n",
-					                      true, true);
-			}
-			else if (isa<DeclStmt>(s))
-			{
-				DeclStmt *decl = cast<DeclStmt>(s);
-
-				m_rewriter.InsertText(decl->getLocStart(), "// DeclStmt begin\n", true, true);
-				m_rewriter.InsertText(decl->getLocEnd(), "// DeclStmt end\n", true, true);
-			}
-			else if (isa<CastExpr>(s))
-			{
-				CastExpr *castExpr = cast<CastExpr>(s);
-
-				std::stringstream before;
-				before << "// begin ImplicitCastExpr " << castExpr->getCastKindName() << "\n";
-
-				std::stringstream after;
-				after << "// end ImplicitCastExpr " << castExpr->getCastKindName() << "\n";
-
-				m_rewriter.InsertText(castExpr->getLocStart(), before.str() , true, true);
-				m_rewriter.InsertText(castExpr->getLocEnd(), after.str() , true, true);
-
-				Expr *subExpr = castExpr->getSubExpr();
-
-				if (isa<DeclRefExpr>(subExpr))
-				{
-					DeclRefExpr *declExpr = cast<DeclRefExpr>(subExpr);
-
-					std::stringstream before;
-					before << "// begin DeclRefExpr " << declExpr->getDecl()->getNameAsString() << "\n";
-
-					std::stringstream after;
-					after << "// end DeclRefExpr " << declExpr->getDecl()->getNameAsString() << "\n";
-
-					m_rewriter.InsertText(declExpr->getLocStart(), before.str() , true, true);
-					m_rewriter.InsertText(declExpr->getLocEnd(), after.str() , true, true);
-				}
-			}
-			else if (isa<CallExpr>(s))
-			{
-				CallExpr *callExpr = cast<CallExpr>(s);
-				Expr *callee = callExpr->getCallee();
-				Decl *calleeDecl = callExpr->getCalleeDecl();
-
-				if (NULL == calleeDecl)
-				{
-					return true;
-				}
-
-				if (isa<FunctionDecl>(calleeDecl))
-				{
-					std::stringstream before;
-					before << "// begin CallExpr " << callExpr->getDirectCallee()->getNameAsString() << "\n";
-
-					std::stringstream after;
-					after << "// end CallExpr " << callExpr->getDirectCallee()->getNameAsString() << "\n";
-
-					m_rewriter.InsertText(callExpr->getLocStart(), before.str() , true, true);
-					m_rewriter.InsertText(callExpr->getLocEnd().getLocWithOffset(1), after.str() , true, true);
-				}
-			}
-
-			return true;
-		}
-
 		// 访问单条语句
 		bool VisitStmt(Stmt *s)
 		{
@@ -343,7 +199,7 @@ namespace cxxcleantool
 				CastExpr *castExpr = cast<CastExpr>(s);
 				QualType castType = castExpr->getType();
 
-				m_main->UseType(loc, castType);
+				m_main->UseQualType(loc, castType);
 
 				// 这里注意，CastExpr有一个getSubExpr()函数，表示子表达式，但此处不需要继续处理，因为子表达式将作为Stmt仍然会被VisitStmt访问到
 			}
@@ -522,35 +378,6 @@ namespace cxxcleantool
 			return true;
 		}
 
-		bool ModifyCXXRecordDecl(CXXRecordDecl *r)
-		{
-			if (!r->hasDefinition())
-			{
-				return true;
-			}
-
-			// 遍历所有基类
-			for (CXXRecordDecl::base_class_iterator itr = r->bases_begin(), end = r->bases_end(); itr != end; ++itr)
-			{
-				CXXBaseSpecifier &base = *itr;
-			}
-
-			// 遍历成员变量（注意：不包括static成员变量，static成员变量将在VisitVarDecl中被访问到）
-			for (CXXRecordDecl::field_iterator itr = r->field_begin(), end = r->field_end(); itr != end; ++itr)
-			{
-				FieldDecl *field = *itr;
-
-				// 在前面加上注释
-				std::stringstream before;
-				before << "// member <" << field->getNameAsString() << "> type is " << field->getType().getAsString() << "\n";
-				SourceLocation location = field->getSourceRange().getBegin();
-				m_rewriter.InsertText(location, before.str(), true, true);
-			}
-
-			// 成员函数不需要在这里遍历，因为VisitFunctionDecl将会访问成员函数
-			return true;
-		}
-
 		// 访问class、struct、union、enum时
 		bool VisitCXXRecordDecl(CXXRecordDecl *r)
 		{
@@ -563,7 +390,7 @@ namespace cxxcleantool
 			for (CXXRecordDecl::base_class_iterator itr = r->bases_begin(), end = r->bases_end(); itr != end; ++itr)
 			{
 				CXXBaseSpecifier &base = *itr;
-				m_main->UseType(r->getLocStart(), base.getType());
+				m_main->UseQualType(r->getLocStart(), base.getType());
 			}
 
 			// 遍历成员变量（注意：不包括static成员变量，static成员变量将在VisitVarDecl中被访问到）
@@ -574,64 +401,6 @@ namespace cxxcleantool
 			}
 
 			// 成员函数不需要在这里遍历，因为VisitFunctionDecl将会访问成员函数
-			return true;
-		}
-
-		bool ModifyVarDecl(VarDecl *var)
-		{
-			/*
-				注意：本方法已经涵盖了类似下面class A模板类的成员变量color这种情况
-
-					template<typename T>
-					class A
-					{
-						enum Color
-						{
-							// constants for file positioning options
-							Green,
-							Yellow,
-							Blue,
-							Red
-						};
-
-					private:
-						static const Color color = (Color)2;
-					};
-
-					template<typename T>
-					const typename A<T>::Color A<T>::color;
-			*/
-
-			// 在前面加上注释
-			std::stringstream before;
-			before << "// ";
-
-			// 类的成员变量（对于模板类同样可以处理得很好）
-			if (var->isCXXClassMember())
-			{
-				/*
-					若为static成员变量的实现，则引用其声明（注：也可以用isStaticDataMember方法来判断var是否为static成员变量）
-					例如：
-							1. class Hello
-							2.	{
-							3.		static int g_num;
-							4.	}
-							5. static int Hello::g_num;
-
-					则第5行的声明位于第3行处
-				*/
-				const VarDecl *prevVar = var->getPreviousDecl();
-				if (prevVar)
-				{
-					m_main->Use(var->getLocStart(), prevVar->getLocStart());
-					before << "static ";
-				}
-			}
-
-			before << "variable <" << var->getNameAsString() << "> type is " << var->getType().getAsString() << "\n";
-			SourceLocation location = var->getSourceRange().getBegin();
-			m_rewriter.InsertText(location, before.str(), true, true);
-
 			return true;
 		}
 
@@ -667,7 +436,8 @@ namespace cxxcleantool
 					const typename A<T>::Color A<T>::g_color;
 			*/
 
-			// llvm::outs() << "\n" << "VisitVarDecl" << m_main->debug_loc_text(var->getTypeSourceInfo()->getTypeLoc().getLocStart()) << "\n";
+			// var->dumpColor();
+			//llvm::outs() << "\n" << "VisitVarDecl" << m_main->(var->getTypeSourceInfo()->getTypeLoc().getLocStart()) << "\n";
 
 			// 引用变量的类型
 			m_main->UseVar(var->getLocStart(), var->getType());
@@ -696,12 +466,27 @@ namespace cxxcleantool
 			return true;
 		}
 
+		// 比如：typedef int A;
 		bool VisitTypedefDecl(clang::TypedefDecl *d)
 		{
 			// llvm::errs() << "Visiting " << d->getDeclKindName() << " " << d->getName() << "\n";
 
-			m_main->UseType(d->getLocStart(), d->getUnderlyingType());
-			return true; // returning false aborts the traversal
+			m_main->UseQualType(d->getLocStart(), d->getUnderlyingType());
+			return true;
+		}
+
+		// 比如：namespace A{}
+		bool VisitNamespaceDecl(clang::NamespaceDecl *d)
+		{
+			m_main->DeclareNamespace(d);
+			return true;
+		}
+
+		// 比如：using namespace std;
+		bool VisitUsingDirectiveDecl(clang::UsingDirectiveDecl *d)
+		{
+			m_main->UsingNamespace(d);
+			return true;
 		}
 
 		// 访问成员变量
@@ -715,6 +500,8 @@ namespace cxxcleantool
 		{
 			return true;
 		}
+
+
 
 	private:
 		ParsingFile*	m_main;
@@ -730,13 +517,6 @@ namespace cxxcleantool
 		// 覆盖：遍历最顶层声明的方法
 		bool HandleTopLevelDecl(DeclGroupRef declgroup) override
 		{
-			//			for (DeclGroupRef::iterator itr = declgroup.begin(), end = declgroup.end(); itr != end; ++itr) {
-			//				Decl *decl = *itr;
-			//
-			//				// 使用ast访问器遍历声明
-			//				m_visitor.TraverseDecl(decl);
-			//			}
-
 			return true;
 		}
 
@@ -1048,7 +828,8 @@ public:
 
 		if (pathtool::exist(src))
 		{
-			HtmlLog::instance.SetTitle(src + " c++ " + cn_file);
+			HtmlLog::instance.SetHtmlTitle(strtool::get_text(cn_cpp_file, src.c_str()));
+			HtmlLog::instance.SetBigTitle(strtool::get_text(cn_cpp_file, htmltool::get_file_html(src).c_str()));
 			m_sourceList.push_back(src);
 		}
 		else
@@ -1060,7 +841,8 @@ public:
 				return false;
 			}
 
-			HtmlLog::instance.SetTitle(src + " " + cn_folder);
+			HtmlLog::instance.SetHtmlTitle(strtool::get_text(cn_folder, src.c_str()));
+			HtmlLog::instance.SetBigTitle(strtool::get_text(cn_folder, htmltool::get_file_html(src).c_str()));
 		}
 
 		return true;
@@ -1092,7 +874,8 @@ public:
 
 				// llvm::outs() << "parse vs project<" << clean_option << "> succeed!\n";
 
-				HtmlLog::instance.SetTitle(clean_option + " visual studio " + cn_project);
+				HtmlLog::instance.SetHtmlTitle(strtool::get_text(cn_project, clean_option.c_str()));
+				HtmlLog::instance.SetBigTitle(strtool::get_text(cn_project, htmltool::get_file_html(clean_option).c_str()));
 
 				vs.TakeSourceListTo(project);
 			}
@@ -1116,7 +899,8 @@ public:
 						return false;
 					}
 
-					HtmlLog::instance.SetTitle(clean_option + " visual studio " + cn_project);
+					HtmlLog::instance.SetHtmlTitle(strtool::get_text(cn_project, clean_option.c_str()));
+					HtmlLog::instance.SetBigTitle(strtool::get_text(cn_project, htmltool::get_file_html(clean_option).c_str()));
 				}
 			}
 			else
@@ -1228,7 +1012,9 @@ int main(int argc, const char **argv)
 
 	tool.appendArgumentsAdjuster(getInsertArgumentAdjuster("-fcxx-exceptions",			ArgumentInsertPosition::BEGIN));
 	tool.appendArgumentsAdjuster(getInsertArgumentAdjuster("-Winvalid-source-encoding", ArgumentInsertPosition::BEGIN));
-	tool.appendArgumentsAdjuster(getInsertArgumentAdjuster("-Wdeprecated-declarations", ArgumentInsertPosition::BEGIN));
+	tool.appendArgumentsAdjuster(getInsertArgumentAdjuster("-Wdeprecated-declarations", ArgumentInsertPosition::BEGIN));	
+	tool.appendArgumentsAdjuster(getInsertArgumentAdjuster("-nobuiltininc",				ArgumentInsertPosition::BEGIN));	// 禁止使用clang内置的头文件
+	tool.appendArgumentsAdjuster(getInsertArgumentAdjuster("-w",						ArgumentInsertPosition::BEGIN));	// 禁用警告
 
 	std::unique_ptr<FrontendActionFactory> factory = newFrontendActionFactory<cxxcleantool::ListDeclAction>();
 	tool.run(factory.get());
@@ -1236,10 +1022,6 @@ int main(int argc, const char **argv)
 	if (Project::instance.m_isDeepClean && !Project::instance.m_onlyHas1File)
 	{
 		ProjectHistory::instance.m_isFirst = false;
-
-		llvm::outs() << "\n\n////////////////////////////////////////////////////////////////\n";
-		llvm::outs() << "[ 2. second times parse" << "]";
-		llvm::outs() << "\n////////////////////////////////////////////////////////////////\n";
 
 		tool.run(factory.get());
 	}

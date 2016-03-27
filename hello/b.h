@@ -1,58 +1,46 @@
-namespace b1
-{
-	class B1
-	{
-	private:
-		char m_name[128];
-	};
-
-	void echo()
-	{
-	}
-}
-
 namespace ns1
 {
 	namespace ns2
 	{
 		namespace ns3
 		{
-			class B1
-			{
+			class B_NewClass{};
 
-			private:
-				int m_num;
+			class B_ImplicitConstructorClass{};
+
+			class B_ExplicitConstructorClass
+			{
+			public:
+				B_ExplicitConstructorClass(int x, int y)
+				{
+					m_sum = x + y;
+				}
+
+				int m_sum;
 			};
 
-			class B2
-			{
-
-			private:
-				int m_num;
-			};
+			class B_NoNameClass{};
 		}
 	}
 }
 
-using ns1::ns2::ns3::B1;
-using ns1::ns2::ns3::B2;
+using ns1::ns2::ns3::B_NewClass;
+using ns1::ns2::ns3::B_ImplicitConstructorClass;
+using ns1::ns2::ns3::B_ExplicitConstructorClass;
+using ns1::ns2::ns3::B_NoNameClass;
 
-class Tutorial
-{
-private:
-	int m_sum;
-};
+class B_Class{};
 
-union HelloUnion
+union B_Union
 {
 	int a;
 	int b;
 	char c;
 };
 
-struct HelloStruct
-{
-	int a;
-	int b;
-	char c;
-};
+struct B_Struct{};
+
+class B_BaseClass{};
+class B_ClassPointer{};
+class B_ReturnClass{};
+class B_ReturnReferenceClass{};

@@ -14,7 +14,12 @@ class G1
 
 };
 
-class GG
+class G2
+{
+
+};
+
+class G3
 {
 
 };
