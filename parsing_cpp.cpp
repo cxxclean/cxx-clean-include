@@ -1144,13 +1144,17 @@ namespace cxxcleantool
 			return;
 		}
 
-		std::string ns = d->getNominatedNamespace()->getQualifiedNameAsString();
+		const NamespaceDecl *nsDecl = d->getNominatedNamespace();
+		std::string ns = nsDecl->getQualifiedNameAsString();
 		m_usingNamespaces[file].insert(ns);
 
 		NamespaceInfo nsInfo;
-		nsInfo.ns_decl = GetNestedNamespace(d->getNominatedNamespace());
+		nsInfo.ns_decl = GetNestedNamespace(nsDecl);
 		nsInfo.ns_name = ns;
 		m_remainUsingNamespaces[loc] = nsInfo;
+
+		// 引用命名空间所在的文件（注意：using namespace时必须能找到对应的namespace声明，比如，using namespace A前一定要有namespace A{}否则编译会报错）
+		Use(loc, nsDecl->getLocation(), GetNestedNamespace(nsDecl).c_str());
 	}
 
 	// 获取可能缺失的using namespace

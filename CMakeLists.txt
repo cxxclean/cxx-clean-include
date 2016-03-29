@@ -8,6 +8,7 @@ add_clang_executable(cxxclean
 	test.cpp
 	tool.cpp
 	vs_project.cpp
+	html_log.cpp
 )
 
 target_link_libraries(cxxclean
