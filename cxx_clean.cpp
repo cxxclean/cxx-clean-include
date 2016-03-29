@@ -721,6 +721,8 @@ public:
 			return false;
 		}
 
+		HtmlLog::instance.BeginLog();
+
 		if (g_printVsConfig)
 		{
 			Vsproject::instance.Print();
@@ -1012,14 +1014,14 @@ int main(int argc, const char **argv)
 
 	tool.appendArgumentsAdjuster(getInsertArgumentAdjuster("-fcxx-exceptions",			ArgumentInsertPosition::BEGIN));
 	tool.appendArgumentsAdjuster(getInsertArgumentAdjuster("-Winvalid-source-encoding", ArgumentInsertPosition::BEGIN));
-	tool.appendArgumentsAdjuster(getInsertArgumentAdjuster("-Wdeprecated-declarations", ArgumentInsertPosition::BEGIN));	
+	tool.appendArgumentsAdjuster(getInsertArgumentAdjuster("-Wdeprecated-declarations", ArgumentInsertPosition::BEGIN));
 	tool.appendArgumentsAdjuster(getInsertArgumentAdjuster("-nobuiltininc",				ArgumentInsertPosition::BEGIN));	// 禁止使用clang内置的头文件
 	tool.appendArgumentsAdjuster(getInsertArgumentAdjuster("-w",						ArgumentInsertPosition::BEGIN));	// 禁用警告
 
 	std::unique_ptr<FrontendActionFactory> factory = newFrontendActionFactory<cxxcleantool::ListDeclAction>();
 	tool.run(factory.get());
 
-	if (Project::instance.m_isDeepClean && !Project::instance.m_onlyHas1File)
+	if (Project::instance.m_isDeepClean && !Project::instance.m_onlyHas1File && Project::instance.m_isOverWrite)
 	{
 		ProjectHistory::instance.m_isFirst = false;
 

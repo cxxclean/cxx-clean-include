@@ -251,7 +251,7 @@ namespace cxxcleantool
 					{
 						m_replaces.erase(lv2Top);
 
-						llvm::outs() << "fatal: there is replace cleared!\n";
+						// llvm::outs() << "fatal: there is replace cleared!\n";
 						return true;
 					}
 
@@ -2326,12 +2326,12 @@ namespace cxxcleantool
 					// 否则，打印替换前和替换后的#include整串
 					else
 					{
-						div.AddRow(strtool::get_text(cn_file_replace_old_text, htmltool::get_include_html(replaceInfo.m_oldText).c_str()), 4, 20, true);
-						div.AddGrid(strtool::get_text(cn_file_replace_new_text, htmltool::get_include_html(replaceInfo.m_newText).c_str()), 20);
+						div.AddRow(strtool::get_text(cn_file_replace_old_text, htmltool::get_include_html(replaceInfo.m_oldText).c_str()), 4, 40, true);
+						div.AddGrid(strtool::get_text(cn_file_replace_new_text, htmltool::get_include_html(replaceInfo.m_newText).c_str()), 59);
 					}
 
 					// 在行尾添加[in 所处的文件 : line = xx]
-					div.AddGrid(strtool::get_text(cn_file_replace_in_file, htmltool::get_file_html(replaceInfo.m_inFile).c_str(), htmltool::get_number_html(replaceInfo.m_line).c_str()), 59);
+					div.AddRow(strtool::get_text(cn_file_replace_in_file, htmltool::get_file_html(replaceInfo.m_inFile).c_str(), htmltool::get_number_html(replaceInfo.m_line).c_str()), 5);
 				}
 
 				for (auto itr : replaceLine.m_frontNamespace)
@@ -3546,7 +3546,22 @@ namespace cxxcleantool
 	// 该文件是否是被-include强制包含
 	bool ParsingFile::IsForceIncluded(FileID file) const
 	{
-		return (nullptr == m_srcMgr->getFileEntryForID(m_srcMgr->getFileID(m_srcMgr->getIncludeLoc(file))));
+		FileID parent = m_srcMgr->getFileID(m_srcMgr->getIncludeLoc(file));
+		return (nullptr == m_srcMgr->getFileEntryForID(parent));
+	}
+
+	// 该文件是否被预编译头文件包含
+	bool ParsingFile::IsInPrecompileHeader(FileID file) const
+	{
+		FileID parent = m_srcMgr->getFileID(m_srcMgr->getIncludeLoc(file));
+
+		std::string fileName = GetAbsoluteFileName(parent);
+		if (strtool::end_with(fileName, "stdafx.h"))
+		{
+			return true;
+		}
+
+		return false;
 	}
 
 	// 取出指定文件的#include替换信息
@@ -3559,18 +3574,19 @@ namespace cxxcleantool
 
 			// 取出该行#include的替换信息[行号 -> 被替换成的#include列表]
 			{
-				bool is_be_force_included	= IsForceIncluded(oldFile);
+				bool isBeForceIncluded		= IsForceIncluded(oldFile);
+				bool isInPrecompileHeader	= IsInPrecompileHeader(oldFile);
 
 				SourceLocation include_loc	= m_srcMgr->getIncludeLoc(oldFile);
 				SourceRange	lineRange		= GetCurLineWithLinefeed(include_loc);
-				int line					= (is_be_force_included ? 0 : GetLineNo(include_loc));
+				int line					= (isBeForceIncluded ? 0 : GetLineNo(include_loc));
 
 				ReplaceLine &replaceLine	= eachFile.m_replaces[line];
 				replaceLine.m_oldFile		= GetAbsoluteFileName(oldFile);
 				replaceLine.m_oldText		= GetRawIncludeStr(oldFile);
 				replaceLine.m_beg			= m_srcMgr->getFileOffset(lineRange.getBegin());
 				replaceLine.m_end			= m_srcMgr->getFileOffset(lineRange.getEnd());
-				replaceLine.m_isSkip		= (is_be_force_included ? true : false);				// 记载是否是强制包含
+				replaceLine.m_isSkip		= ((isBeForceIncluded || isInPrecompileHeader) ? true : false);	// 记载是否是强制包含
 
 				for (FileID replace_file : to_replaces)
 				{
@@ -3585,7 +3601,7 @@ namespace cxxcleantool
 					// 记录[所处的文件、所处行号]
 					replaceInfo.m_line		= GetLineNo(deep_include_loc);
 					replaceInfo.m_fileName	= GetAbsoluteFileName(replace_file);
-					replaceInfo.m_inFile	= m_srcMgr->getFilename(deep_include_loc);
+					replaceInfo.m_inFile	= GetAbsoluteFileName(m_srcMgr->getFileID(deep_include_loc));
 
 					replaceLine.m_newInclude.push_back(replaceInfo);
 

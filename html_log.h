@@ -14,7 +14,7 @@
 
 namespace cxxcleantool
 {
-	static const char* cn_cpp_file							= "%s c++ 文件";
+	static const char* cn_cpp_file						= "%s c++ 文件";
 	static const char* cn_folder						= "%s 文件夹";
 	static const char* cn_project						= "%s visual studio 工程";
 	static const char* cn_clean							= "清理%s的日志";
@@ -38,11 +38,11 @@ namespace cxxcleantool
 	static const char* cn_file_count_can_replace		= "共有%s个文件可以替换#include";
 	static const char* cn_file_can_replace_num			= "文件%s中可以有%s个#include可被替换";
 	static const char* cn_file_can_replace_line			= "第%s行可以被替换，该行原来的内容 = %s";
-	static const char* cn_file_replace_same_text		= "可以被替换为 = %s";
+	static const char* cn_file_replace_same_text		= "可以被替换为新的 = %s";
 	static const char* cn_file_replace_old_text			= "原本的#include = %s";
 	static const char* cn_file_replace_new_text			= "根据路径搜索得出的新的#include = %s";
 	static const char* cn_file_force_include_text		= " ==>  [注意: 本次替换将被跳过，因为该行可能已被强制包含]";
-	static const char* cn_file_replace_in_file			= "位于%s文件的%s行";
+	static const char* cn_file_replace_in_file			= "（注：新的#include来自于%s文件的第%s行）";
 
 	static const char* cn_file_count_add_forward		= "共有%s个文件可以新增前置声明";
 	static const char* cn_file_add_forward_num			= "文件%s中可以新增%s个前置声明";
@@ -52,7 +52,7 @@ namespace cxxcleantool
 
 	static const char* cn_project_history_title			= "本次清理结果";
 	static const char* cn_project_history_clean_count	= "清理结果：共有%s个c++文件可被清理";
-	static const char* cn_project_history_src_count		= "项目内共有%s个cpp（或cxx、cc）源文件";
+	static const char* cn_project_history_src_count		= "本次共分析了%s个cpp（或cxx、cc）源文件";
 
 	struct DivGrid
 	{

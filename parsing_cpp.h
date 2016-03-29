@@ -494,6 +494,9 @@ namespace cxxcleantool
 		// 该文件是否是被-include强制包含
 		bool IsForceIncluded(FileID file) const;
 
+		// 该文件是否被预编译头文件包含
+		bool IsInPrecompileHeader(FileID file) const;
+
 		// 将文件替换记录按父文件进行归类
 		typedef std::map<FileID, std::set<FileID>> ChildrenReplaceMap;
 		typedef std::map<FileID, ChildrenReplaceMap> ReplaceFileMap;
