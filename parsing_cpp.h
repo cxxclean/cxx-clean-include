@@ -85,15 +85,21 @@ namespace cxxcleantool
 	public:
 		ParsingFile(clang::Rewriter &rewriter, clang::CompilerInstance &compiler);
 
-		// 打印各文件内的可被删#include记录
-		static void PrintUnusedIncludeOfFiles(const FileHistoryMap &files);
+		// 打印单个文件的清理历史
+		static void PrintFileHistory(const FileHistory&);
 
-		// 打印各文件内的可新增前置声明记录
-		static void PrintCanForwarddeclOfFiles(const FileHistoryMap &files);
+		// 打印单个文件内的可被删#include记录
+		static void PrintUnusedIncludeOfFile(const FileHistory&);
 
-		// 打印各文件内的可被替换#include记录
-		static void PrintCanReplaceOfFiles(const FileHistoryMap &files);
+		// 打印单个文件内的可新增前置声明记录
+		static void PrintCanForwarddeclOfFile(const FileHistory&);
 
+		// 打印单个文件内的可被替换#include记录
+		static void PrintCanReplaceOfFile(const FileHistory&);
+
+		// 打印该文件产生的编译错误
+		static void PrintCompileError(const CompileErrorHistory&);
+				
 		// 初始化本对象
 		bool Init();
 
@@ -168,6 +174,9 @@ namespace cxxcleantool
 		
 		// 将当前cpp文件产生的待清理记录与之前其他cpp文件产生的待清理记录合并
 		void MergeTo(FileHistoryMap &old) const;
+		
+		// 获取本文件的编译错误历史
+		CompileErrorHistory& GetCompileErrorHistory(){ return m_compileErrorHistory; }
 
 	private:
 		// 获取头文件搜索路径
@@ -394,11 +403,8 @@ namespace cxxcleantool
 		// 打印允许被清理的所有文件列表
 		void PrintAllFile() const;
 
-		// 打印项目总的可被删#include记录
-		void PrintUnusedInclude() const;
-
-		// 打印项目总的可新增前置声明记录
-		void PrintCanForwarddecl() const;
+		// 打印清理日志
+		void PrintCleanLog() const;
 
 		// 打印各文件内的命名空间
 		void PrintNamespace() const;
@@ -453,9 +459,6 @@ namespace cxxcleantool
 		// 清理主文件
 		void CleanMainFile();
 
-		// 打印可替换记录
-		void PrintCanReplace() const;
-
 		// 打印头文件搜索路径
 		void PrintHeaderSearchPath() const;
 
@@ -508,6 +511,9 @@ namespace cxxcleantool
 		// 取出各文件的#include替换信息
 		void TakeReplaceByFile(FileHistoryMap &out) const;
 
+		// 取出本文件的编译错误历史
+		void TakeCompileErrorHistory(FileHistoryMap &out) const;
+
 		// 该文件是否被循环引用到
 		bool IsCyclyUsed(FileID file) const;
 
@@ -516,6 +522,10 @@ namespace cxxcleantool
 
 		// 该文件是否可被替换
 		bool IsReplaced(FileID file) const;
+		
+	public:
+		// 当前正在解析的文件
+		static ParsingFile *g_atFile;
 
 	private:
 		// 1. 各文件引用其他文件的记录列表：[文件] -> [引用的其他文件列表]
@@ -577,8 +587,8 @@ namespace cxxcleantool
 		clang::SourceManager*						m_srcMgr;
 		clang::CompilerInstance*					m_compiler;
 
-		// 当前打印索引，仅用于日志调试
-		mutable int									m_i;
+		// 本文件的编译错误历史
+		CompileErrorHistory							m_compileErrorHistory;
 
 		// 当前打印索引，仅用于日志打印
 		mutable int									m_printIdx;

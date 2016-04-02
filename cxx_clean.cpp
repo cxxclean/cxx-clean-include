@@ -20,6 +20,7 @@
 #include "llvm/Support/TargetSelect.h"
 #include "llvm/Support/Signals.h"
 #include "clang/Basic/Version.h"
+#include "clang/Frontend/TextDiagnosticPrinter.h"
 
 #include "tool.h"
 #include "vs_project.h"
@@ -284,8 +285,8 @@ namespace cxxcleantool
 			}
 			else
 			{
-				// llvm::errs() << "------------ havn't support stmt ------------:\n";
-				// s->dumpColor();
+				//llvm::errs() << "------------ havn't support stmt ------------:\n";
+				//s->dumpColor();
 			}
 
 			return true;
@@ -293,11 +294,6 @@ namespace cxxcleantool
 
 		bool VisitFunctionDecl(FunctionDecl *f)
 		{
-			//			if (m_main->m_srcMgr->isInMainFile(f->getLocStart()))
-			//			{
-			//				f->dumpColor();
-			//			}
-
 			// 识别返回值类型
 			{
 				// 函数的返回值
@@ -531,7 +527,56 @@ namespace cxxcleantool
 		DeclASTVisitor	m_visitor;
 	};
 
-	// 对于tool接收到的每个源文件，都将new一个ListDeclAction
+	// `TextDiagnosticPrinter`可以将错误信息打印在控制台上，为了调试方便我从它派生而来
+	class CxxcleanDiagnosticConsumer : public TextDiagnosticPrinter
+	{
+	public:
+		CxxcleanDiagnosticConsumer(DiagnosticOptions *diags)
+			: TextDiagnosticPrinter(g_log, diags)
+		{
+		}
+
+		void Clear()
+		{
+		}
+
+		virtual void EndSourceFile() override
+		{
+			TextDiagnosticPrinter::EndSourceFile();
+
+			CompileErrorHistory &errHistory = ParsingFile::g_atFile->GetCompileErrorHistory();
+			errHistory.m_errNum				= NumErrors;
+		}
+
+		// 当一个错误发生时，会调用此函数，我会在这个函数里通过Info.getID()取得Diagnostic ID，然后对应地取出规范ID
+		virtual void HandleDiagnostic(DiagnosticsEngine::Level diagLevel, const Diagnostic &info)
+		{
+			TextDiagnosticPrinter::HandleDiagnostic(diagLevel, info);
+
+			CompileErrorHistory &errHistory = ParsingFile::g_atFile->GetCompileErrorHistory();
+
+			int errId = info.getID();
+			if (errId == diag::fatal_too_many_errors)
+			{
+				errHistory.m_hasTooManyError = true;
+			}
+
+			std::string tip = g_log.str();
+			tip += strtool::get_text(cn_error_num_tip, htmltool::get_number_html(errId).c_str());
+			errHistory.m_errTips.push_back(tip);
+
+			g_log.flush();
+			g_errorTip = "";
+		}
+
+		static std::string			g_errorTip;
+		static raw_string_ostream	g_log;
+	};
+
+	std::string CxxcleanDiagnosticConsumer::g_errorTip;
+	raw_string_ostream CxxcleanDiagnosticConsumer::g_log(g_errorTip);
+
+	// 对于ClangTool接收到的每个源文件，都将new一个ListDeclAction
 	class ListDeclAction : public ASTFrontendAction
 	{
 	public:
@@ -572,22 +617,20 @@ namespace cxxcleantool
 
 			c->m_main->GenerateResult();
 
+			if (ProjectHistory::instance.m_isFirst)
 			{
-				if (ProjectHistory::instance.m_isFirst || Project::instance.m_onlyHas1File)
-				{
-					ProjectHistory::instance.AddFile(c->m_main);
-					c->m_main->Print();
-				}
+				ProjectHistory::instance.AddFile(c->m_main);
+				c->m_main->Print();
+			}
 
-				bool can_clean	 = false;
-				can_clean		|= Project::instance.m_onlyHas1File;;
-				can_clean		|= !Project::instance.m_isDeepClean;
-				can_clean		|= !ProjectHistory::instance.m_isFirst;
+			bool can_clean	 = false;
+			can_clean		|= Project::instance.m_onlyHas1File;;
+			can_clean		|= !Project::instance.m_isDeepClean;
+			can_clean		|= !ProjectHistory::instance.m_isFirst;
 
-				if (can_clean)
-				{
-					c->m_main->Clean();
-				}
+			if (can_clean)
+			{
+				c->m_main->Clean();
 			}
 
 			// llvm::errs() << "end clean file: " << c->m_main->get_file_name(srcMgr.getMainFileID()) << "\n";
@@ -603,6 +646,8 @@ namespace cxxcleantool
 
 			ParsingFile *parsingCpp	= new ParsingFile(m_rewriter, compiler);
 			parsingCpp->Init();
+
+			HtmlLog::instance.m_newDiv.Clear();
 
 			compiler.getPreprocessor().addPPCallbacks(llvm::make_unique<CxxCleanPreprocessor>(parsingCpp));
 			return llvm::make_unique<ListDeclASTConsumer>(m_rewriter, parsingCpp);
@@ -1017,6 +1062,9 @@ int main(int argc, const char **argv)
 	tool.appendArgumentsAdjuster(getInsertArgumentAdjuster("-Wdeprecated-declarations", ArgumentInsertPosition::BEGIN));
 	tool.appendArgumentsAdjuster(getInsertArgumentAdjuster("-nobuiltininc",				ArgumentInsertPosition::BEGIN));	// 禁止使用clang内置的头文件
 	tool.appendArgumentsAdjuster(getInsertArgumentAdjuster("-w",						ArgumentInsertPosition::BEGIN));	// 禁用警告
+
+	DiagnosticOptions diagnosticOptions;
+	tool.setDiagnosticConsumer(new CxxcleanDiagnosticConsumer(&diagnosticOptions));
 
 	std::unique_ptr<FrontendActionFactory> factory = newFrontendActionFactory<cxxcleantool::ListDeclAction>();
 	tool.run(factory.get());

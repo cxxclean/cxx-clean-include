@@ -22,6 +22,12 @@ namespace cxxcleantool
 
 	struct UselessLine
 	{
+		UselessLine()
+			: m_beg(0)
+			, m_end(0)
+		{
+		}
+
 		int							m_beg;				// 起始偏移
 		int							m_end;				// 结束偏移
 		string						m_text;				// 废弃的文本串
@@ -30,6 +36,11 @@ namespace cxxcleantool
 
 	struct ForwardLine
 	{
+		ForwardLine()
+			: m_offsetAtFile(0)
+		{
+		}
+
 		int							m_offsetAtFile;		// 本行首在文件内的偏移量
 		string						m_oldText;			// 本行原来的文本
 		std::set<string>			m_classes;			// 新增前置声明列表
@@ -37,6 +48,11 @@ namespace cxxcleantool
 
 	struct ReplaceInfo
 	{
+		ReplaceInfo()
+			: m_line(0)
+		{
+		}
+
 		string						m_fileName;			// 该#include对应的文件
 		string						m_inFile;			// 该#include被哪个文件包含
 		int							m_line;				// 该#include所在的行
@@ -46,6 +62,13 @@ namespace cxxcleantool
 
 	struct ReplaceLine
 	{
+		ReplaceLine()
+			: m_isSkip(false)
+			, m_beg(0)
+			, m_end(0)
+		{
+		}
+
 		bool						m_isSkip;			// 记录本条替换是否应被跳过，因为有些#include是被-include参数所引入的，并无法被替换，但仍然有打印的必要
 		int							m_beg;				// 起始偏移
 		int							m_end;				// 结束偏移
@@ -54,6 +77,21 @@ namespace cxxcleantool
 		std::vector<ReplaceInfo>	m_newInclude;		// 替换后的#include串列表
 		std::map<string, string>	m_frontNamespace;	// 本行首应添加的using namespace
 		std::map<string, string>	m_backNamespace;	// 本行末应添加的using namespace
+	};
+
+	// 每个文件的编译错误历史
+	struct CompileErrorHistory
+	{
+		CompileErrorHistory()
+			: m_errNum(0)
+			, m_hasTooManyError(false)
+		{
+		}
+
+		int							m_errNum;			// 编译错误数
+		int							m_hasTooManyError;	// 是否错误数过多[由clang库内置参数决定]
+		std::set<int>				m_fatalErrors;		// 严重错误列表
+		std::vector<std::string>	m_errTips;			// 编译错误提示列表
 	};
 
 	// 项目历史，记录各c++文件的待清理记录
@@ -97,13 +135,13 @@ namespace cxxcleantool
 		typedef std::map<int, ForwardLine> ForwardLineMap;
 		typedef std::map<int, ReplaceLine> ReplaceLineMap;
 
-		bool				m_isWindowFormat;	// 本文件是否是Windows格式的换行符[\r\n]，否则为类Unix格式[\n]（通过文件第一行换行符来判断）
-
+		CompileErrorHistory m_compileErrorHistory;	// 本文件产生的编译错误
 		UnusedLineMap		m_unusedLines;
 		ForwardLineMap		m_forwards;
 		ReplaceLineMap		m_replaces;
 		std::string			m_filename;
 
+		bool				m_isWindowFormat;		// 本文件是否是Windows格式的换行符[\r\n]，否则为类Unix格式[\n]（通过文件第一行换行符来判断）
 		int					m_newBeIncludeCount;
 		int					m_oldBeIncludeCount;
 		int					m_beUseCount;
@@ -138,18 +176,13 @@ namespace cxxcleantool
 
 		void AddFile(ParsingFile *file);
 
-		void PrintUnusedLine() const;
-
-		void PrintCanForwarddeclClass() const;
-
-		void PrintReplace() const;
-
 		// 打印文件被使用次数（未完善）
 		void PrintCount() const;
 
 		// 打印索引 + 1
 		std::string AddPrintIdx() const;
 
+		// 打印日志
 		void Print() const;
 
 	public:

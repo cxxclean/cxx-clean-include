@@ -110,7 +110,7 @@
 
 			.chart {
 				position: relative;
-				overflow: hidden;
+				overflow: ellipsis;
 				*margin-left: -40px;
 				margin-top: 8px;
 				border-radius: 10px;
@@ -130,21 +130,29 @@
 				background: #DDD;
 			}
 
-			.chart .row .grid {
+			.chart .error_row {
 				position: relative;
-				float: left;
+				line-height: 20px;
 				white-space: nowrap;
-				overflow: hidden
-				text-indent: 60px;
 				text-overflow: ellipsis;
+				background: #FFF;
+				color: #FF0000;
 			}
 
-			.chart .row .grid a {
+			.chart .error_row:hover {
+				background: #DDD;
+			}
+
+			.chart .row .grid {
+				float: left;
+			}
+
+			.chart a {
 				cursor: default;
 				text-decoration: none
 			}
 
-			.chart .row .grid a:hover,.chart .row .grid a:active {
+			.chart a:hover,.chart a:active {
 				cursor: pointer;
 				text-decoration: underline
 			}
@@ -152,7 +160,7 @@
     </head>
     <body>
         <div id="main">
-2016/03/27-00:19:05<hr/>
+2016/04/02-23:13:13<hr/>
 <h1>清理<a href="./hello.vcxproj">./hello.vcxproj</a> visual studio 工程的日志</h1>
             <div class="box">
                 <div class="title">
@@ -472,10 +480,61 @@
                 <div class="chart">
                     <dl>
                         
+                        <dd class="error_row" style="font-weight:bold">
+                            
+                            <div class="grid">
+                                <pre style="padding:0 35px;"> </pre>
+                            </div>
+
+                        </dd>
+
+                        <dd class="error_row" style="font-weight:bold">
+                            
+                            <div class="grid">
+                                <pre style="padding:0 35px;">错误：编译本文件时产生了以下编译错误：</pre>
+                            </div>
+
+                        </dd>
+
+                        <dd class="error_row">
+                            
+                            <div class="grid">
+                                <pre style="padding:0 70px;">D:\proj\mine\llvm\hello\hello.cpp:86:6: error: expected member name or ';' after declaration specifiers
+        int not;
+        ~~~ ^
+该编译错误号 = <span class="number-text"">1088</span></pre>
+                            </div>
+
+                        </dd>
+
+                        <dd class="error_row" style="font-weight:bold">
+                            
+                            <div class="grid">
+                                <pre style="padding:0 35px;"> </pre>
+                            </div>
+
+                        </dd>
+
+                        <dd class="error_row" style="font-weight:bold">
+                            
+                            <div class="grid">
+                                <pre style="padding:0 35px;">==> 编译结果：共产生了<span class="number-text"">1</span>个编译错误，由于错误较少或不严重，本文件的分析结果仍将被统计</pre>
+                            </div>
+
+                        </dd>
+
                         <dd class="row" style="font-weight:bold">
                             
                             <div class="grid" style="width:100%;text-indent:35px;">
-                                1. 共有<span class="number-text"">1</span>个文件有多余的#include
+                                
+                            </div>
+
+                        </dd>
+
+                        <dd class="row" style="font-weight:bold">
+                            
+                            <div class="grid" style="width:100%;text-indent:35px;">
+                                第<span class="number-text"">1</span>个文件<a href="D:/proj/mine/llvm/hello/hello.cpp">D:/proj/mine/llvm/hello/hello.cpp</a>可以被清理
                             </div>
 
                         </dd>
@@ -483,7 +542,7 @@
                         <dd class="row">
                             
                             <div class="grid" style="width:100%;text-indent:70px;">
-                                文件<a href="D:/proj/mine/llvm/hello/hello.cpp">D:/proj/mine/llvm/hello/hello.cpp</a>中有<span class="number-text"">33</span>行多余的#include
+                                该文件中有<span class="number-text"">32</span>行多余的#include
                             </div>
 
                         </dd>
@@ -508,18 +567,6 @@
 
                             <div class="grid" style="width:74%;text-indent:0px;">
                                 该行原来的#include文本 = <span class="include-text"">#include &lt;io.h&gt;</a>
-                            </div>
-
-                        </dd>
-
-                        <dd class="row">
-                            
-                            <div class="grid" style="width:25%;text-indent:105px;">
-                                可移除第<span class="number-text"">7</span>行
-                            </div>
-
-                            <div class="grid" style="width:74%;text-indent:0px;">
-                                该行原来的#include文本 = <span class="include-text"">#include &lt;windows.h&gt;</a>
                             </div>
 
                         </dd>
@@ -892,246 +939,18 @@
 
                         </dd>
 
-                        <dd class="row" style="font-weight:bold">
-                            
-                            <div class="grid" style="width:100%;text-indent:35px;">
-                                2. 共有<span class="number-text"">2</span>个文件可以替换#include
-                            </div>
-
-                        </dd>
-
                         <dd class="row">
                             
                             <div class="grid" style="width:100%;text-indent:70px;">
-                                文件<a href="D:/proj/mine/llvm/hello/hello.cpp">D:/proj/mine/llvm/hello/hello.cpp</a>中可以有<span class="number-text"">5</span>个#include可被替换
+                                该文件中可以新增<span class="number-text"">2</span>个前置声明
                             </div>
 
                         </dd>
 
                         <dd class="row">
                             
-                            <div class="grid" style="width:30%;text-indent:105px;">
-                                第<span class="number-text"">10</span>行可以被替换
-                            </div>
-
-                            <div class="grid" style="width:69%;text-indent:0px;">
-                                该行原来的内容 = <span class="include-text"">#include "a_func.h"</a>
-                            </div>
-
-                        </dd>
-
-                        <dd class="row">
-                            
-                            <div class="grid" style="width:40%;text-indent:140px;">
-                                可以被替换为 = <span class="include-text"">#include "a.h"</a>
-                            </div>
-
-                            <div class="grid" style="width:59%;text-indent:0px;">
-                                位于<a href="D:\proj\mine\llvm\hello/a_func.h">D:\proj\mine\llvm\hello/a_func.h</a>文件的<span class="number-text"">3</span>行
-                            </div>
-
-                        </dd>
-
-                        <dd class="row" style="font-weight:bold">
-                            
-                            <div class="grid" style="width:100%;text-indent:35px;">
-                                
-                            </div>
-
-                        </dd>
-
-                        <dd class="row">
-                            
-                            <div class="grid" style="width:30%;text-indent:105px;">
-                                第<span class="number-text"">11</span>行可以被替换
-                            </div>
-
-                            <div class="grid" style="width:69%;text-indent:0px;">
-                                该行原来的内容 = <span class="include-text"">#include "b_class.h"</a>
-                            </div>
-
-                        </dd>
-
-                        <dd class="row">
-                            
-                            <div class="grid" style="width:40%;text-indent:140px;">
-                                可以被替换为 = <span class="include-text"">#include "b.h"</a>
-                            </div>
-
-                            <div class="grid" style="width:59%;text-indent:0px;">
-                                位于<a href="D:\proj\mine\llvm\hello/b_class.h">D:\proj\mine\llvm\hello/b_class.h</a>文件的<span class="number-text"">5</span>行
-                            </div>
-
-                        </dd>
-
-                        <dd class="row" style="font-weight:bold">
-                            
-                            <div class="grid" style="width:100%;text-indent:35px;">
-                                
-                            </div>
-
-                        </dd>
-
-                        <dd class="row">
-                            
-                            <div class="grid" style="width:30%;text-indent:105px;">
-                                第<span class="number-text"">14</span>行可以被替换
-                            </div>
-
-                            <div class="grid" style="width:69%;text-indent:0px;">
-                                该行原来的内容 = <span class="include-text"">#include "e_typedef.h"</a>
-                            </div>
-
-                        </dd>
-
-                        <dd class="row">
-                            
-                            <div class="grid" style="width:40%;text-indent:140px;">
-                                可以被替换为 = <span class="include-text"">#include "e.h"</a>
-                            </div>
-
-                            <div class="grid" style="width:59%;text-indent:0px;">
-                                位于<a href="D:\proj\mine\llvm\hello/e_typedef.h">D:\proj\mine\llvm\hello/e_typedef.h</a>文件的<span class="number-text"">12</span>行
-                            </div>
-
-                        </dd>
-
-                        <dd class="row" style="font-weight:bold">
-                            
-                            <div class="grid" style="width:100%;text-indent:35px;">
-                                
-                            </div>
-
-                        </dd>
-
-                        <dd class="row">
-                            
-                            <div class="grid" style="width:30%;text-indent:105px;">
-                                第<span class="number-text"">19</span>行可以被替换
-                            </div>
-
-                            <div class="grid" style="width:69%;text-indent:0px;">
-                                该行原来的内容 = <span class="include-text"">#include "j_enumeration.h"</a>
-                            </div>
-
-                        </dd>
-
-                        <dd class="row">
-                            
-                            <div class="grid" style="width:40%;text-indent:140px;">
-                                可以被替换为 = <span class="include-text"">#include "j.h"</a>
-                            </div>
-
-                            <div class="grid" style="width:59%;text-indent:0px;">
-                                位于<a href="D:\proj\mine\llvm\hello/j_enumeration.h">D:\proj\mine\llvm\hello/j_enumeration.h</a>文件的<span class="number-text"">12</span>行
-                            </div>
-
-                        </dd>
-
-                        <dd class="row" style="font-weight:bold">
-                            
-                            <div class="grid" style="width:100%;text-indent:35px;">
-                                
-                            </div>
-
-                        </dd>
-
-                        <dd class="row">
-                            
-                            <div class="grid" style="width:30%;text-indent:105px;">
-                                第<span class="number-text"">20</span>行可以被替换
-                            </div>
-
-                            <div class="grid" style="width:69%;text-indent:0px;">
-                                该行原来的内容 = <span class="include-text"">#include "k_namespace.h"</a>
-                            </div>
-
-                        </dd>
-
-                        <dd class="row">
-                            
-                            <div class="grid" style="width:40%;text-indent:140px;">
-                                可以被替换为 = <span class="include-text"">#include "k.h"</a>
-                            </div>
-
-                            <div class="grid" style="width:59%;text-indent:0px;">
-                                位于<a href="D:\proj\mine\llvm\hello/k_namespace.h">D:\proj\mine\llvm\hello/k_namespace.h</a>文件的<span class="number-text"">12</span>行
-                            </div>
-
-                        </dd>
-
-                        <dd class="row" style="font-weight:bold">
-                            
-                            <div class="grid" style="width:100%;text-indent:35px;">
-                                
-                            </div>
-
-                        </dd>
-
-                        <dd class="row">
-                            
-                            <div class="grid" style="width:100%;text-indent:70px;">
-                                文件<a href="D:/proj/mine/llvm/hello/i_deeply_include.h">D:/proj/mine/llvm/hello/i_deeply_include.h</a>中可以有<span class="number-text"">1</span>个#include可被替换
-                            </div>
-
-                        </dd>
-
-                        <dd class="row">
-                            
-                            <div class="grid" style="width:30%;text-indent:105px;">
-                                第<span class="number-text"">12</span>行可以被替换
-                            </div>
-
-                            <div class="grid" style="width:69%;text-indent:0px;">
-                                该行原来的内容 = <span class="include-text"">#include "i_1.h"</a>
-                            </div>
-
-                        </dd>
-
-                        <dd class="row">
-                            
-                            <div class="grid" style="width:40%;text-indent:140px;">
-                                可以被替换为 = <span class="include-text"">#include "i_3.h"</a>
-                            </div>
-
-                            <div class="grid" style="width:59%;text-indent:0px;">
-                                位于<a href="D:\proj\mine\llvm\hello/i_2.h">D:\proj\mine\llvm\hello/i_2.h</a>文件的<span class="number-text"">12</span>行
-                            </div>
-
-                        </dd>
-
-                        <dd class="row" style="font-weight:bold">
-                            
-                            <div class="grid" style="width:100%;text-indent:35px;">
-                                
-                            </div>
-
-                        </dd>
-
-                        <dd class="row" style="font-weight:bold">
-                            
-                            <div class="grid" style="width:100%;text-indent:35px;">
-                                3. 共有<span class="number-text"">1</span>个文件可以新增前置声明
-                            </div>
-
-                        </dd>
-
-                        <dd class="row">
-                            
-                            <div class="grid" style="width:100%;text-indent:70px;">
-                                文件<a href="D:/proj/mine/llvm/hello/hello.cpp">D:/proj/mine/llvm/hello/hello.cpp</a>中可以新增<span class="number-text"">2</span>个前置声明
-                            </div>
-
-                        </dd>
-
-                        <dd class="row">
-                            
-                            <div class="grid" style="width:30%;text-indent:105px;">
-                                可在第<span class="number-text"">15</span>行新增前置声明
-                            </div>
-
-                            <div class="grid" style="width:69%;text-indent:0px;">
-                                该行原来的内容 = <span class="include-text"">#include "f_forwarddecl.h"				// 测试前置声明		:f_forwarddecl.h</a>
+                            <div class="grid" style="width:100%;text-indent:105px;">
+                                可在第<span class="number-text"">15</span>行新增前置声明，该行原来的内容 = <span class="include-text"">#include "f_forwarddecl.h"				// 测试前置声明		:f_forwarddecl.h</a>
                             </div>
 
                         </dd>
@@ -1154,12 +973,8 @@
 
                         <dd class="row">
                             
-                            <div class="grid" style="width:30%;text-indent:105px;">
-                                可在第<span class="number-text"">17</span>行新增前置声明
-                            </div>
-
-                            <div class="grid" style="width:69%;text-indent:0px;">
-                                该行原来的内容 = <span class="include-text"">#include "h_use_forwarddecl.h"			// 测试使用前置声明	:h_use_forwarddecl.h</a>
+                            <div class="grid" style="width:100%;text-indent:105px;">
+                                可在第<span class="number-text"">17</span>行新增前置声明，该行原来的内容 = <span class="include-text"">#include "h_use_forwarddecl.h"			// 测试使用前置声明	:h_use_forwarddecl.h</a>
                             </div>
 
                         </dd>
@@ -1168,6 +983,222 @@
                             
                             <div class="grid" style="width:100%;text-indent:140px;">
                                 新增前置声明 = <span class="include-text"">class H;</a>
+                            </div>
+
+                        </dd>
+
+                        <dd class="row" style="font-weight:bold">
+                            
+                            <div class="grid" style="width:100%;text-indent:35px;">
+                                
+                            </div>
+
+                        </dd>
+
+                        <dd class="row">
+                            
+                            <div class="grid" style="width:100%;text-indent:70px;">
+                                该文件中有<span class="number-text"">4</span>个#include可被替换
+                            </div>
+
+                        </dd>
+
+                        <dd class="row">
+                            
+                            <div class="grid" style="width:100%;text-indent:105px;">
+                                第<span class="number-text"">10</span>行可以被替换，该行原来的内容 = <span class="include-text"">#include "a_func.h"</a>
+                            </div>
+
+                        </dd>
+
+                        <dd class="row">
+                            
+                            <div class="grid" style="width:40%;text-indent:140px;">
+                                可以被替换为新的 = <span class="include-text"">#include "a.h"</a>
+                            </div>
+
+                        </dd>
+
+                        <dd class="row">
+                            
+                            <div class="grid" style="width:100%;text-indent:175px;">
+                                （注：新的#include来自于<a href="D:/proj/mine/llvm/hello/a_func.h">D:/proj/mine/llvm/hello/a_func.h</a>文件的第<span class="number-text"">3</span>行）
+                            </div>
+
+                        </dd>
+
+                        <dd class="row" style="font-weight:bold">
+                            
+                            <div class="grid" style="width:100%;text-indent:35px;">
+                                
+                            </div>
+
+                        </dd>
+
+                        <dd class="row">
+                            
+                            <div class="grid" style="width:100%;text-indent:105px;">
+                                第<span class="number-text"">11</span>行可以被替换，该行原来的内容 = <span class="include-text"">#include "b_class.h"</a>
+                            </div>
+
+                        </dd>
+
+                        <dd class="row">
+                            
+                            <div class="grid" style="width:40%;text-indent:140px;">
+                                可以被替换为新的 = <span class="include-text"">#include "b.h"</a>
+                            </div>
+
+                        </dd>
+
+                        <dd class="row">
+                            
+                            <div class="grid" style="width:100%;text-indent:175px;">
+                                （注：新的#include来自于<a href="D:/proj/mine/llvm/hello/b_class.h">D:/proj/mine/llvm/hello/b_class.h</a>文件的第<span class="number-text"">5</span>行）
+                            </div>
+
+                        </dd>
+
+                        <dd class="row" style="font-weight:bold">
+                            
+                            <div class="grid" style="width:100%;text-indent:35px;">
+                                
+                            </div>
+
+                        </dd>
+
+                        <dd class="row">
+                            
+                            <div class="grid" style="width:100%;text-indent:105px;">
+                                第<span class="number-text"">19</span>行可以被替换，该行原来的内容 = <span class="include-text"">#include "j_enumeration.h"</a>
+                            </div>
+
+                        </dd>
+
+                        <dd class="row">
+                            
+                            <div class="grid" style="width:40%;text-indent:140px;">
+                                可以被替换为新的 = <span class="include-text"">#include "j.h"</a>
+                            </div>
+
+                        </dd>
+
+                        <dd class="row">
+                            
+                            <div class="grid" style="width:100%;text-indent:175px;">
+                                （注：新的#include来自于<a href="D:/proj/mine/llvm/hello/j_enumeration.h">D:/proj/mine/llvm/hello/j_enumeration.h</a>文件的第<span class="number-text"">12</span>行）
+                            </div>
+
+                        </dd>
+
+                        <dd class="row" style="font-weight:bold">
+                            
+                            <div class="grid" style="width:100%;text-indent:35px;">
+                                
+                            </div>
+
+                        </dd>
+
+                        <dd class="row">
+                            
+                            <div class="grid" style="width:100%;text-indent:105px;">
+                                第<span class="number-text"">20</span>行可以被替换，该行原来的内容 = <span class="include-text"">#include "k_namespace.h"</a>
+                            </div>
+
+                        </dd>
+
+                        <dd class="row">
+                            
+                            <div class="grid" style="width:40%;text-indent:140px;">
+                                可以被替换为新的 = <span class="include-text"">#include "k.h"</a>
+                            </div>
+
+                        </dd>
+
+                        <dd class="row">
+                            
+                            <div class="grid" style="width:100%;text-indent:175px;">
+                                （注：新的#include来自于<a href="D:/proj/mine/llvm/hello/k_namespace.h">D:/proj/mine/llvm/hello/k_namespace.h</a>文件的第<span class="number-text"">21</span>行）
+                            </div>
+
+                        </dd>
+
+                        <dd class="row">
+                            
+                            <div class="grid" style="width:100%;text-indent:175px;">
+                                应在行首新增<span class="include-text"">namespace k_ns{namespace k_1{}}</a>
+                            </div>
+
+                        </dd>
+
+                        <dd class="row">
+                            
+                            <div class="grid" style="width:100%;text-indent:175px;">
+                                应在行首新增<span class="include-text"">using namespace k_ns::k_1;</a>
+                            </div>
+
+                        </dd>
+
+                        <dd class="row">
+                            
+                            <div class="grid" style="width:100%;text-indent:175px;">
+                                应在行末新增<span class="include-text"">namespace k_ns{}</a>
+                            </div>
+
+                        </dd>
+
+                        <dd class="row">
+                            
+                            <div class="grid" style="width:100%;text-indent:175px;">
+                                应在行末新增<span class="include-text"">using namespace k_ns;</a>
+                            </div>
+
+                        </dd>
+
+                        <dd class="row" style="font-weight:bold">
+                            
+                            <div class="grid" style="width:100%;text-indent:35px;">
+                                
+                            </div>
+
+                        </dd>
+
+                        <dd class="row" style="font-weight:bold">
+                            
+                            <div class="grid" style="width:100%;text-indent:35px;">
+                                第<span class="number-text"">2</span>个文件<a href="D:/proj/mine/llvm/hello/i_deeply_include.h">D:/proj/mine/llvm/hello/i_deeply_include.h</a>可以被清理
+                            </div>
+
+                        </dd>
+
+                        <dd class="row">
+                            
+                            <div class="grid" style="width:100%;text-indent:70px;">
+                                该文件中有<span class="number-text"">1</span>个#include可被替换
+                            </div>
+
+                        </dd>
+
+                        <dd class="row">
+                            
+                            <div class="grid" style="width:100%;text-indent:105px;">
+                                第<span class="number-text"">12</span>行可以被替换，该行原来的内容 = <span class="include-text"">#include "i_1.h"</a>
+                            </div>
+
+                        </dd>
+
+                        <dd class="row">
+                            
+                            <div class="grid" style="width:40%;text-indent:140px;">
+                                可以被替换为新的 = <span class="include-text"">#include "i_3.h"</a>
+                            </div>
+
+                        </dd>
+
+                        <dd class="row">
+                            
+                            <div class="grid" style="width:100%;text-indent:175px;">
+                                （注：新的#include来自于<a href="D:/proj/mine/llvm/hello/i_2.h">D:/proj/mine/llvm/hello/i_2.h</a>文件的第<span class="number-text"">12</span>行）
                             </div>
 
                         </dd>
@@ -1193,7 +1224,7 @@
                         </li>
 
                         <li class="col" style="width:49%;">
-                            项目内共有<span class="number-text"">1</span>个cpp（或cxx、cc）源文件
+                            本次共分析了<span class="number-text"">1</span>个cpp（或cxx、cc）源文件
                         </li>
 
                     </ul>
@@ -1204,7 +1235,58 @@
                         <dd class="row" style="font-weight:bold">
                             
                             <div class="grid" style="width:100%;text-indent:35px;">
-                                1. 共有<span class="number-text"">1</span>个文件有多余的#include
+                                第<span class="number-text"">1</span>个文件<a href="D:/proj/mine/llvm/hello/hello.cpp">D:/proj/mine/llvm/hello/hello.cpp</a>可以被清理
+                            </div>
+
+                        </dd>
+
+                        <dd class="error_row" style="font-weight:bold">
+                            
+                            <div class="grid">
+                                <pre style="padding:0 35px;"> </pre>
+                            </div>
+
+                        </dd>
+
+                        <dd class="error_row" style="font-weight:bold">
+                            
+                            <div class="grid">
+                                <pre style="padding:0 35px;">错误：编译本文件时产生了以下编译错误：</pre>
+                            </div>
+
+                        </dd>
+
+                        <dd class="error_row">
+                            
+                            <div class="grid">
+                                <pre style="padding:0 70px;">D:\proj\mine\llvm\hello\hello.cpp:86:6: error: expected member name or ';' after declaration specifiers
+        int not;
+        ~~~ ^
+该编译错误号 = <span class="number-text"">1088</span></pre>
+                            </div>
+
+                        </dd>
+
+                        <dd class="error_row" style="font-weight:bold">
+                            
+                            <div class="grid">
+                                <pre style="padding:0 35px;"> </pre>
+                            </div>
+
+                        </dd>
+
+                        <dd class="error_row" style="font-weight:bold">
+                            
+                            <div class="grid">
+                                <pre style="padding:0 35px;">==> 编译结果：共产生了<span class="number-text"">1</span>个编译错误，由于错误较少或不严重，本文件的分析结果仍将被统计</pre>
+                            </div>
+
+                        </dd>
+
+                        <dd class="row" style="font-weight:bold">
+                            
+                            <div class="grid" style="width:100%;text-indent:35px;">
+                                
                             </div>
 
                         </dd>
@@ -1212,7 +1294,7 @@
                         <dd class="row">
                             
                             <div class="grid" style="width:100%;text-indent:70px;">
-                                文件<a href="D:/proj/mine/llvm/hello/hello.cpp">D:/proj/mine/llvm/hello/hello.cpp</a>中有<span class="number-text"">33</span>行多余的#include
+                                该文件中有<span class="number-text"">32</span>行多余的#include
                             </div>
 
                         </dd>
@@ -1237,18 +1319,6 @@
 
                             <div class="grid" style="width:74%;text-indent:0px;">
                                 该行原来的#include文本 = <span class="include-text"">#include &lt;io.h&gt;</a>
-                            </div>
-
-                        </dd>
-
-                        <dd class="row">
-                            
-                            <div class="grid" style="width:25%;text-indent:105px;">
-                                可移除第<span class="number-text"">7</span>行
-                            </div>
-
-                            <div class="grid" style="width:74%;text-indent:0px;">
-                                该行原来的#include文本 = <span class="include-text"">#include &lt;windows.h&gt;</a>
                             </div>
 
                         </dd>
@@ -1621,30 +1691,18 @@
 
                         </dd>
 
-                        <dd class="row" style="font-weight:bold">
-                            
-                            <div class="grid" style="width:100%;text-indent:35px;">
-                                2. 共有<span class="number-text"">1</span>个文件可以新增前置声明
-                            </div>
-
-                        </dd>
-
                         <dd class="row">
                             
                             <div class="grid" style="width:100%;text-indent:70px;">
-                                文件<a href="D:/proj/mine/llvm/hello/hello.cpp">D:/proj/mine/llvm/hello/hello.cpp</a>中可以新增<span class="number-text"">2</span>个前置声明
+                                该文件中可以新增<span class="number-text"">2</span>个前置声明
                             </div>
 
                         </dd>
 
                         <dd class="row">
                             
-                            <div class="grid" style="width:30%;text-indent:105px;">
-                                可在第<span class="number-text"">15</span>行新增前置声明
-                            </div>
-
-                            <div class="grid" style="width:69%;text-indent:0px;">
-                                该行原来的内容 = <span class="include-text"">#include "f_forwarddecl.h"				// 测试前置声明		:f_forwarddecl.h</a>
+                            <div class="grid" style="width:100%;text-indent:105px;">
+                                可在第<span class="number-text"">15</span>行新增前置声明，该行原来的内容 = <span class="include-text"">#include "f_forwarddecl.h"				// 测试前置声明		:f_forwarddecl.h</a>
                             </div>
 
                         </dd>
@@ -1667,12 +1725,8 @@
 
                         <dd class="row">
                             
-                            <div class="grid" style="width:30%;text-indent:105px;">
-                                可在第<span class="number-text"">17</span>行新增前置声明
-                            </div>
-
-                            <div class="grid" style="width:69%;text-indent:0px;">
-                                该行原来的内容 = <span class="include-text"">#include "h_use_forwarddecl.h"			// 测试使用前置声明	:h_use_forwarddecl.h</a>
+                            <div class="grid" style="width:100%;text-indent:105px;">
+                                可在第<span class="number-text"">17</span>行新增前置声明，该行原来的内容 = <span class="include-text"">#include "h_use_forwarddecl.h"			// 测试使用前置声明	:h_use_forwarddecl.h</a>
                             </div>
 
                         </dd>
@@ -1693,10 +1747,178 @@
 
                         </dd>
 
+                        <dd class="row">
+                            
+                            <div class="grid" style="width:100%;text-indent:70px;">
+                                该文件中有<span class="number-text"">4</span>个#include可被替换
+                            </div>
+
+                        </dd>
+
+                        <dd class="row">
+                            
+                            <div class="grid" style="width:100%;text-indent:105px;">
+                                第<span class="number-text"">10</span>行可以被替换，该行原来的内容 = <span class="include-text"">#include "a_func.h"</a>
+                            </div>
+
+                        </dd>
+
+                        <dd class="row">
+                            
+                            <div class="grid" style="width:40%;text-indent:140px;">
+                                可以被替换为新的 = <span class="include-text"">#include "a.h"</a>
+                            </div>
+
+                        </dd>
+
+                        <dd class="row">
+                            
+                            <div class="grid" style="width:100%;text-indent:175px;">
+                                （注：新的#include来自于<a href="D:/proj/mine/llvm/hello/a_func.h">D:/proj/mine/llvm/hello/a_func.h</a>文件的第<span class="number-text"">3</span>行）
+                            </div>
+
+                        </dd>
+
                         <dd class="row" style="font-weight:bold">
                             
                             <div class="grid" style="width:100%;text-indent:35px;">
-                                3. 共有<span class="number-text"">2</span>个文件可以替换#include
+                                
+                            </div>
+
+                        </dd>
+
+                        <dd class="row">
+                            
+                            <div class="grid" style="width:100%;text-indent:105px;">
+                                第<span class="number-text"">11</span>行可以被替换，该行原来的内容 = <span class="include-text"">#include "b_class.h"</a>
+                            </div>
+
+                        </dd>
+
+                        <dd class="row">
+                            
+                            <div class="grid" style="width:40%;text-indent:140px;">
+                                可以被替换为新的 = <span class="include-text"">#include "b.h"</a>
+                            </div>
+
+                        </dd>
+
+                        <dd class="row">
+                            
+                            <div class="grid" style="width:100%;text-indent:175px;">
+                                （注：新的#include来自于<a href="D:/proj/mine/llvm/hello/b_class.h">D:/proj/mine/llvm/hello/b_class.h</a>文件的第<span class="number-text"">5</span>行）
+                            </div>
+
+                        </dd>
+
+                        <dd class="row" style="font-weight:bold">
+                            
+                            <div class="grid" style="width:100%;text-indent:35px;">
+                                
+                            </div>
+
+                        </dd>
+
+                        <dd class="row">
+                            
+                            <div class="grid" style="width:100%;text-indent:105px;">
+                                第<span class="number-text"">19</span>行可以被替换，该行原来的内容 = <span class="include-text"">#include "j_enumeration.h"</a>
+                            </div>
+
+                        </dd>
+
+                        <dd class="row">
+                            
+                            <div class="grid" style="width:40%;text-indent:140px;">
+                                可以被替换为新的 = <span class="include-text"">#include "j.h"</a>
+                            </div>
+
+                        </dd>
+
+                        <dd class="row">
+                            
+                            <div class="grid" style="width:100%;text-indent:175px;">
+                                （注：新的#include来自于<a href="D:/proj/mine/llvm/hello/j_enumeration.h">D:/proj/mine/llvm/hello/j_enumeration.h</a>文件的第<span class="number-text"">12</span>行）
+                            </div>
+
+                        </dd>
+
+                        <dd class="row" style="font-weight:bold">
+                            
+                            <div class="grid" style="width:100%;text-indent:35px;">
+                                
+                            </div>
+
+                        </dd>
+
+                        <dd class="row">
+                            
+                            <div class="grid" style="width:100%;text-indent:105px;">
+                                第<span class="number-text"">20</span>行可以被替换，该行原来的内容 = <span class="include-text"">#include "k_namespace.h"</a>
+                            </div>
+
+                        </dd>
+
+                        <dd class="row">
+                            
+                            <div class="grid" style="width:40%;text-indent:140px;">
+                                可以被替换为新的 = <span class="include-text"">#include "k.h"</a>
+                            </div>
+
+                        </dd>
+
+                        <dd class="row">
+                            
+                            <div class="grid" style="width:100%;text-indent:175px;">
+                                （注：新的#include来自于<a href="D:/proj/mine/llvm/hello/k_namespace.h">D:/proj/mine/llvm/hello/k_namespace.h</a>文件的第<span class="number-text"">21</span>行）
+                            </div>
+
+                        </dd>
+
+                        <dd class="row">
+                            
+                            <div class="grid" style="width:100%;text-indent:175px;">
+                                应在行首新增<span class="include-text"">namespace k_ns{namespace k_1{}}</a>
+                            </div>
+
+                        </dd>
+
+                        <dd class="row">
+                            
+                            <div class="grid" style="width:100%;text-indent:175px;">
+                                应在行首新增<span class="include-text"">using namespace k_ns::k_1;</a>
+                            </div>
+
+                        </dd>
+
+                        <dd class="row">
+                            
+                            <div class="grid" style="width:100%;text-indent:175px;">
+                                应在行末新增<span class="include-text"">namespace k_ns{}</a>
+                            </div>
+
+                        </dd>
+
+                        <dd class="row">
+                            
+                            <div class="grid" style="width:100%;text-indent:175px;">
+                                应在行末新增<span class="include-text"">using namespace k_ns;</a>
+                            </div>
+
+                        </dd>
+
+                        <dd class="row" style="font-weight:bold">
+                            
+                            <div class="grid" style="width:100%;text-indent:35px;">
+                                
+                            </div>
+
+                        </dd>
+
+                        <dd class="row" style="font-weight:bold">
+                            
+                            <div class="grid" style="width:100%;text-indent:35px;">
+                                第<span class="number-text"">2</span>个文件<a href="D:/proj/mine/llvm/hello/i_deeply_include.h">D:/proj/mine/llvm/hello/i_deeply_include.h</a>可以被清理
                             </div>
 
                         </dd>
@@ -1704,19 +1926,15 @@
                         <dd class="row">
                             
                             <div class="grid" style="width:100%;text-indent:70px;">
-                                文件<a href="D:/proj/mine/llvm/hello/hello.cpp">D:/proj/mine/llvm/hello/hello.cpp</a>中可以有<span class="number-text"">5</span>个#include可被替换
+                                该文件中有<span class="number-text"">1</span>个#include可被替换
                             </div>
 
                         </dd>
 
                         <dd class="row">
                             
-                            <div class="grid" style="width:30%;text-indent:105px;">
-                                第<span class="number-text"">10</span>行可以被替换
-                            </div>
-
-                            <div class="grid" style="width:69%;text-indent:0px;">
-                                该行原来的内容 = <span class="include-text"">#include "a_func.h"</a>
+                            <div class="grid" style="width:100%;text-indent:105px;">
+                                第<span class="number-text"">12</span>行可以被替换，该行原来的内容 = <span class="include-text"">#include "i_1.h"</a>
                             </div>
 
                         </dd>
@@ -1724,179 +1942,15 @@
                         <dd class="row">
                             
                             <div class="grid" style="width:40%;text-indent:140px;">
-                                可以被替换为 = <span class="include-text"">#include "a.h"</a>
-                            </div>
-
-                            <div class="grid" style="width:59%;text-indent:0px;">
-                                位于<a href="D:\proj\mine\llvm\hello/a_func.h">D:\proj\mine\llvm\hello/a_func.h</a>文件的<span class="number-text"">3</span>行
-                            </div>
-
-                        </dd>
-
-                        <dd class="row" style="font-weight:bold">
-                            
-                            <div class="grid" style="width:100%;text-indent:35px;">
-                                
+                                可以被替换为新的 = <span class="include-text"">#include "i_3.h"</a>
                             </div>
 
                         </dd>
 
                         <dd class="row">
                             
-                            <div class="grid" style="width:30%;text-indent:105px;">
-                                第<span class="number-text"">11</span>行可以被替换
-                            </div>
-
-                            <div class="grid" style="width:69%;text-indent:0px;">
-                                该行原来的内容 = <span class="include-text"">#include "b_class.h"</a>
-                            </div>
-
-                        </dd>
-
-                        <dd class="row">
-                            
-                            <div class="grid" style="width:40%;text-indent:140px;">
-                                可以被替换为 = <span class="include-text"">#include "b.h"</a>
-                            </div>
-
-                            <div class="grid" style="width:59%;text-indent:0px;">
-                                位于<a href="D:\proj\mine\llvm\hello/b_class.h">D:\proj\mine\llvm\hello/b_class.h</a>文件的<span class="number-text"">5</span>行
-                            </div>
-
-                        </dd>
-
-                        <dd class="row" style="font-weight:bold">
-                            
-                            <div class="grid" style="width:100%;text-indent:35px;">
-                                
-                            </div>
-
-                        </dd>
-
-                        <dd class="row">
-                            
-                            <div class="grid" style="width:30%;text-indent:105px;">
-                                第<span class="number-text"">14</span>行可以被替换
-                            </div>
-
-                            <div class="grid" style="width:69%;text-indent:0px;">
-                                该行原来的内容 = <span class="include-text"">#include "e_typedef.h"</a>
-                            </div>
-
-                        </dd>
-
-                        <dd class="row">
-                            
-                            <div class="grid" style="width:40%;text-indent:140px;">
-                                可以被替换为 = <span class="include-text"">#include "e.h"</a>
-                            </div>
-
-                            <div class="grid" style="width:59%;text-indent:0px;">
-                                位于<a href="D:\proj\mine\llvm\hello/e_typedef.h">D:\proj\mine\llvm\hello/e_typedef.h</a>文件的<span class="number-text"">12</span>行
-                            </div>
-
-                        </dd>
-
-                        <dd class="row" style="font-weight:bold">
-                            
-                            <div class="grid" style="width:100%;text-indent:35px;">
-                                
-                            </div>
-
-                        </dd>
-
-                        <dd class="row">
-                            
-                            <div class="grid" style="width:30%;text-indent:105px;">
-                                第<span class="number-text"">19</span>行可以被替换
-                            </div>
-
-                            <div class="grid" style="width:69%;text-indent:0px;">
-                                该行原来的内容 = <span class="include-text"">#include "j_enumeration.h"</a>
-                            </div>
-
-                        </dd>
-
-                        <dd class="row">
-                            
-                            <div class="grid" style="width:40%;text-indent:140px;">
-                                可以被替换为 = <span class="include-text"">#include "j.h"</a>
-                            </div>
-
-                            <div class="grid" style="width:59%;text-indent:0px;">
-                                位于<a href="D:\proj\mine\llvm\hello/j_enumeration.h">D:\proj\mine\llvm\hello/j_enumeration.h</a>文件的<span class="number-text"">12</span>行
-                            </div>
-
-                        </dd>
-
-                        <dd class="row" style="font-weight:bold">
-                            
-                            <div class="grid" style="width:100%;text-indent:35px;">
-                                
-                            </div>
-
-                        </dd>
-
-                        <dd class="row">
-                            
-                            <div class="grid" style="width:30%;text-indent:105px;">
-                                第<span class="number-text"">20</span>行可以被替换
-                            </div>
-
-                            <div class="grid" style="width:69%;text-indent:0px;">
-                                该行原来的内容 = <span class="include-text"">#include "k_namespace.h"</a>
-                            </div>
-
-                        </dd>
-
-                        <dd class="row">
-                            
-                            <div class="grid" style="width:40%;text-indent:140px;">
-                                可以被替换为 = <span class="include-text"">#include "k.h"</a>
-                            </div>
-
-                            <div class="grid" style="width:59%;text-indent:0px;">
-                                位于<a href="D:\proj\mine\llvm\hello/k_namespace.h">D:\proj\mine\llvm\hello/k_namespace.h</a>文件的<span class="number-text"">12</span>行
-                            </div>
-
-                        </dd>
-
-                        <dd class="row" style="font-weight:bold">
-                            
-                            <div class="grid" style="width:100%;text-indent:35px;">
-                                
-                            </div>
-
-                        </dd>
-
-                        <dd class="row">
-                            
-                            <div class="grid" style="width:100%;text-indent:70px;">
-                                文件<a href="D:/proj/mine/llvm/hello/i_deeply_include.h">D:/proj/mine/llvm/hello/i_deeply_include.h</a>中可以有<span class="number-text"">1</span>个#include可被替换
-                            </div>
-
-                        </dd>
-
-                        <dd class="row">
-                            
-                            <div class="grid" style="width:30%;text-indent:105px;">
-                                第<span class="number-text"">12</span>行可以被替换
-                            </div>
-
-                            <div class="grid" style="width:69%;text-indent:0px;">
-                                该行原来的内容 = <span class="include-text"">#include "i_1.h"</a>
-                            </div>
-
-                        </dd>
-
-                        <dd class="row">
-                            
-                            <div class="grid" style="width:40%;text-indent:140px;">
-                                可以被替换为 = <span class="include-text"">#include "i_3.h"</a>
-                            </div>
-
-                            <div class="grid" style="width:59%;text-indent:0px;">
-                                位于<a href="D:\proj\mine\llvm\hello/i_2.h">D:\proj\mine\llvm\hello/i_2.h</a>文件的<span class="number-text"">12</span>行
+                            <div class="grid" style="width:100%;text-indent:175px;">
+                                （注：新的#include来自于<a href="D:/proj/mine/llvm/hello/i_2.h">D:/proj/mine/llvm/hello/i_2.h</a>文件的第<span class="number-text"">12</span>行）
                             </div>
 
                         </dd>

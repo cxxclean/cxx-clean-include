@@ -123,7 +123,7 @@ const char* g_beginHtml = R"--(
 
 			.chart {
 				position: relative;
-				overflow: hidden;
+				overflow: ellipsis;
 				*margin-left: -40px;
 				margin-top: 8px;
 				border-radius: 10px;
@@ -143,21 +143,29 @@ const char* g_beginHtml = R"--(
 				background: #DDD;
 			}
 
-			.chart .row .grid {
+			.chart .error_row {
 				position: relative;
-				float: left;
+				line-height: 20px;
 				white-space: nowrap;
-				overflow: hidden
-				text-indent: 60px;
 				text-overflow: ellipsis;
+				background: #FFF;
+				color: #FF0000;
 			}
 
-			.chart .row .grid a {
+			.chart .error_row:hover {
+				background: #DDD;
+			}
+
+			.chart .row .grid {
+				float: left;
+			}
+
+			.chart a {
 				cursor: default;
 				text-decoration: none
 			}
 
-			.chart .row .grid a:hover,.chart .row .grid a:active {
+			.chart a:hover,.chart a:active {
 				cursor: pointer;
 				text-decoration: underline
 			}
@@ -200,9 +208,21 @@ const char* g_rowHtml = R"--(
                         </dd>
 )--";
 
+const char* g_errorRowHtml = R"--(
+                        <dd class="error_row"#{bold}>
+                            #{row}
+                        </dd>
+)--";
+
 const char* g_gridHtml = R"--(
-                            <div class="grid" style="width:#{width}%;text-indent:#{tab_count}px;">
-                                #{grid}
+                            <div class="grid" style="width:#{width}%;text-indent:#{indent}px;">
+                                #{text}
+                            </div>
+)--";
+
+const char* g_errorGridHtml = R"--(
+                            <div class="grid">
+                                <pre style="padding:0 #{indent}px;">#{text}</pre>
                             </div>
 )--";
 
@@ -219,11 +239,12 @@ namespace cxxcleantool
 		grid.width		= width;
 	}
 
-	void HtmlDiv::AddRow(const char* text, int tabCount /* = 1 */, int width /* = 100 */, bool needEscape /* = false */)
+	void HtmlDiv::AddRow(const char* text, int tabCount /* = 1 */, int width /* = 100 */, bool needEscape /* = false */, bool isErrorTip /* = false */)
 	{
 		rows.resize(rows.size() + 1);
 		DivRow &row		= rows.back();
 		row.tabCount	= tabCount;
+		row.isErrTip	= isErrorTip;
 
 		AddGrid(text, width, needEscape);
 	}
@@ -300,20 +321,21 @@ namespace cxxcleantool
 
 		for (DivRow row : div.rows)
 		{
-			std::string rowHtml(g_rowHtml);
+			std::string rowHtml = (row.isErrTip ? g_errorRowHtml : g_rowHtml);
+
 			std::string gridsHtml;
 
 			int i = 0;
 
 			for (DivGrid grid : row.grids)
 			{
-				std::string gridHtml(g_gridHtml);
+				std::string gridHtml  = (row.isErrTip ? g_errorGridHtml : g_gridHtml);
 
-				int tabCount = ((i == 0) ? row.tabCount * 35 : 0);
+				int indent = ((i == 0) ? row.tabCount * 35 : 0);
 				++i;
 
-				strtool::replace(gridHtml, "#{tab_count}",	strtool::itoa(tabCount).c_str());
-				strtool::replace(gridHtml, "#{grid}",		grid.text.c_str());
+				strtool::replace(gridHtml, "#{indent}",		strtool::itoa(indent).c_str());
+				strtool::replace(gridHtml, "#{text}",		grid.text.c_str());
 				strtool::replace(gridHtml, "#{width}",		strtool::itoa(grid.width).c_str());
 
 				gridsHtml += gridHtml;
