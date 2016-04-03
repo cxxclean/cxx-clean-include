@@ -83,6 +83,7 @@ class B_DerivedClass : public B_BaseClass
 
 private:
 	int m_num;
+	int not;
 };
 
 B_ReturnClass GetClass()
