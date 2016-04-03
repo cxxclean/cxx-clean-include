@@ -538,6 +538,8 @@ namespace cxxcleantool
 
 		void Clear()
 		{
+			g_log.flush();
+			g_errorTip.clear();
 		}
 
 		virtual void EndSourceFile() override
@@ -561,12 +563,22 @@ namespace cxxcleantool
 				errHistory.m_hasTooManyError = true;
 			}
 
-			std::string tip = g_log.str();
-			tip += strtool::get_text(cn_error_num_tip, htmltool::get_number_html(errId).c_str());
+			std::string tip = g_errorTip;
+
+			if (diagLevel >= DiagnosticIDs::Fatal)
+			{
+				errHistory.m_fatalErrors.insert(errId);
+
+				tip += strtool::get_text(cn_fatal_error_num_tip, htmltool::get_number_html(errId).c_str());
+			}
+			else
+			{
+				tip += strtool::get_text(cn_error_num_tip, htmltool::get_number_html(errId).c_str());
+			}
+
 			errHistory.m_errTips.push_back(tip);
 
-			g_log.flush();
-			g_errorTip = "";
+			Clear();
 		}
 
 		static std::string			g_errorTip;
@@ -786,7 +798,7 @@ public:
 			return 0;
 		}
 
-		if (Project::instance.m_cpps.size() < 10)
+		if (Project::instance.m_verboseLvl >= VerboseLvl_2)
 		{
 			Project::instance.Print();
 		}

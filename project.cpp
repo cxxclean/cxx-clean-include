@@ -19,10 +19,6 @@ Project Project::instance;
 // 打印本次清理的文件列表
 void Project::Print() const
 {
-	llvm::outs() << timetool::nowText() << "<hr/>\n";
-
-	HtmlLog::instance.AddBigTitle(HtmlLog::instance.m_bigTitle);
-
 	HtmlDiv div;
 	div.AddTitle(cn_project_text);
 

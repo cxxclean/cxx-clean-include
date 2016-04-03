@@ -16,7 +16,7 @@
 enum VerboseLvl
 {
 	VerboseLvl_1 = 1,	// 仅打印各文件的清理情况
-	VerboseLvl_2,		// 用于调试：打印各文件引用到了其他文件的类名、函数名、宏名
+	VerboseLvl_2,		// 用于调试：打印各文件引用到了其他文件的类名、函数名、宏名，项目成员文件等
 	VerboseLvl_3,		// 用于调试：打印各文件直接或者间接依赖的文件集
 	VerboseLvl_4,		// 用于调试：打印c++文件列表
 	VerboseLvl_5,		// 用于调试：打印异常

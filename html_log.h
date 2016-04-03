@@ -16,8 +16,8 @@ namespace cxxcleantool
 {
 	static const char* cn_cpp_file						= "%s c++ 文件";
 	static const char* cn_folder						= "%s 文件夹";
-	static const char* cn_project						= "%s visual studio 工程";
-	static const char* cn_clean							= "清理%s的日志";
+	static const char* cn_project						= "%s visual studio工程";
+	static const char* cn_clean							= "本页面是对%s的分析日志，最终结果以本页面最底部的统计结果为准";
 	static const char* cn_project_text					= "允许清理的c++文件列表以及待分析的c++源文件列表";
 	static const char* cn_project_allow_files			= "允许清理的c++文件列表（不属于该列表的c++文件不允许被改动）";
 	static const char* cn_project_allow_file			= "允许清理的文件 = %s";
@@ -26,15 +26,16 @@ namespace cxxcleantool
 	static const char* cn_project_allow_dir				= "允许清理文件夹";
 	static const char* cn_line_old_text					= "该行原来的内容 = ";
 	
-	static const char* cn_file_history					= "第%s个文件%s可以被清理";
+	static const char* cn_file_history					= "第%s个文件%s可被清理，分析结果如下";
 
 	static const char* cn_error							= "错误：编译本文件时产生了以下编译错误：";
 	static const char* cn_error_num_tip					= "该编译错误号 = %s";
+	static const char* cn_fatal_error_num_tip			= "该编译错误号 = %s，属于严重编译错误";
 	static const char* cn_error_fatal					= "==> 注意：由于发生严重错误[错误号=%s]，本文件的分析结果将被丢弃";
 	static const char* cn_error_too_many				= "==> 注意：至少产生了%s个编译错误，由于编译错误数过多，本文件的分析结果将被丢弃";
 	static const char* cn_error_ignore					= "==> 编译结果：共产生了%s个编译错误，由于错误较少或不严重，本文件的分析结果仍将被统计";
 
-	static const char* cn_parsing_file					= "分析%s文件的日志";
+	static const char* cn_parsing_file					= "单独分析%s文件的日志";
 	static const char* cn_file_count_unused				= "共有%s个文件有多余的#include";
 	static const char* cn_file_unused_count				= "该文件中有%s行多余的#include";
 	static const char* cn_file_unused_line				= "可移除第%s行";
@@ -58,7 +59,7 @@ namespace cxxcleantool
 	static const char* cn_file_add_forward_old_text		= "该行原来的内容 = %s";
 	static const char* cn_file_add_forward_new_text		= "新增前置声明 = %s";
 
-	static const char* cn_project_history_title			= "本次清理结果";
+	static const char* cn_project_history_title			= "统计结果";
 	static const char* cn_project_history_clean_count	= "清理结果：共有%s个c++文件可被清理";
 	static const char* cn_project_history_src_count		= "本次共分析了%s个cpp（或cxx、cc）源文件";
 

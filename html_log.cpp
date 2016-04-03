@@ -38,12 +38,13 @@ const char* g_beginHtml = R"--(
 			}
 
 			h1 {
-				font-size: 3.0em;
-				font-weight: bold;
+				font-size: 2.0em;
+				font-family: "Microsoft YaHei";
 				color: #0c3762;
 				border-bottom: dotted #e0e0e0;
 				margin-bottom: 20px;
 				margin-top: 50px;
+				text-align:center;
 			}
 
 			table {
@@ -79,7 +80,7 @@ const char* g_beginHtml = R"--(
 
 			.box {
 				margin-top: 30px;	
-				margin-bottom: 150px;
+				margin-bottom: 30em;
 				padding: 5px 5px;
 				border: 3px solid #cce1ef;
 				border-radius: 15px;
@@ -150,6 +151,7 @@ const char* g_beginHtml = R"--(
 				text-overflow: ellipsis;
 				background: #FFF;
 				color: #FF0000;
+				border-bottom: 2px dashed #ebebeb;
 			}
 
 			.chart .error_row:hover {
@@ -296,6 +298,12 @@ namespace cxxcleantool
 	void HtmlLog::BeginLog()
 	{
 		llvm::outs() << GetHtmlStart(m_htmlTitle.c_str());
+
+		llvm::outs() << timetool::nowText() << "\n";
+		llvm::outs() << "<span style=\"float:right\">" << m_bigTitle << "</span>" << "\n";
+		llvm::outs() << "<hr/>\n";
+
+		AddBigTitle(m_bigTitle);
 	}
 
 	void HtmlLog::EndLog()

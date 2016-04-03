@@ -2417,34 +2417,35 @@ namespace cxxcleantool
 
 		div.AddRow(" ", 1, 100, false, true);
 
+		if (!errHistory.m_fatalErrors.empty())
+		{
+			std::string errTexts;
+
+			int i		= 0;
+			int size	= errHistory.m_fatalErrors.size();
+
+			for (int err : errHistory.m_fatalErrors)
+			{
+				errTexts += htmltool::get_number_html(err);
+
+				if (++i < size)
+				{
+					errTexts += ",";
+				}
+			}
+
+			std::string tip = get_text(cn_error_fatal, errTexts.c_str());
+			div.AddRow(tip, 1, 100, true, true);
+		}
+
 		if (errHistory.m_hasTooManyError)
 		{
 			std::string tip = get_text(cn_error_too_many, htmltool::get_number_html(errHistory.m_errNum).c_str());
 			div.AddRow(tip, 1, 100, true, true);
 		}
-		else
+		else if (errHistory.m_fatalErrors.empty())
 		{
-			if (!errHistory.m_fatalErrors.empty())
-			{
-				std::string errTexts;
-
-				int i		= 0;
-				int size	= errHistory.m_fatalErrors.size();
-
-				for (int err : errHistory.m_fatalErrors)
-				{
-					errTexts += htmltool::get_number_html(err);
-
-					if (++i < size)
-					{
-						errTexts += ",";
-					}
-				}
-
-				std::string tip = get_text(cn_error_fatal, errTexts.c_str());
-				div.AddRow(tip, 1, 100, true, true);
-			}
-			else if (errHistory.m_errNum > 0)
+			if (errHistory.m_errNum > 0)
 			{
 				std::string tip = get_text(cn_error_ignore, htmltool::get_number_html(errHistory.m_errNum).c_str());
 				div.AddRow(tip, 1, 100, true, true);
