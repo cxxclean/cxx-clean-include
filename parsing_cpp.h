@@ -110,7 +110,7 @@ namespace cxxcleantool
 		void AddInclude(FileID file, FileID beInclude) { m_includes[file].insert(beInclude); }
 
 		// 添加#include的位置记录
-		void AddIncludeLoc(SourceLocation loc, SourceRange range) { m_includeLocs[loc] = range; }
+		void AddIncludeLoc(SourceLocation loc, SourceRange range);
 
 		// 添加成员文件
 		void AddFile(FileID file) { m_files.insert(file); }
@@ -364,9 +364,6 @@ namespace cxxcleantool
 		// 获取该位置所在行的信息：所在行的文本、所在文件名、行号
 		string DebugLocText(SourceLocation loc) const;
 
-		// 获取该位置所代表的#include信息
-		string DebugLocIncludeText(SourceLocation loc) const;
-
 		// 获取文件所使用名称信息：文件名、所使用的类名、函数名、宏名等以及对应行号
 		void DebugUsedNames(FileID file, const std::vector<UseNameInfo> &useNames) const;
 
@@ -420,6 +417,15 @@ namespace cxxcleantool
 		//     可能返回：d:/hello.h
 		//     也可能返回：./hello.h
 		const char* GetFileName(FileID file) const;
+
+		// 获取拼写位置
+		SourceLocation GetSpellingLoc(SourceLocation loc) const;
+
+		// 获取经过宏扩展后的位置
+		SourceLocation GetExpasionLoc(SourceLocation loc) const;
+
+		// 获取文件ID
+		FileID GetFileID(SourceLocation loc) const;
 
 		// 获取文件的绝对路径
 		string GetAbsoluteFileName(FileID file) const;

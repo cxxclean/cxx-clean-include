@@ -120,21 +120,26 @@ namespace cxxcleantool
 		                        StringRef fileName, bool isAngled/*是否被<>包含，否则是被""包围*/, CharSourceRange filenameRange,
 		                        const FileEntry *file, StringRef searchPath, StringRef relativePath, const clang::Module *Imported) override
 		{
-			// 当编译时采用-include<c++头文件>选项，但却又找不到该头文件时，将导致file无效
+			// 注：当编译时采用-include<c++头文件>选项，但却又找不到该头文件时，将导致file无效，但这里不影响
 			if (nullptr == file)
 			{
 				return;
 			}
 
 			FileID curFileID = m_main->GetSrcMgr().getFileID(HashLoc);
-			if (!curFileID.isValid())
+			if (curFileID.isInvalid())
 			{
 				return;
 			}
 
 			SourceRange range(HashLoc, filenameRange.getEnd());
 
-			m_main->AddIncludeLoc(filenameRange.getAsRange().getBegin(), range);
+			if (filenameRange.getBegin() == filenameRange.getEnd())
+			{
+				llvm::outs() << "InclusionDirective filenameRange.getBegin() == filenameRange.getEnd()\n";
+			}
+
+			m_main->AddIncludeLoc(filenameRange.getBegin(), range);
 		}
 
 		// 定义宏，如#define DEBUG
@@ -537,9 +542,19 @@ namespace cxxcleantool
 		}
 
 		void Clear()
-		{
+		{			
 			g_log.flush();
 			g_errorTip.clear();
+		}
+
+		void BeginSourceFile(const LangOptions &LO, const Preprocessor *PP) override
+		{
+			TextDiagnosticPrinter::BeginSourceFile(LO, PP);
+
+			Clear();
+
+			NumErrors		= 0;
+			NumWarnings		= 0;
 		}
 
 		virtual void EndSourceFile() override
@@ -550,7 +565,7 @@ namespace cxxcleantool
 			errHistory.m_errNum				= NumErrors;
 		}
 
-		// 当一个错误发生时，会调用此函数，我会在这个函数里通过Info.getID()取得Diagnostic ID，然后对应地取出规范ID
+		// 当一个错误发生时，会调用此函数，在这个函数里记录编译错误和错误号
 		virtual void HandleDiagnostic(DiagnosticsEngine::Level diagLevel, const Diagnostic &info)
 		{
 			TextDiagnosticPrinter::HandleDiagnostic(diagLevel, info);
@@ -596,23 +611,23 @@ namespace cxxcleantool
 		{
 		}
 
-		bool BeginSourceFileAction(CompilerInstance &CI, StringRef Filename) override
+		bool BeginSourceFileAction(CompilerInstance &compiler, StringRef filename) override
 		{
 			if (ProjectHistory::instance.m_isFirst)
 			{
 				bool only1Step = (!Project::instance.m_isDeepClean || Project::instance.m_onlyHas1File);
 				if (only1Step)
 				{
-					llvm::errs() << "cleaning file: " << Filename << " ...\n";
+					llvm::errs() << "cleaning file: " << filename << " ...\n";
 				}
 				else
 				{
-					llvm::errs() << "step 1. analyze file: " << Filename << " ...\n";
+					llvm::errs() << "step 1. analyze file: " << filename << " ...\n";
 				}
 			}
 			else
 			{
-				llvm::errs() << "step 2. cleaning file: " << Filename << " ...\n";
+				llvm::errs() << "step 2. cleaning file: " << filename << " ...\n";
 			}
 
 			return true;
