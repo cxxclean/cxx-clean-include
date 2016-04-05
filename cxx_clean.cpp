@@ -165,9 +165,18 @@ namespace cxxcleantool
 		                  SourceRange range,
 		                  const MacroArgs *args) override
 		{
-			m_main->UseMacro(range.getBegin(), definition, macroName);
-			// llvm::outs() << "text = " << m_main->m_rewriter->getRewrittenText(range) << "\n";
-			// llvm::outs() << "text = " << m_main->get_source_of_range(range) << "\n";
+			m_main->UseMacro(range.getBegin(), definition, macroName, args);
+
+			/*
+			SourceManager &srcMgr = m_main->GetSrcMgr();
+			if (srcMgr.isInMainFile(range.getBegin()))
+			{
+				SourceRange spellingRange(srcMgr.getSpellingLoc(range.getBegin()), srcMgr.getSpellingLoc(range.getEnd()));
+
+				llvm::outs() << "<pre>text = " << m_main->GetSourceOfRange(range) << "</pre>\n";
+				llvm::outs() << "<pre>macroName = " << macroName.getIdentifierInfo()->getName().str() << "</pre>\n";
+			}
+			*/
 		}
 
 		// #ifdef
@@ -194,42 +203,131 @@ namespace cxxcleantool
 		{
 		}
 
+		void PrintStmt(Stmt *s)
+		{
+			SourceLocation loc = s->getLocStart();
+
+			llvm::outs() << "<pre>source = " << m_main->DebugRangeText(s->getSourceRange()) << "</pre>\n";
+			llvm::outs() << "<pre>";
+			s->dump(llvm::outs());
+			llvm::outs() << "</pre>";
+		}
+
 		// 访问单条语句
 		bool VisitStmt(Stmt *s)
 		{
 			SourceLocation loc = s->getLocStart();
 
+			/*
+			if (m_rewriter.getSourceMgr().isInMainFile(loc))
+			{
+				llvm::outs() << "<pre>------------ VisitStmt ------------:</pre>\n";
+				PrintStmt(s);
+			}
+			*/
+
 			// 参见：http://clang.llvm.org/doxygen/classStmt.html
 			if (isa<CastExpr>(s))
 			{
 				CastExpr *castExpr = cast<CastExpr>(s);
-				QualType castType = castExpr->getType();
 
+				QualType castType = castExpr->getType();
 				m_main->UseQualType(loc, castType);
+
+				/*
+				if (m_rewriter.getSourceMgr().isInMainFile(loc))
+				{
+					llvm::outs() << "<pre>------------ CastExpr ------------:</pre>\n";
+					llvm::outs() << "<pre>";
+					llvm::outs() << castExpr->getCastKindName();
+					llvm::outs() << "</pre>";
+				}
+				*/
 
 				// 这里注意，CastExpr有一个getSubExpr()函数，表示子表达式，但此处不需要继续处理，因为子表达式将作为Stmt仍然会被VisitStmt访问到
 			}
 			else if (isa<CallExpr>(s))
 			{
 				CallExpr *callExpr = cast<CallExpr>(s);
-				Expr *callee = callExpr->getCallee();
-				Decl *calleeDecl = callExpr->getCalleeDecl();
 
+				Decl *calleeDecl = callExpr->getCalleeDecl();
 				if (NULL == calleeDecl)
 				{
 					return true;
 				}
 
-				if (isa<FunctionDecl>(calleeDecl))
+				if (isa<ValueDecl>(calleeDecl))
 				{
-					FunctionDecl *func = cast<FunctionDecl>(calleeDecl);
-					m_main->OnUseDecl(loc, func);
+					ValueDecl *namedDecl = cast<ValueDecl>(calleeDecl);
+					m_main->UseValueDecl(loc, namedDecl);
+
+					{
+						//llvm::outs() << "<pre>------------ CallExpr: NamedDecl ------------:</pre>\n";
+						//PrintStmt(s);
+					}
 				}
 			}
 			else if (isa<DeclRefExpr>(s))
 			{
 				DeclRefExpr *declRefExpr = cast<DeclRefExpr>(s);
-				m_main->OnUseDecl(loc, declRefExpr->getDecl());
+				m_main->UseValueDecl(loc, declRefExpr->getDecl());
+			}
+			// 依赖当前范围取成员语句，例如：this->print();
+			else if (isa<CXXDependentScopeMemberExpr>(s))
+			{
+				CXXDependentScopeMemberExpr *expr = cast<CXXDependentScopeMemberExpr>(s);
+				m_main->UseQualType(loc, expr->getBaseType());
+			}
+			// this
+			else if (isa<CXXThisExpr>(s))
+			{
+				CXXThisExpr *expr = cast<CXXThisExpr>(s);
+				m_main->UseQualType(loc, expr->getType());
+			}
+			/// 结构体或union的成员，例如：X->F、X.F.
+			else if (isa<MemberExpr>(s))
+			{
+				MemberExpr *memberExpr = cast<MemberExpr>(s);
+				m_main->UseValueDecl(loc, memberExpr->getMemberDecl());
+			}
+			// delete语句
+			else if (isa<CXXDeleteExpr>(s))
+			{
+				CXXDeleteExpr *expr = cast<CXXDeleteExpr>(s);
+				m_main->UseQualType(loc, expr->getDestroyedType());
+			}
+			// 数组取元素语句，例如：a[0]或4[a]
+			else if (isa<ArraySubscriptExpr>(s))
+			{
+				ArraySubscriptExpr *expr = cast<ArraySubscriptExpr>(s);
+				m_main->UseQualType(loc, expr->getType());
+			}
+			// typeid语句，例如：typeid(int) or typeid(*obj)
+			else if (isa<CXXTypeidExpr>(s))
+			{
+				CXXTypeidExpr *expr = cast<CXXTypeidExpr>(s);
+				m_main->UseQualType(loc, expr->getType());
+			}
+			// 构造符
+			else if (isa<CXXConstructExpr>(s))
+			{
+				CXXConstructExpr *cxxConstructExpr = cast<CXXConstructExpr>(s);
+				CXXConstructorDecl *decl = cxxConstructExpr->getConstructor();
+				if (nullptr == decl)
+				{
+					llvm::errs() << "------------ CXXConstructExpr->getConstructor() = null ------------:\n";
+					s->dumpColor();
+					return false;
+				}
+
+				m_main->UseValueDecl(loc, decl);
+			}
+			/*
+			// 注意：下面这一大段很重要，用于以后日志跟踪
+
+			// 类似于DeclRefExpr，要等实例化时才知道类型，比如：T::
+			else if (isa<DependentScopeDeclRefExpr>(s))
+			{
 			}
 			// return语句，例如：return 4;、return;
 			else if (isa<ReturnStmt>(s))
@@ -260,39 +358,77 @@ namespace cxxcleantool
 			else if (isa<IntegerLiteral>(s))
 			{
 			}
-			else if (isa<UnaryExprOrTypeTraitExpr>(s))
+			// 三元表达式，即条件表达式，例如： x ? y : z
+			else if (isa<ConditionalOperator>(s))
 			{
 			}
-			/// 结构体或union的成员，例如：X->F、X.F.
-			else if (isa<MemberExpr>(s))
+			// for语句，例如：for(;;){ int i = 0; }
+			else if (isa<ForStmt>(s))
 			{
-				MemberExpr *memberExpr = cast<MemberExpr>(s);
-				m_main->OnUseDecl(loc, memberExpr->getMemberDecl());
+			}
+			else if (isa<UnaryExprOrTypeTraitExpr>(s) || isa<InitListExpr>(s) || isa<MaterializeTemporaryExpr>(s))
+			{
+			}
+			// 代表未知类型的构造函数，例如：下面的T(a1)
+			// template<typename T, typename A1>
+			// inline T make_a(const A1& a1)
+			// {
+			//     return T(a1);
+			// }
+			else if (isa<CXXUnresolvedConstructExpr>(s))
+			{
+			}
+			// c++11的打包扩展语句，后面跟着...省略号，例如：下面的static_cast<Types&&>(args)...就是PackExpansionExpr
+			// template<typename F, typename ...Types>
+			// void forward(F f, Types &&...args)
+			// {
+			//     f(static_cast<Types&&>(args)...);
+			// }
+			else if (isa<PackExpansionExpr>(s))
+			{
+			}
+			else if (isa<UnresolvedLookupExpr>(s) || isa<CXXBindTemporaryExpr>(s) || isa<ExprWithCleanups>(s))
+			{
+			}
+			else if (isa<ParenListExpr>(s))
+			{
 			}
 			else if (isa<DeclStmt>(s))
 			{
 			}
-			else if (isa<IfStmt>(s) || isa<SwitchStmt>(s))
+			else if (isa<IfStmt>(s) || isa<SwitchStmt>(s) || isa<CXXTryStmt>(s) || isa<CXXCatchStmt>(s) || isa<CXXThrowExpr>(s))
 			{
 			}
-			else if (isa<CXXConstructExpr>(s))
+			else if (isa<StringLiteral>(s) || isa<CharacterLiteral>(s) || isa<CXXBoolLiteralExpr>(s) || isa<FloatingLiteral>(s))
 			{
-				CXXConstructExpr *cxxConstructExpr = cast<CXXConstructExpr>(s);
-				CXXConstructorDecl *decl = cxxConstructExpr->getConstructor();
-				if (nullptr == decl)
-				{
-					llvm::errs() << "------------ CXXConstructExpr->getConstructor() = null ------------:\n";
-					s->dumpColor();
-					return false;
-				}
-
-				m_main->OnUseDecl(loc, decl);
+			}
+			else if (isa<NullStmt>(s))
+			{
+			}
+			else if (isa<CXXDefaultArgExpr>(s))
+			{
+			}
+			//	代表c++的成员访问语句，访问可能是显式或隐式，例如：
+			//	struct A
+			//	{
+			//		int a, b;
+			//		int explicitAccess() { return this->a + this->A::b; }
+			//		int implicitAccess() { return a + A::b; }
+			//	};
+			else if (isa<UnresolvedMemberExpr>(s))
+			{
+			}
+			// new关键字
+			else if (isa<CXXNewExpr>(s))
+			{
+				// 注：这里不需要处理，由之后的CXXConstructExpr处理
 			}
 			else
 			{
-				//llvm::errs() << "------------ havn't support stmt ------------:\n";
-				//s->dumpColor();
+				llvm::outs() << "<pre>------------ havn't support stmt ------------:</pre>\n";
+				PrintStmt(s);
 			}
+			*/
 
 			return true;
 		}
@@ -303,7 +439,7 @@ namespace cxxcleantool
 			{
 				// 函数的返回值
 				QualType returnType = f->getReturnType();
-				m_main->UseVar(f->getLocStart(), returnType);
+				m_main->UseVarType(f->getLocStart(), returnType);
 			}
 
 			// 识别函数参数
@@ -313,7 +449,7 @@ namespace cxxcleantool
 				{
 					ParmVarDecl *vardecl = *itr;
 					QualType vartype = vardecl->getType();
-					m_main->UseVar(f->getLocStart(), vartype);
+					m_main->UseVarType(f->getLocStart(), vartype);
 				}
 			}
 
@@ -363,6 +499,9 @@ namespace cxxcleantool
 						return false;
 					}
 
+					// 引用对应的方法
+					m_main->UseFuncDecl(f->getLocStart(),	method);
+
 					// 尝试找到该成员函数所属的struct/union/class.
 					CXXRecordDecl *record = method->getParent();
 					if (nullptr == record)
@@ -371,7 +510,7 @@ namespace cxxcleantool
 					}
 
 					// 引用对应的struct/union/class.
-					m_main->OnUseRecord(f->getLocStart(),	record);
+					m_main->UseRecord(f->getLocStart(),	record);
 				}
 			}
 
@@ -398,7 +537,7 @@ namespace cxxcleantool
 			for (CXXRecordDecl::field_iterator itr = r->field_begin(), end = r->field_end(); itr != end; ++itr)
 			{
 				FieldDecl *field = *itr;
-				m_main->UseVar(r->getLocStart(), field->getType());
+				m_main->UseValueDecl(r->getLocStart(), field);
 			}
 
 			// 成员函数不需要在这里遍历，因为VisitFunctionDecl将会访问成员函数
@@ -437,11 +576,8 @@ namespace cxxcleantool
 					const typename A<T>::Color A<T>::g_color;
 			*/
 
-			// var->dumpColor();
-			//llvm::outs() << "\n" << "VisitVarDecl" << m_main->(var->getTypeSourceInfo()->getTypeLoc().getLocStart()) << "\n";
-
 			// 引用变量的类型
-			m_main->UseVar(var->getLocStart(), var->getType());
+			m_main->UseVarDecl(var->getLocStart(), var);
 
 			// 类的static成员变量（支持模板类的成员）
 			if (var->isCXXClassMember())
@@ -458,10 +594,7 @@ namespace cxxcleantool
 					则第5行的声明位于第3行处
 				*/
 				const VarDecl *prevVar = var->getPreviousDecl();
-				if (prevVar)
-				{
-					m_main->OnUseDecl(var->getLocStart(), prevVar);
-				}
+				m_main->UseVarDecl(var->getLocStart(), prevVar);
 			}
 
 			return true;
@@ -502,7 +635,27 @@ namespace cxxcleantool
 			return true;
 		}
 
+		bool VisitCXXConstructorDecl(CXXConstructorDecl *decl)
+		{
+			for (auto itr = decl->init_begin(), end = decl->init_end(); itr != end; ++itr)
+			{
+				CXXCtorInitializer *initializer = *itr;
+				if (initializer->isAnyMemberInitializer())
+				{
+					m_main->UseValueDecl(initializer->getSourceLocation(), initializer->getAnyMember());
+				}
+				else if (initializer->isBaseInitializer())
+				{
+					m_main->UseType(initializer->getSourceLocation(), initializer->getBaseClass());
+				}
+				else
+				{
+					decl->dump();
+				}
+			}
 
+			return true;
+		}
 
 	private:
 		ParsingFile*	m_main;
@@ -524,6 +677,13 @@ namespace cxxcleantool
 		// 这个函数对于每个源文件仅被调用一次，比如，若有一个hello.cpp中#include了许多头文件，也只会调用一次本函数
 		void HandleTranslationUnit(ASTContext& context) override
 		{
+			/*
+			llvm::outs() << "<pre>------------ HandleTranslationUnit ------------:</pre>\n";
+			llvm::outs() << "<pre>";
+			context.getTranslationUnitDecl()->dump(llvm::outs());
+			llvm::outs() << "</pre>";
+			*/
+
 			m_visitor.TraverseDecl(context.getTranslationUnitDecl());
 		}
 
@@ -542,7 +702,7 @@ namespace cxxcleantool
 		}
 
 		void Clear()
-		{			
+		{
 			g_log.flush();
 			g_errorTip.clear();
 		}
@@ -565,6 +725,12 @@ namespace cxxcleantool
 			errHistory.m_errNum				= NumErrors;
 		}
 
+		// 是否是严重编译错误（暂时用不到）
+		bool IsFatalError(int errid)
+		{
+			return (diag::DIAG_START_PARSE < errid && errid < diag::DIAG_START_AST);
+		}
+
 		// 当一个错误发生时，会调用此函数，在这个函数里记录编译错误和错误号
 		virtual void HandleDiagnostic(DiagnosticsEngine::Level diagLevel, const Diagnostic &info)
 		{
@@ -578,7 +744,14 @@ namespace cxxcleantool
 				errHistory.m_hasTooManyError = true;
 			}
 
+			if (diagLevel < DiagnosticIDs::Error)
+			{
+				Clear();
+				return;
+			}
+
 			std::string tip = g_errorTip;
+			Clear();
 
 			if (diagLevel >= DiagnosticIDs::Fatal)
 			{
@@ -586,14 +759,13 @@ namespace cxxcleantool
 
 				tip += strtool::get_text(cn_fatal_error_num_tip, htmltool::get_number_html(errId).c_str());
 			}
-			else
+			else if (diagLevel >= DiagnosticIDs::Error)
 			{
 				tip += strtool::get_text(cn_error_num_tip, htmltool::get_number_html(errId).c_str());
 			}
 
 			errHistory.m_errTips.push_back(tip);
 
-			Clear();
 		}
 
 		static std::string			g_errorTip;
@@ -622,12 +794,12 @@ namespace cxxcleantool
 				}
 				else
 				{
-					llvm::errs() << "step 1. analyze file: " << filename << " ...\n";
+					llvm::errs() << "step 1 of 2. analyze file: " << filename << " ...\n";
 				}
 			}
 			else
 			{
-				llvm::errs() << "step 2. cleaning file: " << filename << " ...\n";
+				llvm::errs() << "step 2 of 2. cleaning file: " << filename << " ...\n";
 			}
 
 			return true;
@@ -1089,8 +1261,10 @@ int main(int argc, const char **argv)
 	tool.appendArgumentsAdjuster(getInsertArgumentAdjuster("-Wdeprecated-declarations", ArgumentInsertPosition::BEGIN));
 	tool.appendArgumentsAdjuster(getInsertArgumentAdjuster("-nobuiltininc",				ArgumentInsertPosition::BEGIN));	// 禁止使用clang内置的头文件
 	tool.appendArgumentsAdjuster(getInsertArgumentAdjuster("-w",						ArgumentInsertPosition::BEGIN));	// 禁用警告
+	tool.appendArgumentsAdjuster(getInsertArgumentAdjuster("-ferror-limit=5",			ArgumentInsertPosition::BEGIN));	// 限制单个cpp产生的编译错误数，超过则不再编译
 
 	DiagnosticOptions diagnosticOptions;
+	diagnosticOptions.ShowOptionNames = 1;
 	tool.setDiagnosticConsumer(new CxxcleanDiagnosticConsumer(&diagnosticOptions));
 
 	std::unique_ptr<FrontendActionFactory> factory = newFrontendActionFactory<cxxcleantool::ListDeclAction>();

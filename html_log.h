@@ -26,7 +26,10 @@ namespace cxxcleantool
 	static const char* cn_project_allow_dir				= "允许清理文件夹";
 	static const char* cn_line_old_text					= "该行原来的内容 = ";
 	
-	static const char* cn_file_history					= "第%s个文件%s可被清理，分析结果如下";
+	static const char* cn_file_history					= "第%s个文件%s可被清理，分析结果如下：";
+	static const char* cn_file_history_compile_error	= "第%s个文件%s发生了编译错误，无法被清理，编译错误如下：";
+	static const char* cn_file_history_title			= "单独分析%s文件的日志";
+	static const char* cn_file_skip						= "注意：检测到本文件为预编译文件，本文件将不会被改动";
 
 	static const char* cn_error							= "错误：编译本文件时产生了以下编译错误：";
 	static const char* cn_error_num_tip					= "该编译错误号 = %s";
@@ -35,7 +38,6 @@ namespace cxxcleantool
 	static const char* cn_error_too_many				= "==> 注意：至少产生了%s个编译错误，由于编译错误数过多，本文件的分析结果将被丢弃";
 	static const char* cn_error_ignore					= "==> 编译结果：共产生了%s个编译错误，由于错误较少或不严重，本文件的分析结果仍将被统计";
 
-	static const char* cn_parsing_file					= "单独分析%s文件的日志";
 	static const char* cn_file_count_unused				= "共有%s个文件有多余的#include";
 	static const char* cn_file_unused_count				= "该文件中有%s行多余的#include";
 	static const char* cn_file_unused_line				= "可移除第%s行";

@@ -20,6 +20,7 @@ namespace cxxcleantool
 {
 	class ParsingFile;
 
+	// 无用的#include行
 	struct UselessLine
 	{
 		UselessLine()
@@ -34,6 +35,7 @@ namespace cxxcleantool
 		std::map<string, string>	m_usingNamespace;	// 本行应添加的using namespace
 	};
 
+	// 可新增前置声明的行
 	struct ForwardLine
 	{
 		ForwardLine()
@@ -46,9 +48,10 @@ namespace cxxcleantool
 		std::set<string>			m_classes;			// 新增前置声明列表
 	};
 
-	struct ReplaceInfo
+	// 被替换到的#include的信息
+	struct ReplaceTo
 	{
-		ReplaceInfo()
+		ReplaceTo()
 			: m_line(0)
 		{
 		}
@@ -56,10 +59,11 @@ namespace cxxcleantool
 		string						m_fileName;			// 该#include对应的文件
 		string						m_inFile;			// 该#include被哪个文件包含
 		int							m_line;				// 该#include所在的行
-		string						m_oldText;			// 替换前的#include串，如: #include "../b/../b/../a.h“
-		string						m_newText;			// 替换后的#include串，如: #include "../a.h"
+		string						m_oldText;			// 该#include原串，如: #include "../b/../b/../a.h"
+		string						m_newText;			// 原#include串经过路径搜索后计算出的新#include串，如: #include "../b/../b/../a.h" -> #include "../a.h"
 	};
 
+	// 可替换#include的行
 	struct ReplaceLine
 	{
 		ReplaceLine()
@@ -74,7 +78,7 @@ namespace cxxcleantool
 		int							m_end;				// 结束偏移
 		string						m_oldText;			// 替换前的#include文本，如: #include "../b/../b/../a.h“
 		string						m_oldFile;			// 替换前的#include对应的文件
-		std::vector<ReplaceInfo>	m_newInclude;		// 替换后的#include串列表
+		std::vector<ReplaceTo>		m_newInclude;		// 替换后的#include串列表
 		std::map<string, string>	m_frontNamespace;	// 本行首应添加的using namespace
 		std::map<string, string>	m_backNamespace;	// 本行末应添加的using namespace
 	};
@@ -86,6 +90,12 @@ namespace cxxcleantool
 			: m_errNum(0)
 			, m_hasTooManyError(false)
 		{
+		}
+
+		// 是否有严重编译错误或编译错误数过多
+		bool HaveFatalError() const
+		{
+			return !m_fatalErrors.empty();
 		}
 
 		int							m_errNum;			// 编译错误数
@@ -103,6 +113,7 @@ namespace cxxcleantool
 			, m_newBeIncludeCount(0)
 			, m_beUseCount(0)
 			, m_isWindowFormat(false)
+			, m_isSkip(false)
 		{
 		}
 
@@ -141,6 +152,7 @@ namespace cxxcleantool
 		ReplaceLineMap		m_replaces;
 		std::string			m_filename;
 
+		bool				m_isSkip;				// 记录本文件是否禁止改动，比如有些文件名就是stdafx.h和stdafx.cpp，这种就不要动了
 		bool				m_isWindowFormat;		// 本文件是否是Windows格式的换行符[\r\n]，否则为类Unix格式[\n]（通过文件第一行换行符来判断）
 		int					m_newBeIncludeCount;
 		int					m_oldBeIncludeCount;
@@ -149,6 +161,7 @@ namespace cxxcleantool
 
 	typedef std::map<string, FileHistory> FileHistoryMap;
 
+	// 本次执行cxx-clean-include的历史记录，包含对各个c++文件的历史日志
 	class ProjectHistory
 	{
 		ProjectHistory()
@@ -189,8 +202,13 @@ namespace cxxcleantool
 		static ProjectHistory	instance;
 
 	public:
+		// 当前是第几次分析所有源文件
 		bool				m_isFirst;
+
+		// 对所有c++文件的分析历史（注：其中也包含头文件）
 		FileHistoryMap		m_files;
+
+		// 已清理过的文件（注：列表中的文件将不再重复清理）
 		std::set<string>	m_cleanedFiles;
 
 	private:

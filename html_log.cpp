@@ -104,7 +104,6 @@ const char* g_beginHtml = R"--(
 				color: #FF4C00;
 				height: 41px;
 				line-height: 41px;
-				overflow: hidden;
 				font-weight: bold;
 				font-size: 1.7em;
 				border-radius: 10px;
@@ -115,7 +114,8 @@ const char* g_beginHtml = R"--(
 				border-left: 2px solid #fff;
 				border-right: 2px solid #e5e5e5;
 				cursor: pointer;
-				text-indent: 10px
+				text-indent: 10px;
+				white-space: nowrap;
 			}
 
 			.title .col:hover {

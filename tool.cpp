@@ -271,11 +271,23 @@ namespace pathtool
 		return ret;
 	}
 
+	// 根据路径获取文件名
+	// 例如：/a/b/foo.txt    => foo.txt
+	string get_file_name(const string& path)
+	{
+		return llvm::sys::path::filename(path);
+	}
+
 	// 简化路径
 	// d:/a/b/c/../../d/ -> d:/d/
 	std::string simplify_path(const char* path)
 	{
 		string native_path = to_linux_path(path);
+		if (native_path.empty())
+		{
+			return "";
+		}
+
 		if (start_with(native_path, "../") || start_with(native_path, "./"))
 		{
 			return native_path;
@@ -540,12 +552,22 @@ namespace htmltool
 
 	std::string get_include_html(const std::string &text)
 	{
-		return strtool::get_text(R"--(<span class="include-text"">%s</a>)--", htmltool::escape_html(text).c_str());
+		return strtool::get_text(R"--(<span class="include-text">%s</span>)--", htmltool::escape_html(text).c_str());
 	}
 
 	std::string get_number_html(int num)
 	{
-		return strtool::get_text(R"--(<span class="number-text"">%s</span>)--", strtool::itoa(num).c_str());
+		return strtool::get_text(R"--(<span class="number-text">%s</span>)--", strtool::itoa(num).c_str());
+	}
+
+	std::string get_warn_html(const char *text)
+	{
+		return strtool::get_text(R"--(<span class="number-text">%s</span>)--", text);
+	}
+
+	std::string get_pre_html(const char *text)
+	{
+		return strtool::get_text(R"--(<pre>%s</span>)--", text);
 	}
 }
 

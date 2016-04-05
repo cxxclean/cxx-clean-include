@@ -133,6 +133,10 @@ namespace pathtool
 	// 强制将路径以/结尾，将路径中的每个'\'字符均替换为'/'
 	string fix_path(const string& path);
 
+	// 根据路径获取文件名
+	// 例如：/a/b/foo.txt    => foo.txt
+	string get_file_name(const string& path);
+
 	// 简化路径
 	// 例如：d:/a/b/c/../../d/ -> d:/d/
 	std::string simplify_path(const char* path);
@@ -224,6 +228,10 @@ namespace htmltool
 	std::string get_include_html(const std::string &text);
 
 	std::string get_number_html(int num);
+
+	std::string get_warn_html(const char *text);
+
+	std::string get_pre_html(const char *text);
 }
 
 namespace timetool

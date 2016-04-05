@@ -385,6 +385,14 @@ namespace cxxcleantool
 				m_unusedLocs.insert(loc);
 			}
 		}
+
+		for (FileID beusedFile : m_files)
+		{
+			if (IsPrecompileHeader(beusedFile))
+			{
+				m_unusedLocs.erase(m_srcMgr->getIncludeLoc(beusedFile));
+			}
+		}
 	}
 
 	// 从指定的文件列表中找到属于传入文件的后代
@@ -772,6 +780,17 @@ namespace cxxcleantool
 		return string(beg, end);
 	}
 
+	// 获取该范围源码的信息：文本、所在文件名、行号
+	std::string ParsingFile::DebugRangeText(SourceRange range) const
+	{
+		string rangeText = GetSourceOfRange(range);
+		std::stringstream text;
+		text << "[" << htmltool::get_include_html(rangeText) << "] in [";
+		text << htmltool::get_file_html(GetAbsoluteFileName(GetFileID(range.getBegin())));
+		text << "] line = " << htmltool::get_number_html(GetLineNo(range.getBegin()));
+		return text.str();
+	}
+
 	// 获取指定位置所在行的文本
 	std::string ParsingFile::GetSourceOfLine(SourceLocation loc) const
 	{
@@ -953,8 +972,8 @@ namespace cxxcleantool
 	// cur位置的代码使用src位置的代码
 	void ParsingFile::Use(SourceLocation cur, SourceLocation src, const char* name /* = nullptr */)
 	{
-		cur = GetSpellingLoc(cur);
-		src = GetSpellingLoc(src);
+		cur = GetExpasionLoc(cur);
+		src = GetExpasionLoc(src);
 
 		FileID curFileID = GetFileID(cur);
 		FileID srcFileID = GetFileID(src);
@@ -964,6 +983,11 @@ namespace cxxcleantool
 
 	void ParsingFile::UseName(FileID file, FileID beusedFile, const char* name /* = nullptr */, int line)
 	{
+		if (Project::instance.m_verboseLvl < VerboseLvl_2)
+		{
+			return;
+		}
+
 		if (nullptr == name)
 		{
 			return;
@@ -1138,7 +1162,7 @@ namespace cxxcleantool
 	}
 
 	// 当前位置使用指定的宏
-	void ParsingFile::UseMacro(SourceLocation loc, const MacroDefinition &macro, const Token &macroNameTok)
+	void ParsingFile::UseMacro(SourceLocation loc, const MacroDefinition &macro, const Token &macroNameTok, const MacroArgs *args /* = nullptr */)
 	{
 		MacroInfo *info = macro.getMacroInfo();
 		if (nullptr == info)
@@ -1319,12 +1343,13 @@ namespace cxxcleantool
 			return;
 		}
 
+		// 使用到typedef类型，比如：typedef int dword其中dword就是TypedefType
 		if (isa<TypedefType>(t))
 		{
 			const TypedefType *typedefType = cast<TypedefType>(t);
 			const TypedefNameDecl *typedefNameDecl = typedefType->getDecl();
 
-			OnUseDecl(loc, typedefNameDecl);
+			UseNameDecl(loc, typedefNameDecl);
 
 			// 注：若该typedef的原型仍然是由其他的typedef声明而成，不需要继续分解
 		}
@@ -1344,7 +1369,7 @@ namespace cxxcleantool
 		{
 			const TemplateSpecializationType *templateType = cast<TemplateSpecializationType>(t);
 
-			OnUseDecl(loc, templateType->getTemplateName().getAsTemplateDecl());
+			UseNameDecl(loc, templateType->getTemplateName().getAsTemplateDecl());
 
 			for (int i = 0, size = templateType->getNumArgs(); i < size; ++i)
 			{
@@ -1360,7 +1385,7 @@ namespace cxxcleantool
 					break;
 
 				case TemplateArgument::Declaration:
-					OnUseDecl(loc, arg.getAsDecl());
+					UseValueDecl(loc, arg.getAsDecl());
 					break;
 
 				case TemplateArgument::Expression:
@@ -1368,7 +1393,7 @@ namespace cxxcleantool
 					break;
 
 				case TemplateArgument::Template:
-					OnUseDecl(loc, arg.getAsTemplate().getAsTemplateDecl());
+					UseNameDecl(loc, arg.getAsTemplate().getAsTemplateDecl());
 					break;
 
 				default:
@@ -1419,7 +1444,7 @@ namespace cxxcleantool
 				UseQualType(loc, decl->getDefaultArgument());
 			}
 
-			OnUseDecl(loc, decl);
+			UseNameDecl(loc, decl);
 		}
 		else if (isa<ParenType>(t))
 		{
@@ -1476,7 +1501,7 @@ namespace cxxcleantool
 				return;
 			}
 
-			OnUseRecord(loc, cxxRecordDecl);
+			UseRecord(loc, cxxRecordDecl);
 		}
 		else if (t->isArrayType())
 		{
@@ -1513,7 +1538,7 @@ namespace cxxcleantool
 				return;
 			}
 
-			OnUseDecl(loc, decl);
+			UseNameDecl(loc, decl);
 		}
 		else
 		{
@@ -1683,13 +1708,12 @@ namespace cxxcleantool
 		m_forwardDecls[file].insert(cxxRecordDecl);
 	}
 
-	// 新增使用变量记录
-	void ParsingFile::UseVar(SourceLocation loc, const QualType &var)
+	// 是否为可前置声明的类型
+	bool ParsingFile::IsForwardType(const QualType &var)
 	{
 		if (!var->isPointerType() && !var->isReferenceType())
 		{
-			UseQualType(loc, var);
-			return;
+			return false;
 		}
 
 		QualType pointeeType = var->getPointeeType();
@@ -1702,38 +1726,89 @@ namespace cxxcleantool
 
 		if (!pointeeType->isRecordType())
 		{
-			UseQualType(loc, var);
-			return;
+			return false;
 		}
 
 		const CXXRecordDecl *cxxRecordDecl = pointeeType->getAsCXXRecordDecl();
 		if (nullptr == cxxRecordDecl)
 		{
-			UseQualType(loc, var);
-			return;
+			return false;
 		}
 
 		if (isa<ClassTemplateSpecializationDecl>(cxxRecordDecl))
 		{
-			UseQualType(loc, var);
-			return;
-			// cxxRecord->dump(llvm::outs());
+			return false;
 		}
 
+		return true;
+	}
+
+	// 新增使用变量记录
+	void ParsingFile::UseVarType(SourceLocation loc, const QualType &var)
+	{
+		if (!IsForwardType(var))
+		{
+			UseQualType(loc, var);
+			return;
+		}
+
+		QualType pointeeType = var->getPointeeType();
+		while (pointeeType->isPointerType() || pointeeType->isReferenceType())
+		{
+			pointeeType = pointeeType->getPointeeType();
+		}
+
+		const CXXRecordDecl *cxxRecordDecl = pointeeType->getAsCXXRecordDecl();
 		UseForward(loc, cxxRecordDecl);
 	}
 
-	// 新增使用声明记录
-	void ParsingFile::OnUseDecl(SourceLocation loc, const NamedDecl *nameDecl)
+	// 引用变量声明
+	void ParsingFile::UseVarDecl(SourceLocation loc, const VarDecl *var)
+	{
+		if (nullptr == var)
+		{
+			return;
+		}
+
+		if (!IsForwardType(var->getType()))
+		{
+			UseValueDecl(loc, var);
+			return;
+		}
+
+		UseVarType(loc, var->getType());
+	}
+
+	// 引用变量声明（为左值）、函数表示、enum常量
+	void ParsingFile::UseValueDecl(SourceLocation loc, const ValueDecl *valueDecl)
+	{
+		std::stringstream name;
+		name << valueDecl->getQualifiedNameAsString() << "[" << valueDecl->getDeclKindName() << "]";
+
+		Use(loc, valueDecl->getLocEnd(), name.str().c_str());
+		UseVarType(loc, valueDecl->getType());
+	}
+
+	// 引用带有名称的声明
+	void ParsingFile::UseNameDecl(SourceLocation loc, const NamedDecl *nameDecl)
 	{
 		std::stringstream name;
 		name << nameDecl->getQualifiedNameAsString() << "[" << nameDecl->getDeclKindName() << "]";
 
-		Use(loc, nameDecl->getLocStart(), name.str().c_str());
+		Use(loc, nameDecl->getLocEnd(), name.str().c_str());
+	}
+
+	// 新增使用函数声明记录
+	void ParsingFile::UseFuncDecl(SourceLocation loc, const FunctionDecl *funcDecl)
+	{
+		std::stringstream name;
+		name << funcDecl->getQualifiedNameAsString() << "[" << funcDecl->clang::Decl::getDeclKindName() << "]";
+
+		Use(loc, funcDecl->getTypeSpecStartLoc(), name.str().c_str());
 	}
 
 	// 新增使用class、struct、union记录
-	void ParsingFile::OnUseRecord(SourceLocation loc, const CXXRecordDecl *record)
+	void ParsingFile::UseRecord(SourceLocation loc, const CXXRecordDecl *record)
 	{
 		Use(loc, record->getLocStart(), GetCxxrecordName(*record).c_str());
 	}
@@ -1795,7 +1870,7 @@ namespace cxxcleantool
 		string fileName;
 		string parentFileName;
 		string includeToken		= GetRawIncludeStr(file);
-		
+
 		if (includeToken.empty())
 		{
 			includeToken = "empty";
@@ -1831,7 +1906,7 @@ namespace cxxcleantool
 		SourceLocation loc		= m_srcMgr->getIncludeLoc(file);
 		string fileName			= GetFileName(file);
 		string includeToken		= GetRawIncludeStr(file);
-		
+
 		if (includeToken.empty())
 		{
 			includeToken = "empty";
@@ -2053,7 +2128,7 @@ namespace cxxcleantool
 
 			if (!IsRootCyclyUsed(file))
 			{
-				llvm::outs() << "        <--------- new add cycle use file --------->\n";
+				div.AddRow("<--------- new add cycle use file --------->", 2, 100, true);
 			}
 
 			DebugUsedNames(file, useNames);
@@ -2233,23 +2308,30 @@ namespace cxxcleantool
 	}
 
 	// 打印单个文件的清理历史
-	void ParsingFile::PrintFileHistory(const FileHistory &file)
+	void ParsingFile::PrintFileHistory(const FileHistory &history)
 	{
-		PrintUnusedIncludeOfFile(file);
-		PrintCanForwarddeclOfFile(file);
-		PrintCanReplaceOfFile(file);
+		if (!Project::instance.CanClean(history.m_filename))
+		{
+			return;
+		}
+
+		if (history.m_isSkip)
+		{
+			HtmlDiv &div = HtmlLog::instance.m_newDiv;
+
+			// 打印：本文件为预编译头文件，禁止被改动
+			div.AddRow(htmltool::get_warn_html(cn_file_skip), 1);
+		}
+
+		PrintUnusedIncludeOfFile(history);
+		PrintCanForwarddeclOfFile(history);
+		PrintCanReplaceOfFile(history);
 	}
 
 	// 打印单个文件内的可被删#include记录
 	void ParsingFile::PrintUnusedIncludeOfFile(const FileHistory &history)
 	{
 		HtmlDiv &div = HtmlLog::instance.m_newDiv;
-
-		if (!Project::instance.CanClean(history.m_filename))
-		{
-			return;
-		}
-
 		if (history.m_unusedLines.empty())
 		{
 			return;
@@ -2284,12 +2366,6 @@ namespace cxxcleantool
 	void ParsingFile::PrintCanForwarddeclOfFile(const FileHistory &history)
 	{
 		HtmlDiv &div = HtmlLog::instance.m_newDiv;
-
-		if (!Project::instance.CanClean(history.m_filename))
-		{
-			return;
-		}
-
 		if (history.m_forwards.empty())
 		{
 			return;
@@ -2320,12 +2396,6 @@ namespace cxxcleantool
 	void ParsingFile::PrintCanReplaceOfFile(const FileHistory &history)
 	{
 		HtmlDiv &div = HtmlLog::instance.m_newDiv;
-
-		if (!Project::instance.CanClean(history.m_filename))
-		{
-			return;
-		}
-
 		if (history.m_replaces.empty())
 		{
 			return;
@@ -2352,7 +2422,7 @@ namespace cxxcleantool
 			// div.AddGrid(oldText, 69);
 
 			// 比如，输出: replace to = #include <../1.h> in [./2.h : line = 3]
-			for (const ReplaceInfo &replaceInfo : replaceLine.m_newInclude)
+			for (const ReplaceTo &replaceInfo : replaceLine.m_newInclude)
 			{
 				// 若替换的串内容不变，则只打印一个
 				if (replaceInfo.m_newText == replaceInfo.m_oldText)
@@ -2470,7 +2540,9 @@ namespace cxxcleantool
 				continue;
 			}
 
-			div.AddRow(strtool::get_text(cn_file_history, htmltool::get_number_html(++i).c_str(), htmltool::get_file_html(history.m_filename).c_str()), 1);
+			const char *tip = (history.m_compileErrorHistory.HaveFatalError() ? cn_file_history_compile_error : cn_file_history);
+
+			div.AddRow(strtool::get_text(tip, htmltool::get_number_html(++i).c_str(), htmltool::get_file_html(history.m_filename).c_str()), 1);
 
 			PrintFileHistory(history);
 		}
@@ -2641,7 +2713,12 @@ namespace cxxcleantool
 		FileID fileID = m_srcMgr->getFileID(loc);
 		if (fileID.isInvalid())
 		{
-			fileID = m_srcMgr->getFileID(loc);
+			fileID = m_srcMgr->getFileID(GetSpellingLoc(loc));
+
+			if (fileID.isInvalid())
+			{
+				fileID = m_srcMgr->getFileID(GetExpasionLoc(loc));
+			}
 		}
 
 		return fileID;
@@ -2702,7 +2779,7 @@ namespace cxxcleantool
 	void ParsingFile::Clean()
 	{
 		// 若本文件有严重编译错误或编译错误数过多，则禁止改动
-		if (!m_compileErrorHistory.m_fatalErrors.empty())
+		if (m_compileErrorHistory.HaveFatalError())
 		{
 			return;
 		}
@@ -2848,7 +2925,7 @@ namespace cxxcleantool
 
 			std::stringstream text;
 
-			for (const ReplaceInfo &replaceInfo : replaceLine.m_newInclude)
+			for (const ReplaceTo &replaceInfo : replaceLine.m_newInclude)
 			{
 				text << replaceInfo.m_newText;
 				text << eachFile.GetNewLineWord();
@@ -2931,6 +3008,11 @@ namespace cxxcleantool
 
 			FileID file					= findItr->second;
 			const FileHistory &eachFile	= ProjectHistory::instance.m_files[fileName];
+
+			if (eachFile.m_isSkip)
+			{
+				continue;
+			}
 
 			CleanByReplace(eachFile, file);
 			CleanByForward(eachFile, file);
@@ -3102,7 +3184,7 @@ namespace cxxcleantool
 		HtmlDiv &div = HtmlLog::instance.m_newDiv;
 
 		std::string rootFileName	= GetAbsoluteFileName(m_srcMgr->getMainFileID());
-		div.AddTitle(strtool::get_text(cn_parsing_file, htmltool::get_file_html(rootFileName).c_str()));
+		div.AddTitle(strtool::get_text(cn_file_history_title, htmltool::get_file_html(rootFileName).c_str()));
 
 		m_printIdx = 0;
 
@@ -3331,7 +3413,7 @@ namespace cxxcleantool
 		TakeAllInfoTo(newFiles);
 
 		// 若本文件有严重编译错误或编译错误数过多，则仅合并编译错误历史，用于打印
-		if (!m_compileErrorHistory.m_fatalErrors.empty())
+		if (m_compileErrorHistory.HaveFatalError())
 		{
 			std::string rootFile	= GetAbsoluteFileName(m_srcMgr->getMainFileID());
 			oldFiles[rootFile]		= newFiles[rootFile];
@@ -3421,6 +3503,7 @@ namespace cxxcleantool
 			FileHistory &eachFile		= out[fileName];
 			eachFile.m_isWindowFormat	= IsWindowsFormat(file);
 			eachFile.m_filename			= fileName;
+			eachFile.m_isSkip			= IsPrecompileHeader(file);
 		}
 
 		// 1. 将可清除的行按文件进行存放
@@ -3568,18 +3651,16 @@ namespace cxxcleantool
 		return (nullptr == m_srcMgr->getFileEntryForID(parent));
 	}
 
-	// 该文件是否被预编译头文件包含
-	bool ParsingFile::IsInPrecompileHeader(FileID file) const
+	// 该文件是否是预编译头文件
+	bool ParsingFile::IsPrecompileHeader(FileID file) const
 	{
-		FileID parent = GetFileID(m_srcMgr->getIncludeLoc(file));
+		std::string filePath = GetAbsoluteFileName(file);
 
-		std::string fileName = GetAbsoluteFileName(parent);
-		if (strtool::end_with(fileName, "stdafx.h"))
-		{
-			return true;
-		}
+		std::string fileName = pathtool::get_file_name(filePath);
 
-		return false;
+		bool is = !strnicmp(fileName.c_str(), "stdafx.h", fileName.size());
+		is |= !strnicmp(fileName.c_str(), "stdafx.cpp", fileName.size());
+		return is;
 	}
 
 	// 取出指定文件的#include替换信息
@@ -3593,7 +3674,6 @@ namespace cxxcleantool
 			// 取出该行#include的替换信息[行号 -> 被替换成的#include列表]
 			{
 				bool isBeForceIncluded		= IsForceIncluded(oldFile);
-				bool isInPrecompileHeader	= IsInPrecompileHeader(oldFile);
 
 				SourceLocation include_loc	= m_srcMgr->getIncludeLoc(oldFile);
 				SourceRange	lineRange		= GetCurLineWithLinefeed(include_loc);
@@ -3604,24 +3684,24 @@ namespace cxxcleantool
 				replaceLine.m_oldText		= GetRawIncludeStr(oldFile);
 				replaceLine.m_beg			= m_srcMgr->getFileOffset(lineRange.getBegin());
 				replaceLine.m_end			= m_srcMgr->getFileOffset(lineRange.getEnd());
-				replaceLine.m_isSkip		= ((isBeForceIncluded || isInPrecompileHeader) ? true : false);	// 记载是否是强制包含
+				replaceLine.m_isSkip		= isBeForceIncluded || IsPrecompileHeader(oldFile);	// 记载是否是强制包含
 
 				for (FileID replace_file : to_replaces)
 				{
 					SourceLocation deep_include_loc	= m_srcMgr->getIncludeLoc(replace_file);
 
-					ReplaceInfo replaceInfo;
+					ReplaceTo replaceTo;
 
 					// 记录[旧#include、新#include]
-					replaceInfo.m_oldText	= GetRawIncludeStr(replace_file);
-					replaceInfo.m_newText	= GetRelativeIncludeStr(GetParent(oldFile), replace_file);
+					replaceTo.m_oldText	= GetRawIncludeStr(replace_file);
+					replaceTo.m_newText	= GetRelativeIncludeStr(GetParent(oldFile), replace_file);
 
 					// 记录[所处的文件、所处行号]
-					replaceInfo.m_line		= GetLineNo(deep_include_loc);
-					replaceInfo.m_fileName	= GetAbsoluteFileName(replace_file);
-					replaceInfo.m_inFile	= GetAbsoluteFileName(GetFileID(deep_include_loc));
+					replaceTo.m_line		= GetLineNo(deep_include_loc);
+					replaceTo.m_fileName	= GetAbsoluteFileName(replace_file);
+					replaceTo.m_inFile	= GetAbsoluteFileName(GetFileID(deep_include_loc));
 
-					replaceLine.m_newInclude.push_back(replaceInfo);
+					replaceLine.m_newInclude.push_back(replaceTo);
 
 					GetMissingNamespace(include_loc, deep_include_loc, replaceLine.m_frontNamespace, replaceLine.m_backNamespace);
 				}

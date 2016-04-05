@@ -7,9 +7,12 @@
 #include <windows.h>
 #include <math.h>
 
+#define TEXT_C_MACRO_H	"c_macro.h"
+#define INCLUDE_C_MACRO_H TEXT_C_MACRO_H
+
 #include "a_func.h"						// 测试函数			:a_func.h
 #include "b_class.h"					// 测试类			:b_class.h
-#include "c_macro.h"					// 测试宏			:c_macro.h
+#include INCLUDE_C_MACRO_H				// 测试宏			:c_macro.h
 #include "d_template.h"					// 测试模板			:d_template.h
 #include "e_typedef.h"					// 测试自定义		:e_typedef.h
 #include "f_forwarddecl.h"				// 测试前置声明		:f_forwarddecl.h
@@ -66,12 +69,19 @@ void A_Func_Test()
 
 	A a;
 	a.A_ClassMemberFunc();
+
+	Macro_A_Func(100, "abcdefg");
 }
 
 template<typename T>
 const typename D_Color<T>::Color D_Color<T>::color;
 
 ///////////////////// 2. 测试b_class.h：某个文件内的类如果被使用到，则对应的#include应该被保留 /////////////////////
+
+B_Initializer::B_Initializer()
+	: m_class(NULL)
+{
+}
 
 B_Class		b_Class;
 B_Struct	b_Struct;

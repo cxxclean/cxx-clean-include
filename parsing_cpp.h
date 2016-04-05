@@ -36,6 +36,10 @@ namespace clang
 	class Type;
 	class NamespaceDecl;
 	class UsingDirectiveDecl;
+	class FunctionDecl;
+	class MacroArgs;
+	class VarDecl;
+	class ValueDecl;
 }
 
 namespace cxxcleantool
@@ -99,7 +103,7 @@ namespace cxxcleantool
 
 		// 打印该文件产生的编译错误
 		static void PrintCompileError(const CompileErrorHistory&);
-				
+
 		// 初始化本对象
 		bool Init();
 
@@ -120,24 +124,36 @@ namespace cxxcleantool
 		// 生成各文件的待清理记录
 		void GenerateResult();
 
+		// 是否为可前置声明的类型
+		bool IsForwardType(const QualType &var);
+
 		// 当前文件使用目标文件
 		void UseInclude(FileID file, FileID beusedFile, const char* name = nullptr, int line = 0);
 
 		// 当前位置使用指定的宏
-		void UseMacro(SourceLocation loc, const MacroDefinition &macro, const Token &macroName);
+		void UseMacro(SourceLocation loc, const MacroDefinition &macro, const Token &macroName, const MacroArgs *args = nullptr);
 
 		// 新增使用变量记录
-		void UseVar(SourceLocation loc, const QualType &var);
+		void UseVarType(SourceLocation loc, const QualType &var);
 
-		// 新增使用声明记录
-		void OnUseDecl(SourceLocation loc, const NamedDecl *nameDecl);
+		// 引用变量声明
+		void UseVarDecl(SourceLocation loc, const VarDecl *var);
+
+		// 引用变量声明（为左值）、函数表示、enum常量
+		void UseValueDecl(SourceLocation loc, const ValueDecl *valueDecl);
+
+		// 引用带有名称的声明
+		void UseNameDecl(SourceLocation loc, const NamedDecl *nameDecl);
+
+		// 新增使用函数声明记录
+		void UseFuncDecl(SourceLocation loc, const FunctionDecl *funcDecl);
 
 		// 新增使用class、struct、union记录
-		void OnUseRecord(SourceLocation loc, const CXXRecordDecl *record);
+		void UseRecord(SourceLocation loc, const CXXRecordDecl *record);
 
 		// cur位置的代码使用src位置的代码
 		void Use(SourceLocation cur, SourceLocation src, const char* name = nullptr);
-		
+
 		// 当前位置使用目标类型（注：QualType包含对某个类型的const、volatile、static等的修饰）
 		void UseQualType(SourceLocation loc, const QualType &t);
 
@@ -157,26 +173,32 @@ namespace cxxcleantool
 		bool GetMissingNamespace(SourceLocation loc, std::map<std::string, std::string> &miss) const;
 
 		// 获取可能缺失的using namespace
-		bool GetMissingNamespace(SourceLocation topLoc, SourceLocation oldLoc, 
-			std::map<std::string, std::string> &frontMiss, std::map<std::string, std::string> &backMiss) const;
+		bool GetMissingNamespace(SourceLocation topLoc, SourceLocation oldLoc,
+		                         std::map<std::string, std::string> &frontMiss, std::map<std::string, std::string> &backMiss) const;
 
 		// 获取命名空间的全部路径，例如，返回namespace A{ namespace B{ class C; }}
 		std::string GetNestedNamespace(const NamespaceDecl *d);
 
 		// 开始清理文件（将改动c++源文件）
 		void Clean();
-		
+
 		// 打印索引 + 1
 		std::string AddPrintIdx() const;
 
 		// 打印信息
 		void Print();
-		
+
 		// 将当前cpp文件产生的待清理记录与之前其他cpp文件产生的待清理记录合并
 		void MergeTo(FileHistoryMap &old) const;
-		
+
 		// 获取本文件的编译错误历史
-		CompileErrorHistory& GetCompileErrorHistory(){ return m_compileErrorHistory; }
+		CompileErrorHistory& GetCompileErrorHistory() { return m_compileErrorHistory; }
+
+		// 获取指定范围的文本
+		std::string GetSourceOfRange(SourceRange range) const;
+
+		// 获取该范围源码的信息：文本、所在文件名、行号
+		std::string DebugRangeText(SourceRange range) const;
 
 	private:
 		// 获取头文件搜索路径
@@ -252,9 +274,6 @@ namespace cxxcleantool
 
 		// 生成新增前置声明列表
 		void GenerateCanForwardDeclaration();
-
-		// 获取指定范围的文本
-		std::string GetSourceOfRange(SourceRange range) const;
 
 		// 获取指定位置所在行的文本
 		std::string GetSourceOfLine(SourceLocation loc) const;
@@ -503,8 +522,8 @@ namespace cxxcleantool
 		// 该文件是否是被-include强制包含
 		bool IsForceIncluded(FileID file) const;
 
-		// 该文件是否被预编译头文件包含
-		bool IsInPrecompileHeader(FileID file) const;
+		// 该文件是否是预编译头文件
+		bool IsPrecompileHeader(FileID file) const;
 
 		// 将文件替换记录按父文件进行归类
 		typedef std::map<FileID, std::set<FileID>> ChildrenReplaceMap;
@@ -528,7 +547,7 @@ namespace cxxcleantool
 
 		// 该文件是否可被替换
 		bool IsReplaced(FileID file) const;
-		
+
 	public:
 		// 当前正在解析的文件
 		static ParsingFile *g_atFile;

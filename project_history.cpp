@@ -30,7 +30,11 @@ namespace cxxcleantool
 		for (auto itr : m_files)
 		{
 			const FileHistory &fileHistory = itr.second;
-			canCleanFileCount += (fileHistory.IsNeedClean() ? 1 : 0);
+
+			if (fileHistory.IsNeedClean() && !fileHistory.m_compileErrorHistory.HaveFatalError())
+			{
+				canCleanFileCount += 1;
+			}
 		}
 
 		HtmlLog::instance.AddBigTitle(cn_project_history_title);
@@ -51,7 +55,9 @@ namespace cxxcleantool
 				continue;
 			}
 
-			div.AddRow(strtool::get_text(cn_file_history, htmltool::get_number_html(++i).c_str(), htmltool::get_file_html(history.m_filename).c_str()), 1);
+			const char *tip = (history.m_compileErrorHistory.HaveFatalError() ? cn_file_history_compile_error : cn_file_history);
+
+			div.AddRow(strtool::get_text(tip, htmltool::get_number_html(++i).c_str(), htmltool::get_file_html(history.m_filename).c_str()), 1);
 
 			ParsingFile::PrintCompileError(history.m_compileErrorHistory);
 			ParsingFile::PrintFileHistory(history);
