@@ -93,7 +93,6 @@ class B_DerivedClass : public B_BaseClass
 
 private:
 	int m_num;
-	int not;
 };
 
 B_ReturnClass GetClass()
@@ -113,9 +112,15 @@ void B_Class_Test()
 	B_ExplicitConstructorClass b_ExplicitConstructorClass(100, 200);
 	B_NoNameClass();
 	B_ClassPointer *b_ClassPointer;
+
+	B_TempClass b = GetB_TempClass();
 }
 
 ///////////////////// 3. 测试c_macro.h：处理宏的展开和使用 /////////////////////
+
+#if defined C_IfDefined
+#define ok
+#endif
 
 #undef C_MacroUndefine
 

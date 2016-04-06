@@ -8,3 +8,5 @@
 #endif
 
 #define C_MacroUndefine
+
+#define C_IfDefined

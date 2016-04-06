@@ -143,8 +143,9 @@ namespace cxxcleantool
 		}
 
 		// 定义宏，如#define DEBUG
-		void Defined(const Token &macroName, const MacroDefinition &md, SourceRange range) override
+		void Defined(const Token &macroName, const MacroDefinition &definition, SourceRange range) override
 		{
+			m_main->UseMacro(macroName.getLocation(), definition, macroName);
 		}
 
 		// 处理#define
