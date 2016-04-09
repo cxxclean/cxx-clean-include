@@ -14,7 +14,7 @@
 #include "tool.h"
 #include "project.h"
 #include "parsing_cpp.h"
-#include "rapidxml_utils.hpp"
+#include "rapidxml/rapidxml_utils.hpp"
 
 namespace vstool
 {
