@@ -19,8 +19,12 @@
 #include "clang/Rewrite/Core/Rewriter.h"
 #include "llvm/Support/TargetSelect.h"
 #include "llvm/Support/Signals.h"
+#include "llvm/Option/ArgList.h"
 #include "clang/Basic/Version.h"
+#include "clang/Driver/ToolChain.h"
+#include "clang/Driver/Driver.h"
 #include "clang/Frontend/TextDiagnosticPrinter.h"
+#include "lib/Driver/ToolChains.h"
 
 #include "tool.h"
 #include "vs_project.h"
@@ -142,7 +146,7 @@ namespace cxxcleantool
 			m_main->AddIncludeLoc(filenameRange.getBegin(), range);
 		}
 
-		// 定义宏，如#define DEBUG
+		// 定义宏，如#if defined DEBUG
 		void Defined(const Token &macroName, const MacroDefinition &definition, SourceRange range) override
 		{
 			m_main->UseMacro(macroName.getLocation(), definition, macroName);
@@ -1021,6 +1025,7 @@ public:
 		return new FixedCompilationDatabase(directory, strippedArgs);
 	}
 
+	// 根据vs工程文件里调整clang的参数
 	bool AddCleanVsArgument(const Vsproject &vs, ClangTool &tool)
 	{
 		if (vs.m_configs.empty())
@@ -1030,18 +1035,16 @@ public:
 
 		const VsConfiguration &vsconfig = vs.m_configs[0];
 
-		for (int i = 0, size = vsconfig.searchDirs.size(); i < size; i++)
+		for (const std::string &dir	: vsconfig.searchDirs)
 		{
-			const std::string &dir	= vsconfig.searchDirs[i];
 			std::string arg			= "-I" + dir;
 
 			ArgumentsAdjuster argAdjuster = getInsertArgumentAdjuster(arg.c_str(), ArgumentInsertPosition::BEGIN);
 			tool.appendArgumentsAdjuster(argAdjuster);
 		}
 
-		for (int i = 0, size = vsconfig.forceIncludes.size(); i < size; i++)
+		for (const std::string &force_include : vsconfig.forceIncludes)
 		{
-			const std::string &force_include	= vsconfig.forceIncludes[i];
 			std::string arg						= "-include" + force_include;
 
 			ArgumentsAdjuster argAdjuster = getInsertArgumentAdjuster(arg.c_str(), ArgumentInsertPosition::BEGIN);
@@ -1060,8 +1063,45 @@ public:
 		tool.appendArgumentsAdjuster(getInsertArgumentAdjuster("-fms-compatibility", ArgumentInsertPosition::BEGIN));
 		tool.appendArgumentsAdjuster(getInsertArgumentAdjuster("-fms-compatibility-version=18", ArgumentInsertPosition::BEGIN));
 
+		AddVsSearchDir(tool);
+
 		pathtool::cd(vs.m_project_dir.c_str());
 		return true;
+	}
+
+	// 添加visual studio的额外的包含路径，因为clang库遗漏了一个包含路径会导致#include <atlcomcli.h>时找不到头文件
+	void AddVsSearchDir(ClangTool &tool)
+	{
+		if (Vsproject::instance.m_configs.empty())
+		{
+			return;
+		}
+
+#if defined(LLVM_ON_WIN32)
+		DiagnosticsEngine engine(
+		    IntrusiveRefCntPtr<clang::DiagnosticIDs>(new DiagnosticIDs()), nullptr,
+		    nullptr, false);
+
+		clang::driver::Driver d("", "", engine);
+		llvm::opt::InputArgList args(nullptr, nullptr);
+		toolchains::MSVCToolChain mscv(d, Triple(), args);
+
+		// const ToolChain &toolchain	= tool.getToolChain();
+		// const auto &MSVC			= static_cast<const toolchains::MSVCToolChain &>(TC);
+
+		std::string vsInstallDir;
+		if (mscv.getVisualStudioInstallDir(vsInstallDir))
+		{
+			llvm::SmallString<512> path(vsInstallDir);
+			llvm::sys::path::append(path, "VC\\atlmfc\\include");
+
+			std::string arg = "-I";
+			arg += path.c_str();
+
+			// arg = R"--(-IC:\Program Files (x86)\Microsoft Visual Studio 12.0\VC\atlmfc\include)--";
+			tool.appendArgumentsAdjuster(getInsertArgumentAdjuster(arg.c_str(), ArgumentInsertPosition::BEGIN));
+		}
+#endif
 	}
 
 	// 解析-src选项
@@ -1274,7 +1314,6 @@ int main(int argc, const char **argv)
 	if (Project::instance.m_isDeepClean && !Project::instance.m_onlyHas1File && Project::instance.m_isOverWrite)
 	{
 		ProjectHistory::instance.m_isFirst = false;
-
 		tool.run(factory.get());
 	}
 
