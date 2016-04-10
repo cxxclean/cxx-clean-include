@@ -1,1 +1,0 @@
-int nil1_func_has_implementation();
