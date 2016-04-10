@@ -1,9 +1,25 @@
 cxx-clean-include说明
 =====
 
-cxx-clean-include是一个用于清理c++文件中多余#include的工具，既支持对visual studio 2005及以上版本的c++项目进行清理，也支持对单个文件夹下（含子文件夹）的c++源文件进行清理。
+cxx-clean-include是一个用于清理c++文件中多余#include的工具，可以对visual studio项目（2005及以上版本）进行清理，也可以对单个文件夹（含子文件夹）的c++源文件进行清理。
 
-同时，由于cxx-clean-include基于llvm+clang库编写而成，依托于clang库对现有编译器的兼容，所以本项目也支持msvc、gcc/g++的语法，并完整支持c++11标准。
+## 使用方法
+
+使用前，请确保已安装visual studio 2013的32位运行时组件，可到官网：https://www.microsoft.com/zh-cn/download/details.aspx?id=40784 ，下载其中的vcredist_x86.exe并运行安装
+
+然后：
+
+* 1. 下载cxxclean.rar文件并解压，将得到可执行文件cxxclean.exe和一个文件夹hello（hello里面是示例代码）
+* 2. 双击运行hello文件夹下的run_cxxclean_hello.bat
+* 3. 如果成功的话，将生成cxxclean_hello.html日志，并且hello项目已被清理成功
+
+将run_cxxclean_hello.bat里面的./hello.vcxproj改成你自己的vs工程文件，就可以清理你的工程了
+
+注意：使用前请备份你的代码
+
+## cxx-clean-include的作用
+
+由于cxx-clean-include基于llvm+clang库编写而成，依托于clang库对现有编译器的兼容，所以本项目也支持大部分msvc、gcc/g++的语法，并完整支持c++11标准。
 
 cxx-clean-include可以做到
 
@@ -47,15 +63,9 @@ C c;                              // 类C来自于c.h
 
 可以看出，hello.cpp第1行和第2行均被替换为更合适的语句。第4行则被移除
 
-## 下载cxx-clean-include
-
-本项目中已上传了cxx-clean-include在windows下的32位可执行文件，下载项目中的cxxclean.rar压缩文件并解压，将得到可执行文件cxxclean.exe，在命令行中输入cxxclean -help获取详细的命令行参数信息
-
 注意：本项目在windows和linux系统下均可进行编译，具体编译过程可参考clang插件的编译方法。
 
-## cxx-clean-include的使用方法
-
-使用前，请确保已安装visual studio 2013的32位运行时组件，如未安装，可到官网地址：https://www.microsoft.com/zh-cn/download/details.aspx?id=40784 ，下载其中的vcredist_x86.exe并运行安装
+## cxx-clean-include的命令
 
 cxx-clean-include目前支持清理visual studio项目（vs2005及以上版本），同时支持清理指定文件夹下的c++文件，同时输出结果是html格式，方便查看
 
@@ -89,31 +99,6 @@ cxxclean -clean 文件夹路径 -- -I 头文件搜索路径 -D 需要预定义�
 
 // 例如：cxxclean -clean d:/a/b/hello/ -- -I ../../ -I ../ -I ./ -D DEBUG -D WIN32 -include platform.h
 ```
-
-## 如何将屏幕输出存入文件中
-
-如果想把屏幕输出重定向到某个文件，可以使用重定向符号>（windows及linux均可采用此方法）
-```
-cxxclean -clean d:/vs2005/hello.vcproj > cxxclean_hello.html
-// 屏幕打印将被存入当前文件夹下的cxxclean_hello.html文件
-```
-## 示例工程
-
-本项目中的hello文件夹下含有示例工程hello.vcproj，是一个visual studio 2008项目，可以正常编译通过，可用于测试cxx-clean-include是否正常工作
-
-使用方式：下载hello文件夹，在命令行中执行以下命令
-
-```
-cxxclean -clean hello.vcxproj > cxxclean_hello.html
-```
-
-用浏览器打开cxxclean_hello.html查看执行后的清理效果
-
-## 注意事项
-
-由于cxx-clean-include会对c++源文件进行覆盖，所以请在使用前备份c++代码以防不必要的麻烦。
-
-（cxx-clean-include仅会改动#include语句所在的行，并不会对其余的行作任何改动，但安全起见，最好在使用前进行备份）
 
 ## cxx-clean-include的命令行参数
 
