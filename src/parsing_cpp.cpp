@@ -170,6 +170,28 @@ namespace cxxcleantool
 	*/
 	void ParsingFile::GenerateRootCycleUse()
 	{
+		// 首先扩充引用文件集，主要是为了达到这个目标：每个文件优先保留自己文件内的#include语句
+		{
+			for (auto itr : m_uses)
+			{
+				FileID file							= itr.first;
+				const std::set<FileID> &beuseList	= itr.second;
+
+				if (!CanClean(file))
+				{
+					continue;
+				}
+
+				for (FileID beuse : beuseList)
+				{
+					if (!IsIncludedBy(beuse, file))
+					{
+						UseByFileName(file, GetAbsoluteFileName(beuse).c_str());
+					}
+				}
+			}
+		}
+
 		FileID mainFileID = m_srcMgr->getMainFileID();
 
 		GetCycleUseFile(mainFileID, m_rootCycleUse);
@@ -469,53 +491,6 @@ namespace cxxcleantool
 		}
 
 		out.insert(history.begin(), history.end());
-	}
-
-	// 从文件后代中找到被指定文件使用的所有文件
-	std::set<FileID> ParsingFile::GetDependOnFile(FileID ancestor, FileID child)
-	{
-		std::set<FileID> all;
-
-		std::set<FileID> left;
-		left.insert(child);
-
-		std::set<FileID> history;
-
-		// 循环获取child引用的文件，并不断获取被引用文件所依赖的文件
-		while (!left.empty())
-		{
-			FileID cur = *left.begin();
-			left.erase(left.begin());
-
-			history.insert(cur);
-
-			if (!IsAncestor(cur, ancestor))
-			{
-				continue;
-			}
-
-			all.insert(cur);
-
-			bool has_child = (m_uses.find(cur) != m_uses.end());
-			if (!has_child)
-			{
-				continue;
-			}
-
-			std::set<FileID> &use_list = m_uses[cur];
-
-			for (const FileID &used : use_list)
-			{
-				if (history.find(used) != history.end())
-				{
-					continue;
-				}
-
-				left.insert(used);
-			}
-		}
-
-		return all;
 	}
 
 	// 获取文件的深度（令主文件的深度为0）
@@ -1156,9 +1131,20 @@ namespace cxxcleantool
 		}
 
 		m_uses[file].insert(beusedFile);
-		// direct_use_include_by_family(file, beusedFile);
-
 		UseName(file, beusedFile, name, line);
+	}
+
+	// 文件a使用指定名称的目标文件
+	void ParsingFile::UseByFileName(FileID a, const char* filename)
+	{
+		FileID firstIncludeOfName = GetIncludeFileOfName(a, filename);
+		if (firstIncludeOfName.isInvalid())
+		{
+			// 这种情况很正常，直接返回
+			return;
+		}
+
+		m_uses[a].insert(firstIncludeOfName);
 	}
 
 	// 当前位置使用指定的宏
@@ -1333,6 +1319,40 @@ namespace cxxcleantool
 		}
 
 		return name;
+	}
+
+	// 文件b是否直接#include文件a
+	bool ParsingFile::IsIncludedBy(FileID a, FileID b)
+	{
+		auto itr = m_includes.find(b);
+		if (itr == m_includes.end())
+		{
+			return false;
+		}
+
+		const std::set<FileID> &includes = itr->second;
+		return includes.find(a) != includes.end();
+	}
+
+	// 获取文件a所直接包含的第一个指定文件名的文件实例id
+	FileID ParsingFile::GetIncludeFileOfName(FileID a, const char* filename)
+	{
+		auto itr = m_includes.find(a);
+		if (itr == m_includes.end())
+		{
+			return FileID();
+		}
+
+		const std::set<FileID> &includes = itr->second;
+		for (FileID file : includes)
+		{
+			if (GetAbsoluteFileName(file) == filename)
+			{
+				return file;
+			}
+		}
+
+		return FileID();
 	}
 
 	// 当前位置使用目标类型（注：Type代表某个类型，但不含const、volatile、static等的修饰）
@@ -2540,6 +2560,15 @@ namespace cxxcleantool
 				continue;
 			}
 
+			if (Project::instance.m_verboseLvl < VerboseLvl_2)
+			{
+				string ext = strtool::get_ext(history.m_filename);
+				if (!cpptool::is_cpp(ext))
+				{
+					continue;
+				}
+			}
+
 			const char *tip = (history.m_compileErrorHistory.HaveFatalError() ? cn_file_history_compile_error : cn_file_history);
 
 			div.AddRow(strtool::get_text(tip, htmltool::get_number_html(++i).c_str(), htmltool::get_file_html(history.m_filename).c_str()), 1);
@@ -3194,14 +3223,11 @@ namespace cxxcleantool
 			PrintCleanLog();
 		}
 
-		if (verbose >= VerboseLvl_2)
+		if (verbose >= VerboseLvl_3)
 		{
 			PrintUsedNames();
 			PrintUse();
-		}
 
-		if (verbose >= VerboseLvl_3)
-		{
 			PrintAllCycleUsedNames();
 			PrintRootCycleUsedNames();
 

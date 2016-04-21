@@ -141,6 +141,8 @@ namespace pathtool
 	// 例如：d:/a/b/c/../../d/ -> d:/d/
 	std::string simplify_path(const char* path);
 
+	std::string append_path(const char* a, const char* b);
+
 	/*
 		令path_1为当前路径，返回path_2的相对路径
 		例如：

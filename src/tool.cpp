@@ -363,6 +363,14 @@ namespace pathtool
 		return out;
 	}
 
+	std::string append_path(const char* a, const char* b)
+	{
+		llvm::SmallString<512> path(a);
+		llvm::sys::path::append(path, b);
+
+		return path.c_str();
+	}
+
 	/*
 		返回简化后的绝对路径，若传入相对路径，则结果 = 简化（当前路径 + 相对路径），若传入绝对路径，结果 = 简化后的绝对路径
 		例如：
@@ -397,9 +405,7 @@ namespace pathtool
 		}
 		else
 		{
-			llvm::SmallString<512> path(base_path);
-			llvm::sys::path::append(path, relative_path);
-
+			std::string path = append_path(base_path, relative_path);
 			return get_absolute_path(path.c_str());
 		}
 

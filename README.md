@@ -94,10 +94,10 @@ cxxclean -clean 文件夹路径
 但很多情况下需要指定更详细的编译条件，如指定头文件路径、预定义宏等，clang库已内置提供了相应的命令行参数供使用，可使用如下方式（注意添加--号）：
 
 ```cpp
-cxxclean -clean 文件夹路径 -- -I 头文件搜索路径 -D 需要预定义的宏 -include 需要强制包含的文件
+cxxclean -clean 文件夹路径 -- -I"你的头文件搜索路径" -D 需要预定义的宏 -include 需要强制包含的文件
 （其中：-I、-D、-include均可使用多次）
 
-// 例如：cxxclean -clean d:/a/b/hello/ -- -I ../../ -I ../ -I ./ -D DEBUG -D WIN32 -include platform.h
+// 例如：cxxclean -clean d:/a/b/hello/ -- -I ../../ -I"../" -I"./" -I"../include" -D DEBUG -D WIN32 -include platform.h
 ```
 
 ## cxx-clean-include的命令行参数

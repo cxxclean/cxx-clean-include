@@ -1069,13 +1069,10 @@ public:
 		return true;
 	}
 
-	// 添加visual studio的额外的包含路径，因为clang库遗漏了一个包含路径会导致#include <atlcomcli.h>时找不到头文件
-	void AddVsSearchDir(ClangTool &tool)
+	// 获取visual studio的安装路径
+	std::string GetVsInstallDir()
 	{
-		if (Vsproject::instance.m_configs.empty())
-		{
-			return;
-		}
+		std::string vsInstallDir;
 
 #if defined(LLVM_ON_WIN32)
 		DiagnosticsEngine engine(
@@ -1086,22 +1083,70 @@ public:
 		llvm::opt::InputArgList args(nullptr, nullptr);
 		toolchains::MSVCToolChain mscv(d, Triple(), args);
 
-		// const ToolChain &toolchain	= tool.getToolChain();
-		// const auto &MSVC			= static_cast<const toolchains::MSVCToolChain &>(TC);
+		mscv.getVisualStudioInstallDir(vsInstallDir);
 
-		std::string vsInstallDir;
-		if (mscv.getVisualStudioInstallDir(vsInstallDir))
+		if (!pathtool::exist(vsInstallDir))
 		{
-			llvm::SmallString<512> path(vsInstallDir);
-			llvm::sys::path::append(path, "VC\\atlmfc\\include");
+			const std::string maybeList[] =
+			{
+				"C:\\Program Files\\Microsoft Visual Studio 12.0",
+				"C:\\Program Files\\Microsoft Visual Studio 11.0",
+				"C:\\Program Files\\Microsoft Visual Studio 10.0",
+				"C:\\Program Files\\Microsoft Visual Studio 9.0",
+				"C:\\Program Files\\Microsoft Visual Studio 8",
 
-			std::string arg = "-I";
-			arg += path.c_str();
+				"C:\\Program Files (x86)\\Microsoft Visual Studio 12.0",
+				"C:\\Program Files (x86)\\Microsoft Visual Studio 11.0",
+				"C:\\Program Files (x86)\\Microsoft Visual Studio 10.0",
+				"C:\\Program Files (x86)\\Microsoft Visual Studio 9.0",
+				"C:\\Program Files (x86)\\Microsoft Visual Studio 8"
+			};
 
-			// arg = R"--(-IC:\Program Files (x86)\Microsoft Visual Studio 12.0\VC\atlmfc\include)--";
-			tool.appendArgumentsAdjuster(getInsertArgumentAdjuster(arg.c_str(), ArgumentInsertPosition::BEGIN));
+			for (const std::string &maybePath : maybeList)
+			{
+				if (pathtool::exist(maybePath))
+				{
+					return maybePath;
+				}
+			}
 		}
 #endif
+
+		return vsInstallDir;
+	}
+
+	// 添加visual studio的额外的包含路径，因为clang库遗漏了一个包含路径会导致#include <atlcomcli.h>时找不到头文件
+	void AddVsSearchDir(ClangTool &tool)
+	{
+		if (Vsproject::instance.m_configs.empty())
+		{
+			return;
+		}
+
+		std::string vsInstallDir = GetVsInstallDir();
+		if (vsInstallDir.empty())
+		{
+			return;
+		}
+
+		const char* search[] =
+		{
+			"VC\\atlmfc\\include",
+			"VC\\PlatformSDK\\Include",
+			"VC\\include"
+		};
+
+		for (const char *try_path : search)
+		{
+			std::string path = pathtool::append_path(vsInstallDir.c_str(), try_path);
+			if (!pathtool::exist(path))
+			{
+				continue;
+			}
+
+			std::string arg = "-I" + path;
+			tool.appendArgumentsAdjuster(getInsertArgumentAdjuster(arg.c_str(), ArgumentInsertPosition::BEGIN));
+		}
 	}
 
 	// 解析-src选项
@@ -1308,15 +1353,19 @@ int main(int argc, const char **argv)
 	diagnosticOptions.ShowOptionNames = 1;
 	tool.setDiagnosticConsumer(new CxxcleanDiagnosticConsumer(&diagnosticOptions));
 
+	// 第1遍对每个文件进行分析并打印日志
 	std::unique_ptr<FrontendActionFactory> factory = newFrontendActionFactory<cxxcleantool::ListDeclAction>();
 	tool.run(factory.get());
 
+	// 打印整体分析日志
+	ProjectHistory::instance.Print();
+
+	// 第2遍才开始清理
 	if (Project::instance.m_isDeepClean && !Project::instance.m_onlyHas1File && Project::instance.m_isOverWrite)
 	{
 		ProjectHistory::instance.m_isFirst = false;
 		tool.run(factory.get());
 	}
 
-	ProjectHistory::instance.Print();
 	return 0;
 }

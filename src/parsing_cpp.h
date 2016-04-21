@@ -130,6 +130,9 @@ namespace cxxcleantool
 		// 当前文件使用目标文件
 		void UseInclude(FileID file, FileID beusedFile, const char* name = nullptr, int line = 0);
 
+		// 文件a使用指定名称的目标文件
+		void UseByFileName(FileID a, const char* filename);
+
 		// 当前位置使用指定的宏
 		void UseMacro(SourceLocation loc, const MacroDefinition &macro, const Token &macroName, const MacroArgs *args = nullptr);
 
@@ -178,6 +181,12 @@ namespace cxxcleantool
 
 		// 获取命名空间的全部路径，例如，返回namespace A{ namespace B{ class C; }}
 		std::string GetNestedNamespace(const NamespaceDecl *d);
+
+		// 文件b是否直接#include文件a
+		bool IsIncludedBy(FileID a, FileID b);
+
+		// 获取文件a所直接包含的第一个指定文件名的文件实例id
+		FileID GetIncludeFileOfName(FileID a, const char* filename);
 
 		// 开始清理文件（将改动c++源文件）
 		void Clean();
@@ -245,9 +254,6 @@ namespace cxxcleantool
 
 		// 从指定的文件列表中找到属于传入文件的后代
 		std::set<FileID> GetChildren(FileID ancestor, std::set<FileID> all_children/* 包括非ancestor孩子的文件 */);
-
-		// 从文件后代中找到被指定文件使用的所有文件
-		std::set<FileID> GetDependOnFile(FileID ancestor, FileID child);
 
 		// 获取指定文件直接依赖和间接依赖的文件集
 		// 计算过程是：
