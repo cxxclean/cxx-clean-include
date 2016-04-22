@@ -3382,16 +3382,16 @@ namespace cxxcleantool
 				if (IsAncestor(beReplaceFileID, oldLine.m_oldFile.c_str()))
 				{
 					++oldLineItr;
-					continue;
 				}
 				// 若新的取代文件是旧的取代文件的祖先，则改为使用新的替换信息
 				else if(IsAncestor(oldLine.m_oldFile.c_str(), beReplaceFileID))
 				{
 					oldLine.m_newInclude = newLine.m_newInclude;
 					oldLine.m_frontNamespace.insert(newLine.m_frontNamespace.begin(), newLine.m_frontNamespace.end());
-					oldLine.m_frontNamespace.insert(newLine.m_backNamespace.begin(), newLine.m_backNamespace.end());
+					oldLine.m_backNamespace.insert(newLine.m_backNamespace.begin(), newLine.m_backNamespace.end());
+					++oldLineItr;
 				}
-				// 否则，若没有直系关系，则该行无法被替换，删除新增的该行替换记录
+				// 否则，若没有直系关系，则该行无法被替换，删除该行原有的替换记录
 				else
 				{
 					// llvm::outs() << "merge_replace_line_to: " << oldFile.m_filename << " should remove conflict old line = " << line << " -> " << oldLine.m_oldText << "\n";
