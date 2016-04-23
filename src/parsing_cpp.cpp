@@ -1190,7 +1190,7 @@ namespace cxxcleantool
 		m_namespaces[file].insert(d->getQualifiedNameAsString());
 	}
 
-	// using了命名空间
+	// using了命名空间，比如：using namespace std;
 	void ParsingFile::UsingNamespace(const UsingDirectiveDecl *d)
 	{
 		SourceLocation loc = GetSpellingLoc(d->getLocation());
@@ -1214,6 +1214,31 @@ namespace cxxcleantool
 
 		// 引用命名空间所在的文件（注意：using namespace时必须能找到对应的namespace声明，比如，using namespace A前一定要有namespace A{}否则编译会报错）
 		Use(loc, nsDecl->getLocation(), GetNestedNamespace(nsDecl).c_str());
+	}
+
+	// using了命名空间下的某类，比如：using std::string;
+	void ParsingFile::UsingXXX(const UsingDecl *d)
+	{
+		SourceLocation usingLoc		= d->getUsingLoc();
+
+		for (auto itr = d->shadow_begin(); itr != d->shadow_end(); ++itr)
+		{
+			UsingShadowDecl *shadowDecl = *itr;
+
+			NamedDecl *nameDecl = shadowDecl->getTargetDecl();
+			if (nullptr == nameDecl)
+			{
+				continue;
+			}
+
+			std::stringstream name;
+			name << "using " << shadowDecl->getQualifiedNameAsString() << "[" << nameDecl->getDeclKindName() << "]";
+
+			Use(usingLoc, nameDecl->getLocEnd(), name.str().c_str());
+
+			// 注意：这里要反向引用，因为比如我们在a文件中#include <string>，然后在b文件using std::string，那么b文件也是有用的
+			Use(nameDecl->getLocEnd(), usingLoc);
+		}
 	}
 
 	// 获取可能缺失的using namespace
@@ -1513,15 +1538,17 @@ namespace cxxcleantool
 		{
 			const RecordType *recordType = cast<RecordType>(t);
 
-			const CXXRecordDecl *cxxRecordDecl = recordType->getAsCXXRecordDecl();
-			if (nullptr == cxxRecordDecl)
+			const RecordDecl *recordDecl = recordType->getDecl();
+			if (nullptr == recordDecl)
 			{
-				llvm::errs() << "t->isRecordType() nullptr ==  t->getAsCXXRecordDecl():\n";
-				t->dump();
+				llvm::errs() << "[ParsingFile::UseType] isa<RecordType>(t) nullptr ==  recordType->getAsCXXRecordDecl():\n";
+				llvm::errs() << DebugLocText(loc) << "\n";
+
+				recordType->dump();
 				return;
 			}
 
-			UseRecord(loc, cxxRecordDecl);
+			UseRecord(loc, recordDecl);
 		}
 		else if (t->isArrayType())
 		{
@@ -1582,16 +1609,16 @@ namespace cxxcleantool
 	// 获取c++中class、struct、union的全名，结果将包含命名空间
 	// 例如：
 	//     传入类C，C属于命名空间A中的命名空间B，则结果将返回：namespace A{ namespace B{ class C; }}
-	string ParsingFile::GetCxxrecordName(const CXXRecordDecl &cxxRecordDecl) const
+	string ParsingFile::GetRecordName(const RecordDecl &recordDecl) const
 	{
 		string name;
-		name += cxxRecordDecl.getKindName();
-		name += " " + cxxRecordDecl.getNameAsString();
+		name += recordDecl.getKindName();
+		name += " " + recordDecl.getNameAsString();
 		name += ";";
 
 		bool inNameSpace = false;
 
-		const DeclContext *curDeclContext = cxxRecordDecl.getDeclContext();
+		const DeclContext *curDeclContext = recordDecl.getDeclContext();
 		while (curDeclContext && curDeclContext->isNamespace())
 		{
 			const NamespaceDecl *namespaceDecl = cast<NamespaceDecl>(curDeclContext);
@@ -1722,7 +1749,7 @@ namespace cxxcleantool
 			return;
 		}
 
-		string cxxRecordName = GetCxxrecordName(*cxxRecordDecl);
+		string cxxRecordName = GetRecordName(*cxxRecordDecl);
 
 		// 添加文件所使用的前置声明记录（对于不必要添加的前置声明将在之后进行清理）
 		m_forwardDecls[file].insert(cxxRecordDecl);
@@ -1742,6 +1769,11 @@ namespace cxxcleantool
 		while (pointeeType->isPointerType() || pointeeType->isReferenceType())
 		{
 			pointeeType = pointeeType->getPointeeType();
+		}
+
+		if (!isa<RecordType>(pointeeType))
+		{
+			return false;
 		}
 
 		if (!pointeeType->isRecordType())
@@ -1828,9 +1860,9 @@ namespace cxxcleantool
 	}
 
 	// 新增使用class、struct、union记录
-	void ParsingFile::UseRecord(SourceLocation loc, const CXXRecordDecl *record)
+	void ParsingFile::UseRecord(SourceLocation loc, const RecordDecl *record)
 	{
-		Use(loc, record->getLocStart(), GetCxxrecordName(*record).c_str());
+		Use(loc, record->getLocStart(), GetRecordName(*record).c_str());
 	}
 
 	// 是否允许清理该c++文件（若不允许清理，则文件内容不会有任何变化）
@@ -2498,9 +2530,10 @@ namespace cxxcleantool
 		for (const std::string& errTip : errHistory.m_errTips)
 		{
 			div.AddRow(errTip, 2, 100, true, true);
+			div.AddRow(" ", 1, 100, false, true);
 		}
 
-		div.AddRow(" ", 1, 100, false, true);
+		// div.AddRow(" ", 1, 100, false, true);
 
 		if (!errHistory.m_fatalErrors.empty())
 		{
@@ -3210,14 +3243,24 @@ namespace cxxcleantool
 	// 打印信息
 	void ParsingFile::Print()
 	{
+		int verbose = Project::instance.m_verboseLvl;
+		if (verbose <= VerboseLvl_1 && Project::instance.m_onlyHas1File)
+		{
+			return;
+		}
+
+		static int g_printNum = 0;
+
 		HtmlDiv &div = HtmlLog::instance.m_newDiv;
 
 		std::string rootFileName	= GetAbsoluteFileName(m_srcMgr->getMainFileID());
-		div.AddTitle(strtool::get_text(cn_file_history_title, htmltool::get_file_html(rootFileName).c_str()));
+		div.AddTitle(strtool::get_text(cn_file_history_title,
+		                               htmltool::get_number_html(++g_printNum).c_str(),
+		                               htmltool::get_number_html(Project::instance.m_cpps.size()).c_str(),
+		                               htmltool::get_file_html(rootFileName).c_str()));
 
 		m_printIdx = 0;
 
-		int verbose = Project::instance.m_verboseLvl;
 		if (verbose >= VerboseLvl_1)
 		{
 			PrintCleanLog();
@@ -3631,7 +3674,7 @@ namespace cxxcleantool
 				// 开始取出数据
 				{
 					int line					= presumedLoc.getLine();
-					const string cxxRecordName	= GetCxxrecordName(*cxxRecord);
+					const string cxxRecordName	= GetRecordName(*cxxRecord);
 					FileHistory &eachFile		= out[fileName];
 					ForwardLine &forwardLine	= eachFile.m_forwards[line];
 

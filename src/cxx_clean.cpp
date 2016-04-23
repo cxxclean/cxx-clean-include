@@ -628,6 +628,13 @@ namespace cxxcleantool
 			return true;
 		}
 
+		// 比如：using std::string;
+		bool VisitUsingDecl(clang::UsingDecl *d)
+		{
+			m_main->UsingXXX(d);
+			return true;
+		}
+
 		// 访问成员变量
 		bool VisitFieldDecl(FieldDecl *decl)
 		{
@@ -758,33 +765,34 @@ namespace cxxcleantool
 			std::string tip = g_errorTip;
 			Clear();
 
+			int errNum = errHistory.m_errTips.size() + 1;
+
 			if (diagLevel >= DiagnosticIDs::Fatal)
 			{
 				errHistory.m_fatalErrors.insert(errId);
 
-				tip += strtool::get_text(cn_fatal_error_num_tip, htmltool::get_number_html(errId).c_str());
+				tip += strtool::get_text(cn_fatal_error_num_tip, strtool::itoa(errNum).c_str(), htmltool::get_number_html(errId).c_str());
 			}
 			else if (diagLevel >= DiagnosticIDs::Error)
 			{
-				tip += strtool::get_text(cn_error_num_tip, htmltool::get_number_html(errId).c_str());
+				tip += strtool::get_text(cn_error_num_tip, strtool::itoa(errNum).c_str(), htmltool::get_number_html(errId).c_str());
 			}
 
 			errHistory.m_errTips.push_back(tip);
-
 		}
 
 		static std::string			g_errorTip;
 		static raw_string_ostream	g_log;
 	};
 
-	std::string CxxcleanDiagnosticConsumer::g_errorTip;
-	raw_string_ostream CxxcleanDiagnosticConsumer::g_log(g_errorTip);
+	std::string			CxxcleanDiagnosticConsumer::g_errorTip;
+	raw_string_ostream	CxxcleanDiagnosticConsumer::g_log(g_errorTip);
 
-	// 对于ClangTool接收到的每个源文件，都将new一个ListDeclAction
-	class ListDeclAction : public ASTFrontendAction
+	// 对于ClangTool接收到的每个源文件，都将new一个CxxCleanAction
+	class CxxCleanAction : public ASTFrontendAction
 	{
 	public:
-		ListDeclAction()
+		CxxCleanAction()
 		{
 		}
 
@@ -792,7 +800,7 @@ namespace cxxcleantool
 		{
 			if (ProjectHistory::instance.m_isFirst)
 			{
-				bool only1Step = (!Project::instance.m_isDeepClean || Project::instance.m_onlyHas1File);
+				bool only1Step = !Project::instance.m_need2Step;
 				if (only1Step)
 				{
 					llvm::errs() << "cleaning file: " << filename << " ...\n";
@@ -837,10 +845,6 @@ namespace cxxcleantool
 				c->m_main->Clean();
 			}
 
-			// llvm::errs() << "end clean file: " << c->m_main->get_file_name(srcMgr.getMainFileID()) << "\n";
-
-			// Now emit the rewritten buffer.
-			// m_rewriter.getEditBuffer(srcMgr.getMainFileID()).write(llvm::errs());
 			delete c->m_main;
 		}
 
@@ -1254,6 +1258,7 @@ public:
 			project.m_onlyHas1File = true;
 		}
 
+		Project::instance.m_need2Step = Project::instance.m_isDeepClean && !Project::instance.m_onlyHas1File && Project::instance.m_isOverWrite;
 		return true;
 	}
 
@@ -1353,15 +1358,15 @@ int main(int argc, const char **argv)
 	diagnosticOptions.ShowOptionNames = 1;
 	tool.setDiagnosticConsumer(new CxxcleanDiagnosticConsumer(&diagnosticOptions));
 
-	// 第1遍对每个文件进行分析并打印日志
-	std::unique_ptr<FrontendActionFactory> factory = newFrontendActionFactory<cxxcleantool::ListDeclAction>();
+	// 第1遍对每个文件进行分析，然后汇总并打印统计日志
+	std::unique_ptr<FrontendActionFactory> factory = newFrontendActionFactory<cxxcleantool::CxxCleanAction>();
 	tool.run(factory.get());
 
-	// 打印整体分析日志
+	// 打印统计日志
 	ProjectHistory::instance.Print();
 
-	// 第2遍才开始清理
-	if (Project::instance.m_isDeepClean && !Project::instance.m_onlyHas1File && Project::instance.m_isOverWrite)
+	// 第2遍才开始清理，第2遍就不打印html日志了
+	if (Project::instance.m_need2Step)
 	{
 		ProjectHistory::instance.m_isFirst = false;
 		tool.run(factory.get());

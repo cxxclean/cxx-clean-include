@@ -40,6 +40,8 @@ namespace clang
 	class MacroArgs;
 	class VarDecl;
 	class ValueDecl;
+	class RecordDecl;
+	class UsingDecl;
 }
 
 namespace cxxcleantool
@@ -152,7 +154,7 @@ namespace cxxcleantool
 		void UseFuncDecl(SourceLocation loc, const FunctionDecl *funcDecl);
 
 		// 新增使用class、struct、union记录
-		void UseRecord(SourceLocation loc, const CXXRecordDecl *record);
+		void UseRecord(SourceLocation loc, const RecordDecl *record);
 
 		// cur位置的代码使用src位置的代码
 		void Use(SourceLocation cur, SourceLocation src, const char* name = nullptr);
@@ -169,8 +171,11 @@ namespace cxxcleantool
 		// 声明了命名空间
 		void DeclareNamespace(const NamespaceDecl *d);
 
-		// using了命名空间
+		// using了命名空间，比如：using namespace std;
 		void UsingNamespace(const UsingDirectiveDecl *d);
+
+		// using了命名空间下的某类，比如：using std::string;
+		void UsingXXX(const UsingDecl *d);
 
 		// 获取可能缺失的using namespace
 		bool GetMissingNamespace(SourceLocation loc, std::map<std::string, std::string> &miss) const;
@@ -363,7 +368,7 @@ namespace cxxcleantool
 		// 获取c++中class、struct、union的全名，结果将包含命名空间
 		// 例如：
 		//     传入类C，C属于命名空间A中的命名空间B，则结果将返回：namespace A{ namespace B{ class C; }}
-		string GetCxxrecordName(const CXXRecordDecl &cxxRecordDecl) const;
+		string GetRecordName(const RecordDecl &recordDecl) const;
 
 		// 从指定位置起，跳过之后的注释，直到获得下一个token
 		bool LexSkipComment(SourceLocation Loc, Token &Result);
