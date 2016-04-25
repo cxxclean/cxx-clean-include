@@ -3249,13 +3249,11 @@ namespace cxxcleantool
 			return;
 		}
 
-		static int g_printNum = 0;
-
 		HtmlDiv &div = HtmlLog::instance.m_newDiv;
 
 		std::string rootFileName	= GetAbsoluteFileName(m_srcMgr->getMainFileID());
 		div.AddTitle(strtool::get_text(cn_file_history_title,
-		                               htmltool::get_number_html(++g_printNum).c_str(),
+		                               htmltool::get_number_html(ProjectHistory::instance.g_printFileNo).c_str(),
 		                               htmltool::get_number_html(Project::instance.m_cpps.size()).c_str(),
 		                               htmltool::get_file_html(rootFileName).c_str()));
 

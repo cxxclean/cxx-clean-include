@@ -167,6 +167,7 @@ namespace cxxcleantool
 		ProjectHistory()
 			: m_isFirst(true)
 			, m_printIdx(0)
+			, g_printFileNo(0)
 		{
 		}
 
@@ -210,6 +211,9 @@ namespace cxxcleantool
 
 		// 已清理过的文件（注：列表中的文件将不再重复清理）
 		std::set<string>	m_cleanedFiles;
+
+		// 当前正在打印第几个文件
+		int					g_printFileNo;
 
 	private:
 		// 当前打印索引，仅用于日志打印

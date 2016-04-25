@@ -807,12 +807,14 @@ namespace cxxcleantool
 				}
 				else
 				{
-					llvm::errs() << "step 1 of 2. analyze file: " << filename << " ...\n";
+					llvm::errs() << "step 1 of 2. analyze file: " << ++ProjectHistory::instance.g_printFileNo 
+						<< "/" << Project::instance.m_cpps.size() << ". " << filename << " ...\n";
 				}
 			}
 			else
 			{
-				llvm::errs() << "step 2 of 2. cleaning file: " << filename << " ...\n";
+				llvm::errs() << "step 2 of 2. cleaning file: " << ++ProjectHistory::instance.g_printFileNo
+						<< "/" << Project::instance.m_cpps.size() << ". " << filename << " ...\n";
 			}
 
 			return true;
@@ -1368,7 +1370,8 @@ int main(int argc, const char **argv)
 	// 第2遍才开始清理，第2遍就不打印html日志了
 	if (Project::instance.m_need2Step)
 	{
-		ProjectHistory::instance.m_isFirst = false;
+		ProjectHistory::instance.m_isFirst		= false;
+		ProjectHistory::instance.g_printFileNo	= 0;
 		tool.run(factory.get());
 	}
 
