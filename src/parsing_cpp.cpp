@@ -154,23 +154,7 @@ namespace cxxcleantool
 	// 生成结果前的准备
 	void ParsingFile::PrepareResult()
 	{
-		// 1. 扩充可能遗漏的包含关系
-		{
-			for (auto itr : m_uses)
-			{
-				FileID file							= itr.first;
-				const std::set<FileID> &beuseList	= itr.second;
-
-				AddFile(file);
-
-				for (FileID beuse : beuseList)
-				{
-					AddFile(beuse);
-				}
-			}
-		}
-
-		// 2. 首先扩充引用文件集，主要是为了达到这个目标：每个文件优先保留自己文件内的#include语句
+		// 1. 首先扩充引用文件集，主要是为了达到这个目标：每个文件优先保留自己文件内的#include语句
 		{
 			for (auto itr : m_uses)
 			{
@@ -1213,8 +1197,6 @@ namespace cxxcleantool
 		FileID file = GetFileID(loc);
 		if (file.isInvalid())
 		{
-			llvm::outs() << "[error][ParsingFile::DeclareNamespace]file is invalid";
-			d->dump();
 			return;
 		}
 
@@ -1229,8 +1211,6 @@ namespace cxxcleantool
 		FileID file = GetFileID(loc);
 		if (file.isInvalid())
 		{
-			llvm::errs() << "ParsingFile::UsingNamespace";
-			d->dump();
 			return;
 		}
 
@@ -1572,10 +1552,6 @@ namespace cxxcleantool
 			const RecordDecl *recordDecl = recordType->getDecl();
 			if (nullptr == recordDecl)
 			{
-				llvm::errs() << "[ParsingFile::UseType] isa<RecordType>(t) nullptr ==  recordType->getAsCXXRecordDecl():\n";
-				llvm::errs() << DebugLocText(loc) << "\n";
-
-				recordType->dump();
 				return;
 			}
 
@@ -1611,8 +1587,6 @@ namespace cxxcleantool
 			TagDecl *decl = t->getAsTagDecl();
 			if (nullptr == decl)
 			{
-				llvm::errs() << "t->isEnumeralType() nullptr ==  t->getAsTagDecl():\n";
-				t->dump();
 				return;
 			}
 

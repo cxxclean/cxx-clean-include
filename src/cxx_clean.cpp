@@ -309,8 +309,8 @@ namespace cxxcleantool
 				CXXConstructorDecl *decl = cxxConstructExpr->getConstructor();
 				if (nullptr == decl)
 				{
-					llvm::errs() << "------------ CXXConstructExpr->getConstructor() = null ------------:\n";
-					s->dumpColor();
+					// llvm::errs() << "------------ CXXConstructExpr->getConstructor() = null ------------:\n";
+					// s->dumpColor();
 					return false;
 				}
 
@@ -649,9 +649,13 @@ namespace cxxcleantool
 				{
 					m_main->UseType(initializer->getSourceLocation(), initializer->getBaseClass());
 				}
-				else
+				else if (initializer->isDelegatingInitializer())
 				{
-					decl->dump();
+					m_main->UseQualType(initializer->getSourceLocation(), initializer->getTypeSourceInfo()->getType());
+				}
+				else
+				{ 
+					// decl->dump();
 				}
 			}
 
