@@ -63,7 +63,7 @@ namespace cxxcleantool
 		{
 			// 注意：当为PPCallbacks::EnterFile时，prevFileID是无效的
 			if (reason != PPCallbacks::EnterFile)
-			{				
+			{
 				return;
 			}
 
@@ -654,7 +654,7 @@ namespace cxxcleantool
 					m_main->UseQualType(initializer->getSourceLocation(), initializer->getTypeSourceInfo()->getType());
 				}
 				else
-				{ 
+				{
 					// decl->dump();
 				}
 			}
@@ -971,16 +971,16 @@ public:
 			return false;
 		}
 
-		HtmlLog::instance.BeginLog();
-
 		if (g_printVsConfig)
 		{
+			HtmlLog::instance.BeginLog();
 			Vsproject::instance.Print();
 			return false;
 		}
 
 		if (g_printProject)
 		{
+			HtmlLog::instance.BeginLog();
 			Project::instance.Print();
 			return false;
 		}
@@ -990,6 +990,8 @@ public:
 			llvm::errs() << "cxx-clean-include: \n    try use -help argument to see more information.\n";
 			return 0;
 		}
+
+		HtmlLog::instance.BeginLog();
 
 		if (Project::instance.m_verboseLvl >= VerboseLvl_2)
 		{
