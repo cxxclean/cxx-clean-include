@@ -61,62 +61,51 @@ namespace cxxcleantool
 		                 SrcMgr::CharacteristicKind FileType,
 		                 FileID prevFileID = FileID()) override
 		{
-			if (reason != PPCallbacks::ExitFile)
-			{
-				// 注意：PPCallbacks::EnterFile时的prevFileID无效，无法有效利用所以不予考虑
+			// 注意：当为PPCallbacks::EnterFile时，prevFileID是无效的
+			if (reason != PPCallbacks::EnterFile)
+			{				
 				return;
 			}
 
-			/*
-				关于函数参数的含义，以a.cpp中有#include "b.h"为例
+			SourceManager &srcMgr	= m_main->GetSrcMgr();
+			FileID curFileID		= srcMgr.getFileID(loc);
 
-				则此处，prevFileID代表b.h，loc则表示a.cpp中#include "b.h"最后一个双引号的后面一个位置
-
-				例如：
-			        #include "b.h"
-			                      ^
-			                      loc代表的位置
-			*/
-
-			SourceManager &srcMgr		= m_main->GetSrcMgr();
-
-			FileID curFileID = srcMgr.getFileID(loc);
-			if (!prevFileID.isValid() || !curFileID.isValid())
+			if (curFileID.isInvalid())
 			{
 				return;
 			}
 
-			m_main->AddFile(prevFileID);
+			// 这里要注意，有的文件是会被FileChanged遗漏掉的，除非把HeaderSearch::ShouldEnterIncludeFile方法改为每次都返回true
 			m_main->AddFile(curFileID);
 
-			PresumedLoc presumed_loc	= srcMgr.getPresumedLoc(loc);
-			string curFileName			= presumed_loc.getFilename();
-
-			if (curFileName.empty() || nullptr == srcMgr.getFileEntryForID(prevFileID))
+			FileID parentID = srcMgr.getFileID(srcMgr.getIncludeLoc(curFileID));
+			if (parentID.isInvalid())
 			{
-				// llvm::outs() << "    now: " << presumed_loc.getFilename() << " line = " << presumed_loc.getLine() << ", exit = " << m_main->get_file_name(prevFileID) << ", loc = " << m_main->debug_loc_text(loc) << "\n";
 				return;
 			}
 
-			if (curFileName[0] == '<' || *curFileName.rbegin() == '>')
+			if (m_main->IsForceIncluded(curFileID))
 			{
-				curFileID = srcMgr.getMainFileID();
+				parentID = srcMgr.getMainFileID();
 			}
 
-			if (prevFileID == curFileID)
+			if (curFileID == parentID)
 			{
-				// llvm::outs() << "same file\n";
 				return;
 			}
 
-			m_main->AddParent(prevFileID, curFileID);
-			m_main->AddInclude(curFileID, prevFileID);
+			m_main->AddParent(curFileID, parentID);
+			m_main->AddInclude(parentID, curFileID);
 		}
 
 		void FileSkipped(const FileEntry &SkippedFile,
 		                 const Token &FilenameTok,
 		                 SrcMgr::CharacteristicKind FileType) override
 		{
+			SourceManager &srcMgr		= m_main->GetSrcMgr();
+			FileID curFileID = srcMgr.getFileID(FilenameTok.getLocation());
+
+			m_main->AddFile(curFileID);
 		}
 
 		// 处理#include
@@ -675,10 +664,10 @@ namespace cxxcleantool
 	};
 
 	// 遍历声明，实现ASTConsumer接口用于读取clang解析器生成的ast语法树
-	class ListDeclASTConsumer : public ASTConsumer
+	class CxxCleanASTConsumer : public ASTConsumer
 	{
 	public:
-		ListDeclASTConsumer(Rewriter &r, ParsingFile *mainFile) : m_main(mainFile), m_visitor(r, mainFile) {}
+		CxxCleanASTConsumer(Rewriter &r, ParsingFile *mainFile) : m_main(mainFile), m_visitor(r, mainFile) {}
 
 		// 覆盖：遍历最顶层声明的方法
 		bool HandleTopLevelDecl(DeclGroupRef declgroup) override
@@ -798,6 +787,8 @@ namespace cxxcleantool
 
 		bool BeginSourceFileAction(CompilerInstance &compiler, StringRef filename) override
 		{
+			++ProjectHistory::instance.g_printFileNo;
+
 			if (ProjectHistory::instance.m_isFirst)
 			{
 				bool only1Step = !Project::instance.m_need2Step;
@@ -807,14 +798,14 @@ namespace cxxcleantool
 				}
 				else
 				{
-					llvm::errs() << "step 1 of 2. analyze file: " << ++ProjectHistory::instance.g_printFileNo 
-						<< "/" << Project::instance.m_cpps.size() << ". " << filename << " ...\n";
+					llvm::errs() << "step 1 of 2. analyze file: " << ProjectHistory::instance.g_printFileNo
+					             << "/" << Project::instance.m_cpps.size() << ". " << filename << " ...\n";
 				}
 			}
 			else
 			{
-				llvm::errs() << "step 2 of 2. cleaning file: " << ++ProjectHistory::instance.g_printFileNo
-						<< "/" << Project::instance.m_cpps.size() << ". " << filename << " ...\n";
+				llvm::errs() << "step 2 of 2. cleaning file: " << ProjectHistory::instance.g_printFileNo
+				             << "/" << Project::instance.m_cpps.size() << ". " << filename << " ...\n";
 			}
 
 			return true;
@@ -824,7 +815,7 @@ namespace cxxcleantool
 		{
 			SourceManager &srcMgr	= m_rewriter.getSourceMgr();
 			ASTConsumer &consumer	= this->getCompilerInstance().getASTConsumer();
-			ListDeclASTConsumer *c	= (ListDeclASTConsumer*)&consumer;
+			CxxCleanASTConsumer *c	= (CxxCleanASTConsumer*)&consumer;
 
 			// llvm::errs() << "** EndSourceFileAction for: " << srcMgr.getFileEntryForID(srcMgr.getMainFileID())->getName() << "\n";
 			// CompilerInstance &compiler = this->getCompilerInstance();
@@ -860,7 +851,7 @@ namespace cxxcleantool
 			HtmlLog::instance.m_newDiv.Clear();
 
 			compiler.getPreprocessor().addPPCallbacks(llvm::make_unique<CxxCleanPreprocessor>(parsingCpp));
-			return llvm::make_unique<ListDeclASTConsumer>(m_rewriter, parsingCpp);
+			return llvm::make_unique<CxxCleanASTConsumer>(m_rewriter, parsingCpp);
 		}
 
 	private:

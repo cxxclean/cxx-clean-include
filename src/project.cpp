@@ -25,7 +25,7 @@ void Project::Print() const
 	// 允许清理的c++文件列表
 	if (!m_allowCleanList.empty())
 	{
-		div.AddRow(AddPrintIdx() + ". " + cn_project_allow_files);
+		div.AddRow(AddPrintIdx() + ". " + strtool::get_text(cn_project_allow_files, htmltool::get_number_html(m_allowCleanList.size()).c_str()));
 
 		for (const string &file : m_allowCleanList)
 		{
@@ -45,7 +45,7 @@ void Project::Print() const
 	// 待清理的c++源文件列表
 	if (!m_cpps.empty())
 	{
-		div.AddRow(AddPrintIdx() + ". " + cn_project_source_list);
+		div.AddRow(AddPrintIdx() + ". " + strtool::get_text(cn_project_source_list, htmltool::get_number_html(m_cpps.size()).c_str()));
 
 		for (const string &file : m_cpps)
 		{

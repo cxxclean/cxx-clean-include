@@ -80,7 +80,7 @@ const char* g_beginHtml = R"--(
 
 			.box {
 				margin-top: 30px;	
-				margin-bottom: 30em;
+				margin-bottom: 10em;
 				padding: 5px 5px;
 				border: 3px solid #cce1ef;
 				border-radius: 15px;

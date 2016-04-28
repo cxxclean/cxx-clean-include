@@ -14,26 +14,26 @@
 
 namespace cxxcleantool
 {
-	static const char* cn_cpp_file						= "%s c++ 文件";
-	static const char* cn_folder						= "%s 文件夹";
-	static const char* cn_project						= "%s visual studio工程";
-	static const char* cn_clean							= "本页面是对%s的分析日志，最终结果以本页面最底部的统计结果为准";
+	static const char* cn_cpp_file						= "[ %s ] c++ 文件";
+	static const char* cn_folder						= "[ %s ] 文件夹";
+	static const char* cn_project						= "[ %s ] visual studio工程";
+	static const char* cn_clean							= "本页面是对 %s 的分析日志，最终结果以本页面最底部的统计结果为准";
 	static const char* cn_project_text					= "允许清理的c++文件列表以及待分析的c++源文件列表";
-	static const char* cn_project_allow_files			= "允许清理的c++文件列表（不属于该列表的c++文件不允许被改动）";
+	static const char* cn_project_allow_files			= "允许清理的c++文件列表：文件个数 = %s（不属于该列表的c++文件不允许被改动）";
 	static const char* cn_project_allow_file			= "允许清理的文件 = %s";
-	static const char* cn_project_source_list			= "待分析的c++源文件列表（不属于该列表的c++文件不会被分析）";
+	static const char* cn_project_source_list			= "待分析的c++源文件列表：文件个数 = %s（不属于该列表的c++文件不会被分析）";
 	static const char* cn_project_source				= "待分析的c++源文件 = %s";
 	static const char* cn_project_allow_dir				= "允许清理文件夹";
 	static const char* cn_line_old_text					= "该行原来的内容 = ";
 	
 	static const char* cn_file_history					= "第%s个文件%s可被清理，分析结果如下：";
-	static const char* cn_file_history_compile_error	= "第%s个文件%s发生了编译错误，无法被清理，编译错误如下：";
-	static const char* cn_file_history_title			= "单独分析%s文件的日志";
+	static const char* cn_file_history_compile_error	= "第%s个文件%s发生了严重编译错误，无法被清理，一部分日志如下：";
+	static const char* cn_file_history_title			= "%s/%s. 单独分析%s文件的日志";
 	static const char* cn_file_skip						= "注意：检测到本文件为预编译文件，本文件将不会被改动";
 
 	static const char* cn_error							= "错误：编译本文件时产生了以下编译错误：";
-	static const char* cn_error_num_tip					= "该编译错误号 = %s";
-	static const char* cn_fatal_error_num_tip			= "该编译错误号 = %s，属于严重编译错误";
+	static const char* cn_error_num_tip					= "产生了第%s个编译错误，编译错误号 = %s";
+	static const char* cn_fatal_error_num_tip			= "产生了第%s个编译错误，编译错误号 = %s，属于严重编译错误";
 	static const char* cn_error_fatal					= "==> 注意：由于发生严重错误[错误号=%s]，本文件的分析结果将被丢弃";
 	static const char* cn_error_too_many				= "==> 注意：至少产生了%s个编译错误，由于编译错误数过多，本文件的分析结果将被丢弃";
 	static const char* cn_error_ignore					= "==> 编译结果：共产生了%s个编译错误，由于错误较少或不严重，本文件的分析结果仍将被统计";

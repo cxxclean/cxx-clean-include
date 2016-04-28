@@ -97,7 +97,7 @@ cxxclean -clean 文件夹路径
 cxxclean -clean 文件夹路径 -- -I"你的头文件搜索路径" -D 需要预定义的宏 -include 需要强制包含的文件
 （其中：-I、-D、-include均可使用多次）
 
-// 例如：cxxclean -clean d:/a/b/hello/ -- -I ../../ -I"../" -I"./" -I"../include" -D DEBUG -D WIN32 -include platform.h
+// 例如：cxxclean -clean d:/a/b/hello/ -- -I"../../" -I"../" -I"./" -I"../include" -D DEBUG -D WIN32 -include platform.h
 ```
 
 ## cxx-clean-include的命令行参数

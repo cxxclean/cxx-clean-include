@@ -119,9 +119,12 @@ namespace cxxcleantool
 		void AddIncludeLoc(SourceLocation loc, SourceRange range);
 
 		// 添加成员文件
-		void AddFile(FileID file) { m_files.insert(file); }
+		void AddFile(FileID file);
 
 		inline clang::SourceManager& GetSrcMgr() const { return *m_srcMgr; }
+
+		// 生成结果前的准备
+		void PrepareResult();
 
 		// 生成各文件的待清理记录
 		void GenerateResult();
@@ -213,6 +216,18 @@ namespace cxxcleantool
 
 		// 获取该范围源码的信息：文本、所在文件名、行号
 		std::string DebugRangeText(SourceRange range) const;
+
+		// 该文件是否是被-include强制包含
+		bool IsForceIncluded(FileID file) const;
+
+		// 获取文件名（通过clang库接口，文件名未经过处理，可能是绝对路径，也可能是相对路径）
+		// 例如：
+		//     可能返回：d:/hello.h
+		//     也可能返回：./hello.h
+		const char* GetFileName(FileID file) const;
+
+		// 获取文件的绝对路径
+		string GetAbsoluteFileName(FileID file) const;
 
 	private:
 		// 获取头文件搜索路径
@@ -442,12 +457,6 @@ namespace cxxcleantool
 		// 打印各文件内应保留的using namespace
 		void PrintRemainUsingNamespace() const;
 
-		// 获取文件名（通过clang库接口，文件名未经过处理，可能是绝对路径，也可能是相对路径）
-		// 例如：
-		//     可能返回：d:/hello.h
-		//     也可能返回：./hello.h
-		const char* GetFileName(FileID file) const;
-
 		// 获取拼写位置
 		SourceLocation GetSpellingLoc(SourceLocation loc) const;
 
@@ -456,9 +465,6 @@ namespace cxxcleantool
 
 		// 获取文件ID
 		FileID GetFileID(SourceLocation loc) const;
-
-		// 获取文件的绝对路径
-		string GetAbsoluteFileName(FileID file) const;
 
 		// 获取第1个文件#include第2个文件的文本串
 		std::string GetRelativeIncludeStr(FileID f1, FileID f2) const;
@@ -529,9 +535,6 @@ namespace cxxcleantool
 
 		// 将新增的前置声明按文件进行存放
 		void TakeNewForwarddeclByFile(FileHistoryMap &out) const;
-
-		// 该文件是否是被-include强制包含
-		bool IsForceIncluded(FileID file) const;
 
 		// 该文件是否是预编译头文件
 		bool IsPrecompileHeader(FileID file) const;

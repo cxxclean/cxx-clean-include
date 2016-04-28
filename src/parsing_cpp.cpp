@@ -55,6 +55,15 @@ namespace cxxcleantool
 		m_includeLocs[GetExpasionLoc(loc)] = range;
 	}
 
+	// 添加成员文件
+	void ParsingFile::AddFile(FileID file)
+	{
+		if (file.isValid())
+		{
+			m_files.insert(file);
+		}
+	}
+
 	// 获取头文件搜索路径
 	vector<ParsingFile::HeaderSearchDir> ParsingFile::TakeHeaderSearchPaths(clang::HeaderSearch &headerSearch) const
 	{
@@ -142,9 +151,53 @@ namespace cxxcleantool
 		return m_usedLocs.find(loc) != m_usedLocs.end();
 	}
 
+	// 生成结果前的准备
+	void ParsingFile::PrepareResult()
+	{
+		// 1. 扩充可能遗漏的包含关系
+		{
+			for (auto itr : m_uses)
+			{
+				FileID file							= itr.first;
+				const std::set<FileID> &beuseList	= itr.second;
+
+				AddFile(file);
+
+				for (FileID beuse : beuseList)
+				{
+					AddFile(beuse);
+				}
+			}
+		}
+
+		// 2. 首先扩充引用文件集，主要是为了达到这个目标：每个文件优先保留自己文件内的#include语句
+		{
+			for (auto itr : m_uses)
+			{
+				FileID file							= itr.first;
+				const std::set<FileID> &beuseList	= itr.second;
+
+				if (!CanClean(file))
+				{
+					continue;
+				}
+
+				for (FileID beuse : beuseList)
+				{
+					if (!IsIncludedBy(beuse, file))
+					{
+						UseByFileName(file, GetAbsoluteFileName(beuse).c_str());
+					}
+				}
+			}
+		}
+	}
+
 	// 生成各文件的待清理记录
 	void ParsingFile::GenerateResult()
 	{
+		PrepareResult();
+
 		GenerateRootCycleUse();
 		GenerateAllCycleUse();
 
@@ -170,28 +223,6 @@ namespace cxxcleantool
 	*/
 	void ParsingFile::GenerateRootCycleUse()
 	{
-		// 首先扩充引用文件集，主要是为了达到这个目标：每个文件优先保留自己文件内的#include语句
-		{
-			for (auto itr : m_uses)
-			{
-				FileID file							= itr.first;
-				const std::set<FileID> &beuseList	= itr.second;
-
-				if (!CanClean(file))
-				{
-					continue;
-				}
-
-				for (FileID beuse : beuseList)
-				{
-					if (!IsIncludedBy(beuse, file))
-					{
-						UseByFileName(file, GetAbsoluteFileName(beuse).c_str());
-					}
-				}
-			}
-		}
-
 		FileID mainFileID = m_srcMgr->getMainFileID();
 
 		GetCycleUseFile(mainFileID, m_rootCycleUse);
@@ -2000,7 +2031,7 @@ namespace cxxcleantool
 		}
 
 		HtmlDiv &div = HtmlLog::instance.m_newDiv;
-		div.AddRow(AddPrintIdx() + ". list of include referenced : use count = " + strtool::itoa(num), 1);
+		div.AddRow(AddPrintIdx() + ". list of use : use count = " + strtool::itoa(num), 1);
 
 		for (auto use_list : m_uses)
 		{
@@ -3715,7 +3746,7 @@ namespace cxxcleantool
 	bool ParsingFile::IsForceIncluded(FileID file) const
 	{
 		FileID parent = GetFileID(m_srcMgr->getIncludeLoc(file));
-		return (nullptr == m_srcMgr->getFileEntryForID(parent));
+		return (m_srcMgr->getFileEntryForID(parent) == nullptr);
 	}
 
 	// 该文件是否是预编译头文件

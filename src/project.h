@@ -31,6 +31,7 @@ public:
 		: m_isDeepClean(false)
 		, m_onlyHas1File(false)
 		, m_isOverWrite(false)
+		, m_need2Step(false)
 		, m_verboseLvl(0)
 		, m_printIdx(0)
 	{
@@ -77,11 +78,14 @@ public:
 	// 命令行选项：是否深层清理，建议为true
 	bool						m_isDeepClean;
 
-	// 命令行选项：是否只有一个文件（当只有一个文件时，只需要解析一次）
-	bool						m_onlyHas1File;	
-
 	// 命令行选项：是否覆盖原来的c++文件（当本选项被关闭时，项目内的c++文件不会有任何改动）
 	bool						m_isOverWrite;
+
+	// 是否只有一个文件（当只有一个文件时，只需要解析一次）
+	bool						m_onlyHas1File;	
+
+	// 是否仅需要解析整个项目2遍，由其他参数决定，true是需要解析2遍、false是只要解析1遍
+	bool						m_need2Step;
 
 	// 命令行选项：打印的详细程度，0 ~ 9，0表示不打印，默认为1，最详细的是9
 	int							m_verboseLvl;
