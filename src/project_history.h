@@ -1,8 +1,8 @@
 ///<------------------------------------------------------------------------------
-//< @file:   whole_project.h
+//< @file:   project_history.h
 //< @author: 洪坤安
 //< @date:   2016年2月22日
-//< @brief:
+//< @brief:  本次清理工具的历史统计
 //< Copyright (c) 2016. All rights reserved.
 ///<------------------------------------------------------------------------------
 
@@ -104,7 +104,7 @@ namespace cxxcleantool
 		std::vector<std::string>	m_errTips;			// 编译错误提示列表
 	};
 
-	// 项目历史，记录各c++文件的待清理记录
+	// 文件历史，记录单个c++文件的待清理记录
 	class FileHistory
 	{
 	public:
@@ -161,7 +161,7 @@ namespace cxxcleantool
 
 	typedef std::map<string, FileHistory> FileHistoryMap;
 
-	// 本次执行cxx-clean-include的历史记录，包含对各个c++文件的历史日志
+	// 用于存储统计结果，包含对各个c++文件的历史日志
 	class ProjectHistory
 	{
 		ProjectHistory()

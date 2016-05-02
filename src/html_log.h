@@ -2,7 +2,7 @@
 //< @file:   html_log.h
 //< @author: 洪坤安
 //< @date:   2016年3月19日
-//< @brief:
+//< @brief:  html日志类，用来美化打印日志的
 //< Copyright (c) 2016 game. All rights reserved.
 ///<------------------------------------------------------------------------------
 
@@ -14,6 +14,7 @@
 
 namespace cxxcleantool
 {
+	// 1. 下面这部分是日志较简单时的提示
 	static const char* cn_cpp_file						= "[ %s ] c++ 文件";
 	static const char* cn_folder						= "[ %s ] 文件夹";
 	static const char* cn_project						= "[ %s ] visual studio工程";
@@ -25,7 +26,7 @@ namespace cxxcleantool
 	static const char* cn_project_source				= "待分析的c++源文件 = %s";
 	static const char* cn_project_allow_dir				= "允许清理文件夹";
 	static const char* cn_line_old_text					= "该行原来的内容 = ";
-	
+
 	static const char* cn_file_history					= "第%s个文件%s可被清理，分析结果如下：";
 	static const char* cn_file_history_compile_error	= "第%s个文件%s发生了严重编译错误，无法被清理，一部分日志如下：";
 	static const char* cn_file_history_title			= "%s/%s. 单独分析%s文件的日志";
@@ -64,6 +65,10 @@ namespace cxxcleantool
 	static const char* cn_project_history_title			= "统计结果";
 	static const char* cn_project_history_clean_count	= "清理结果：共有%s个c++文件可被清理";
 	static const char* cn_project_history_src_count		= "本次共分析了%s个cpp（或cxx、cc）源文件";
+
+	// 2. 下面这部分是日志较详细时的提示
+	static const char* cn_file_debug_text				= "[%s](文件ID = %d) 对应于 {[%s] 文件中的 [%s] 行 = %s}";
+	static const char* cn_main_file_debug_text			= "[%s](文件ID = %d)";
 
 	struct DivGrid
 	{
@@ -106,7 +111,7 @@ namespace cxxcleantool
 		}
 
 		void AddRow(const char* text, int tabCount = 1, int width = 100, bool needEscape = false, bool isErrorTip = false);
-		
+
 		void AddRow(const std::string &text, int tabCount = 1 /* 缩进tab数 */, int width = 100, bool needEscape = false, bool isErrorTip = false)
 		{
 			AddRow(text.c_str(), tabCount, width, needEscape, isErrorTip);

@@ -9,56 +9,63 @@ add_clang_executable(cxxclean
 	tool.cpp
 	vs_project.cpp
 	html_log.cpp
+	main.cpp
+)
+
+include_directories(
+	${CLANG_SOURCE_DIR}
+)
+
+link_directories(
+	"${LLVM_LIBRARY_DIR}"
+	"${CMAKE_BINARY_DIR}/lib${LLVM_LIBDIR_SUFFIX}"
 )
 
 target_link_libraries(cxxclean
 	clangTooling
 	clangBasic
 	clangASTMatchers
-	clangTooling.lib
-	clangBasic.lib
-	clangASTMatchers.lib
-	clangFrontend.lib
-	clangDriver.lib
-	clangParse.lib
-	clangSerialization.lib
-	clangSema.lib
-	clangEdit.lib
-	clangAnalysis.lib
-	clangToolingCore.lib
-	clangAST.lib
-	clangRewrite.lib
-	clangLex.lib
-	LLVMOption.lib
-	LLVMMCParser.lib
-	LLVMBitReader.lib
-	LLVMSupport.lib
-	LLVMCore.lib
-	LLVMMC.lib
-	LLVMAnalysis.lib
-	LLVMCodeGen.lib
-	LLVMipo.lib
-	LLVMInstCombine.lib
-	LLVMInstrumentation.lib
-	LLVMObjCARCOpts.lib
-	LLVMScalarOpts.lib
-	LLVMTransformUtils.lib
-	LLVMVectorize.lib
-	LLVMAsmPrinter.lib
-	LLVMSelectionDAG.lib
-	LLVMX86Utils.lib
-	LLVMMCDisassembler.lib
-	LLVMTarget.lib
-	LLVMBitWriter.lib
-	LLVMIRReader.lib
-	LLVMAsmParser.lib
-	LLVMLinker.lib
-	LLVMProfileData.lib
-	LLVMObject.lib
-	LLVMX86CodeGen.lib
-	LLVMX86AsmPrinter.lib
-	LLVMX86AsmParser.lib
-	LLVMX86Desc.lib
-	LLVMX86Info.lib
-	LLVMX86Disassembler.lib
+	clangFrontend
+	clangDriver
+	clangParse
+	clangSerialization
+	clangSema
+	clangEdit
+	clangAnalysis
+	clangToolingCore
+	clangAST
+	clangRewrite
+	clangLex
+	LLVMOption
+	LLVMMCParser
+	LLVMBitReader
+	LLVMSupport
+	LLVMCore
+	LLVMMC
+	LLVMAnalysis
+	LLVMCodeGen
+	LLVMipo
+	LLVMInstCombine
+	LLVMInstrumentation
+	LLVMObjCARCOpts
+	LLVMScalarOpts
+	LLVMTransformUtils
+	LLVMVectorize
+	LLVMAsmPrinter
+	LLVMSelectionDAG
+	LLVMX86Utils
+	LLVMMCDisassembler
+	LLVMTarget
+	LLVMBitWriter
+	LLVMIRReader
+	LLVMAsmParser
+	LLVMLinker
+	LLVMProfileData
+	LLVMObject
+	LLVMX86CodeGen
+	LLVMX86AsmPrinter
+	LLVMX86AsmParser
+	LLVMX86Desc
+	LLVMX86Info
+	LLVMX86Disassembler
 )

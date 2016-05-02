@@ -2,7 +2,7 @@
 //< @file:   parsing_cpp.h
 //< @author: 洪坤安
 //< @date:   2016年2月22日
-//< @brief:
+//< @brief:	 存储当前正在解析的cpp文件及其包含的头文件的信息
 //< Copyright (c) 2016. All rights reserved.
 ///<------------------------------------------------------------------------------
 
@@ -52,6 +52,7 @@ namespace cxxcleantool
 		// [文件名] -> [路径类别：系统路径或用户路径]
 		typedef std::map<string, SrcMgr::CharacteristicKind> IncludeDirMap;
 
+		// 用于调试：引用的名称
 		struct UseNameInfo
 		{
 			void AddName(const char* name, int line)
@@ -69,6 +70,7 @@ namespace cxxcleantool
 			std::map<string, std::set<int>>			nameMap;
 		};
 
+		// 命令空间信息
 		struct NamespaceInfo
 		{
 			std::string ns_decl;		// 命名空间的声明，如：namespace A{ namespace B { namespace C {} } }
@@ -76,6 +78,7 @@ namespace cxxcleantool
 		};
 
 	public:
+		// 头文件搜索路径
 		struct HeaderSearchDir
 		{
 			HeaderSearchDir(const string& dir, SrcMgr::CharacteristicKind dirType)
@@ -193,8 +196,11 @@ namespace cxxcleantool
 		// 文件b是否直接#include文件a
 		bool IsIncludedBy(FileID a, FileID b);
 
-		// 获取文件a所直接包含的第一个指定文件名的文件实例id
-		FileID GetIncludeFileOfName(FileID a, const char* filename);
+		// 获取文件a的指定名称的直接后代文件
+		FileID GetDirectChildByName(FileID a, const char* childFileName);
+
+		// 获取文件a的指定名称的后代文件
+		FileID GetChildByName(FileID a, const char* childFileName);
 
 		// 开始清理文件（将改动c++源文件）
 		void Clean();
@@ -213,6 +219,9 @@ namespace cxxcleantool
 
 		// 获取指定范围的文本
 		std::string GetSourceOfRange(SourceRange range) const;
+
+		// 获取指定位置的文本
+		const char* GetSourceAtLoc(SourceLocation loc) const;
 
 		// 获取该范围源码的信息：文本、所在文件名、行号
 		std::string DebugRangeText(SourceRange range) const;
@@ -395,13 +404,19 @@ namespace cxxcleantool
 		void UseForward(SourceLocation loc, const CXXRecordDecl *cxxRecordDecl);
 
 		// 打印各文件的父文件
-		void PrintParentsById();
+		void PrintParent();
+
+		// 打印各文件的孩子文件
+		void PrintChildren();
+
+		// 打印新增的引用关系
+		void PrintNewUse();
 
 		// 是否允许清理该c++文件（若不允许清理，则文件内容不会有任何变化）
 		bool CanClean(FileID file) const;
 
 		// 获取该文件的被包含信息，返回内容包括：该文件名、父文件名、被父文件#include的行号、被父文件#include的原始文本串
-		string DebugBeIncludeText(FileID file, bool isAbsoluteName = false) const;
+		string DebugBeIncludeText(FileID file) const;
 
 		// 获取该文件的被直接包含信息，返回内容包括：该文件名、被父文件#include的行号、被父文件#include的原始文本串
 		string DebugBeDirectIncludeText(FileID file) const;
@@ -510,9 +525,6 @@ namespace cxxcleantool
 		// 用于调试跟踪：打印是否有文件的被包含串被遗漏
 		void PrintNotFoundIncludeLocForDebug();
 
-		// 用于调试跟踪：打印各文件中是否同一行出现了2个#include
-		void PrintSameLineForDebug();
-
 		// 文件格式是否是windows格式，换行符为[\r\n]，类Unix下为[\n]
 		bool IsWindowsFormat(FileID) const;
 
@@ -620,6 +632,12 @@ namespace cxxcleantool
 
 		// 18. 应保留的using namespace记录：[using namespace的位置] -> [using namespace的全称]
 		std::map<SourceLocation, NamespaceInfo>		m_remainUsingNamespaces;
+
+		// 19. 各文件的后代：[文件] -> [该文件包含的全部后代]
+		std::map<FileID, std::set<FileID>>			m_children;
+
+		// 20. 用于调试：新增的文件引用关系：[文件] -> [新增的引用记录]
+		std::map<FileID, std::set<FileID>>			m_newUse;
 
 	private:
 		clang::Rewriter*							m_rewriter;
