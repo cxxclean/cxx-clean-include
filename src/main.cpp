@@ -46,8 +46,7 @@ int main(int argc, const char **argv)
 	
 	DiagnosticOptions diagnosticOptions;
 	diagnosticOptions.ShowOptionNames = 1;
-	std::unique_ptr<DiagnosticConsumer> diagnosticConsumer = llvm::make_unique<cxxcleantool::CxxcleanDiagnosticConsumer>(&diagnosticOptions);
-	tool.setDiagnosticConsumer(diagnosticConsumer.get());
+	tool.setDiagnosticConsumer(new cxxcleantool::CxxcleanDiagnosticConsumer(&diagnosticOptions)); // 注意：这里用new没关系，会被释放
 
 	// 第1遍对每个文件进行分析，然后汇总并打印统计日志
 	std::unique_ptr<FrontendActionFactory> factory = newFrontendActionFactory<cxxcleantool::CxxCleanAction>();

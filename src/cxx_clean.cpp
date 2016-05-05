@@ -1210,7 +1210,7 @@ namespace cxxcleantool
 	// Ω‚Œˆ-v—°œÓ
 	bool CxxCleanOptionsParser::ParseVerboseOption()
 	{
-		if (!g_verbose.hasArgStr())
+		if (g_verbose.getNumOccurrences() == 0)
 		{
 			Project::instance.m_verboseLvl = VerboseLvl_1;
 			return true;

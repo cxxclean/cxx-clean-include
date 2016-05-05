@@ -305,7 +305,7 @@ namespace cxxcleantool
 		void GenerateCanReplace();
 
 		// 生成应保留的using namespace
-		void GenerateRemainUsingNamespace();
+		void GenerateUsefulUsingNamespace();
 
 		// 生成新增前置声明列表
 		void GenerateCanForwardDeclaration();
@@ -470,7 +470,7 @@ namespace cxxcleantool
 		void PrintUsingNamespace() const;
 
 		// 打印各文件内应保留的using namespace
-		void PrintRemainUsingNamespace() const;
+		void PrintUsefulUsingNamespace() const;
 
 		// 获取拼写位置
 		SourceLocation GetSpellingLoc(SourceLocation loc) const;
@@ -631,7 +631,7 @@ namespace cxxcleantool
 		std::map<FileID, std::set<std::string>>		m_usingNamespaces;
 
 		// 18. 应保留的using namespace记录：[using namespace的位置] -> [using namespace的全称]
-		std::map<SourceLocation, NamespaceInfo>		m_remainUsingNamespaces;
+		std::map<SourceLocation, NamespaceInfo>		m_usefulUsingNamespaces;
 
 		// 19. 各文件的后代：[文件] -> [该文件包含的全部后代]
 		std::map<FileID, std::set<FileID>>			m_children;

@@ -196,7 +196,7 @@ namespace cxxcleantool
 		GenerateCanForwardDeclaration();
 		GenerateCanReplace();
 
-		GenerateRemainUsingNamespace();
+		GenerateUsefulUsingNamespace();
 	}
 
 	/*
@@ -598,8 +598,9 @@ namespace cxxcleantool
 	}
 
 	// 生成应保留的using namespace
-	void ParsingFile::GenerateRemainUsingNamespace()
+	void ParsingFile::GenerateUsefulUsingNamespace()
 	{
+		// 1. 取出被引用文件中的命名空间
 		std::set<string> usedNamespaces;
 		for (auto itr : m_namespaces)
 		{
@@ -613,7 +614,8 @@ namespace cxxcleantool
 			usedNamespaces.insert(namespaces.begin(), namespaces.end());
 		}
 
-		for (auto itr = m_remainUsingNamespaces.begin(); itr != m_remainUsingNamespaces.end();)
+		// 2. 删除处于被引用文件中的using namespace及对无用namespace的using
+		for (auto itr = m_usefulUsingNamespaces.begin(); itr != m_usefulUsingNamespaces.end();)
 		{
 			SourceLocation loc		= itr->first;
 			const NamespaceInfo &ns	= itr->second;
@@ -624,11 +626,31 @@ namespace cxxcleantool
 
 			if (!need)
 			{
-				m_remainUsingNamespaces.erase(itr++);
+				m_usefulUsingNamespaces.erase(itr++);
 			}
 			else
 			{
 				++itr;
+			}
+		}
+
+		// 3. 删除重复的using namespace
+		{
+			std::set<std::string> namespaces;
+
+			for (auto itr = m_usefulUsingNamespaces.begin(); itr != m_usefulUsingNamespaces.end();)
+			{
+				const NamespaceInfo &ns	= itr->second;
+
+				if (namespaces.find(ns.ns_name) != namespaces.end())
+				{
+					m_usefulUsingNamespaces.erase(itr++);
+				}
+				else
+				{
+					namespaces.insert(ns.ns_name);
+					++itr;
+				}
 			}
 		}
 	}
@@ -781,7 +803,18 @@ namespace cxxcleantool
 		const char* beg = m_srcMgr->getCharacterData(loc,	&err);
 		if (err)
 		{
-			llvm::outs() << "[error][ParsingFile::GetSourceAtLoc]! err = " << err << "line = " << GetSourceOfLine(loc) << "\n";
+			/*
+			PresumedLoc presumedLoc = m_srcMgr->getPresumedLoc(loc);
+			if (presumedLoc.isValid())
+			{
+				llvm::errs() << "[error][ParsingFile::GetSourceAtLoc]! err = " << err << "at file = " << presumedLoc.getFilename() << ", line = " << GetLineNo(loc) << "\n";
+			}
+			else
+			{
+				llvm::errs() << "[error][ParsingFile::GetSourceAtLoc]! err = " << err << "\n";
+			}
+			*/
+
 			return nullptr;
 		}
 
@@ -1246,7 +1279,7 @@ namespace cxxcleantool
 		NamespaceInfo nsInfo;
 		nsInfo.ns_decl = GetNestedNamespace(nsDecl);
 		nsInfo.ns_name = ns;
-		m_remainUsingNamespaces[loc] = nsInfo;
+		m_usefulUsingNamespaces[loc] = nsInfo;
 
 		// 引用命名空间所在的文件（注意：using namespace时必须能找到对应的namespace声明，比如，using namespace A前一定要有namespace A{}否则编译会报错）
 		Use(loc, nsDecl->getLocation(), GetNestedNamespace(nsDecl).c_str());
@@ -1286,7 +1319,7 @@ namespace cxxcleantool
 
 		bool is_need_add = true;
 
-		for (auto itr : m_remainUsingNamespaces)
+		for (auto itr : m_usefulUsingNamespaces)
 		{
 			SourceLocation usingNsLoc	= itr.first;
 			const NamespaceInfo &ns		= itr.second;
@@ -1318,7 +1351,7 @@ namespace cxxcleantool
 
 		bool is_need_add = true;
 
-		for (auto itr : m_remainUsingNamespaces)
+		for (auto itr : m_usefulUsingNamespaces)
 		{
 			SourceLocation usingNsLoc	= itr.first;
 			const NamespaceInfo &ns		= itr.second;
@@ -2819,10 +2852,10 @@ namespace cxxcleantool
 	}
 
 	// 打印各文件内应保留的using namespace
-	void ParsingFile::PrintRemainUsingNamespace() const
+	void ParsingFile::PrintUsefulUsingNamespace() const
 	{
 		std::map<FileID, std::set<std::string>>	remainNamespaces;
-		for (auto itr : m_remainUsingNamespaces)
+		for (auto itr : m_usefulUsingNamespaces)
 		{
 			SourceLocation loc		= itr.first;
 			const NamespaceInfo &ns	= itr.second;
@@ -2844,7 +2877,7 @@ namespace cxxcleantool
 		}
 
 		HtmlDiv &div = HtmlLog::instance.m_newDiv;
-		div.AddRow(AddPrintIdx() + ". each file's remain using namespace: file count = " + htmltool::get_number_html(num), 1);
+		div.AddRow(AddPrintIdx() + ". each file's useful using namespace: file count = " + htmltool::get_number_html(num), 1);
 
 		for (auto itr : remainNamespaces)
 		{
@@ -3353,10 +3386,6 @@ namespace cxxcleantool
 		{
 			return;
 		}
-		else if (verbose <= VerboseLvl_1 && Project::instance.m_onlyHas1File)
-		{
-			return;
-		}
 
 		HtmlDiv &div = HtmlLog::instance.m_newDiv;
 
@@ -3399,7 +3428,7 @@ namespace cxxcleantool
 			PrintChildren();
 			PrintNamespace();
 			PrintUsingNamespace();
-			PrintRemainUsingNamespace();
+			PrintUsefulUsingNamespace();
 		}
 
 		if (verbose >= VerboseLvl_5)
