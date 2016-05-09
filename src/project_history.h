@@ -142,6 +142,11 @@ namespace cxxcleantool
 			return m_forwards.find(line) != m_forwards.end();
 		}
 
+		bool HaveFatalError() const
+		{
+			return m_compileErrorHistory.HaveFatalError();
+		}
+
 		typedef std::map<int, UselessLine> UnusedLineMap;
 		typedef std::map<int, ForwardLine> ForwardLineMap;
 		typedef std::map<int, ReplaceLine> ReplaceLineMap;

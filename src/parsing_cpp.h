@@ -94,6 +94,8 @@ namespace cxxcleantool
 	public:
 		ParsingFile(clang::Rewriter &rewriter, clang::CompilerInstance &compiler);
 
+		~ParsingFile();
+
 		// 打印单个文件的清理历史
 		static void PrintFileHistory(const FileHistory&);
 
@@ -108,9 +110,6 @@ namespace cxxcleantool
 
 		// 打印该文件产生的编译错误
 		static void PrintCompileError(const CompileErrorHistory&);
-
-		// 初始化本对象
-		bool Init();
 
 		// 添加父文件关系
 		void AddParent(FileID child, FileID parent) { m_parentIDs[child] = parent; }
@@ -499,16 +498,16 @@ namespace cxxcleantool
 		void RemoveText(FileID file, int beg, int end);
 
 		// 移除指定文件内的无用#include
-		void CleanByUnusedLine(const FileHistory &eachFile, FileID file);
+		void CleanByUnusedLine(const FileHistory &history, FileID file);
 
 		// 在指定文件内添加前置声明
-		void CleanByForward(const FileHistory &eachFile, FileID file);
+		void CleanByForward(const FileHistory &history, FileID file);
 
 		// 在指定文件内替换#include
-		void CleanByReplace(const FileHistory &eachFile, FileID file);
+		void CleanByReplace(const FileHistory &history, FileID file);
 
-		// 清理指定文件
-		void CleanBy(const FileHistoryMap &files);
+		// 根据历史清理指定文件
+		void CleanByHistory(const FileHistoryMap &historys);
 
 		// 清理所有有必要清理的文件
 		void CleanAllFile();
@@ -557,7 +556,7 @@ namespace cxxcleantool
 		void SplitReplaceByFile(ReplaceFileMap &replaces) const;
 
 		// 取出指定文件的#include替换信息
-		void TakeBeReplaceOfFile(FileHistory &eachFile, FileID top, const ChildrenReplaceMap &childernReplaces) const;
+		void TakeBeReplaceOfFile(FileHistory &history, FileID top, const ChildrenReplaceMap &childernReplaces) const;
 
 		// 取出各文件的#include替换信息
 		void TakeReplaceByFile(FileHistoryMap &out) const;

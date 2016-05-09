@@ -10,7 +10,6 @@
 
 #include <sstream>
 
-#include "clang/AST/AST.h"
 #include "clang/Lex/HeaderSearch.h"
 #include "llvm/Option/ArgList.h"
 #include "clang/Basic/Version.h"
@@ -799,7 +798,6 @@ namespace cxxcleantool
 		m_rewriter.setSourceMgr(compiler.getSourceManager(), compiler.getLangOpts());
 
 		m_root = new ParsingFile(m_rewriter, compiler);
-		m_root->Init();
 
 		HtmlLog::instance.m_newDiv.Clear();
 

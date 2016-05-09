@@ -30,19 +30,17 @@ namespace cxxcleantool
 	{
 		m_rewriter	= &rewriter;
 		m_compiler	= &compiler;
-		m_srcMgr	= &compiler.getSourceManager();;
-	}
+		m_srcMgr	= &compiler.getSourceManager();
+		m_printIdx	= 0;
+		g_atFile	= this;
 
-	// 初始化本对象
-	bool ParsingFile::Init()
-	{
 		clang::HeaderSearch &headerSearch = m_compiler->getPreprocessor().getHeaderSearchInfo();
 		m_headerSearchPaths = TakeHeaderSearchPaths(headerSearch);
+	}
 
-		m_printIdx		= 0;
-		g_atFile		= this;
-
-		return true;
+	ParsingFile::~ParsingFile()
+	{
+		g_atFile = nullptr;
 	}
 
 	// 添加#include的位置记录
@@ -768,13 +766,20 @@ namespace cxxcleantool
 	// 获取指定范围的文本
 	std::string ParsingFile::GetSourceOfRange(SourceRange range) const
 	{
+		if (range.isInvalid())
+		{
+			return "";
+		}
+
 		if (range.getEnd() < range.getBegin())
 		{
+			llvm::errs() << "[error][ParsingFile::GetSourceOfRange] if (range.getEnd() < range.getBegin())\n";
 			return "";
 		}
 
 		if (!m_srcMgr->isWrittenInSameFile(range.getBegin(), range.getEnd()))
 		{
+			llvm::errs() << "[error][ParsingFile::GetSourceOfRange] if (!m_srcMgr->isWrittenInSameFile(range.getBegin(), range.getEnd()))\n";
 			return "";
 		}
 
@@ -1197,6 +1202,7 @@ namespace cxxcleantool
 		auto itr = m_uses.find(a);
 		if (itr == m_uses.end())
 		{
+			llvm::errs() << "[error][ParsingFile::UseByFileName] if (itr == m_uses.end())";
 			return;
 		}
 
@@ -3051,7 +3057,7 @@ namespace cxxcleantool
 		SourceLocation fileBegLoc	= m_srcMgr->getLocForStartOfFile(file);
 		if (fileBegLoc.isInvalid())
 		{
-			llvm::errs() << "\n------->error: fileBegLoc.isInvalid(), remove text in [" << GetAbsoluteFileName(file) << "] failed!\n";
+			llvm::errs() << "[error][ParsingFile::RemoveText] if (fileBegLoc.isInvalid()), remove text in [" << GetAbsoluteFileName(file) << "] failed!\n";
 			return;
 		}
 
@@ -3070,19 +3076,19 @@ namespace cxxcleantool
 		bool err = m_rewriter->RemoveText(range.getBegin(), end - beg, rewriteOption);
 		if (err)
 		{
-			llvm::errs() << "\n------->error: remove text = [" << GetSourceOfRange(range) << "] in [" << GetAbsoluteFileName(file) << "] failed!\n";
+			llvm::errs() << "[error][ParsingFile::RemoveText]: remove text = [" << GetSourceOfRange(range) << "] in [" << GetAbsoluteFileName(file) << "] failed!\n";
 		}
 	}
 
 	// 移除指定文件内的无用#include
-	void ParsingFile::CleanByUnusedLine(const FileHistory &eachFile, FileID file)
+	void ParsingFile::CleanByUnusedLine(const FileHistory &history, FileID file)
 	{
-		if (eachFile.m_unusedLines.empty())
+		if (history.m_unusedLines.empty())
 		{
 			return;
 		}
 
-		for (auto unusedLineItr : eachFile.m_unusedLines)
+		for (auto unusedLineItr : history.m_unusedLines)
 		{
 			int line				= unusedLineItr.first;
 			UselessLine &unusedLine	= unusedLineItr.second;
@@ -3094,21 +3100,21 @@ namespace cxxcleantool
 				const std::string &ns_name = itr.first;
 				const std::string &ns_decl = itr.second;
 
-				InsertText(file, unusedLine.m_beg, ns_decl + eachFile.GetNewLineWord());
-				InsertText(file, unusedLine.m_beg, ns_name + eachFile.GetNewLineWord());
+				InsertText(file, unusedLine.m_beg, ns_decl + history.GetNewLineWord());
+				InsertText(file, unusedLine.m_beg, ns_name + history.GetNewLineWord());
 			}
 		}
 	}
 
 	// 在指定文件内添加前置声明
-	void ParsingFile::CleanByForward(const FileHistory &eachFile, FileID file)
+	void ParsingFile::CleanByForward(const FileHistory &history, FileID file)
 	{
-		if (eachFile.m_forwards.empty())
+		if (history.m_forwards.empty())
 		{
 			return;
 		}
 
-		for (auto forwardItr : eachFile.m_forwards)
+		for (auto forwardItr : history.m_forwards)
 		{
 			int line						= forwardItr.first;
 			const ForwardLine &forwardLine	= forwardItr.second;
@@ -3118,7 +3124,7 @@ namespace cxxcleantool
 			for (const string &cxxRecord : forwardLine.m_classes)
 			{
 				text << cxxRecord;
-				text << eachFile.GetNewLineWord();
+				text << history.GetNewLineWord();
 			}
 
 			InsertText(file, forwardLine.m_offsetAtFile, text.str());
@@ -3126,14 +3132,14 @@ namespace cxxcleantool
 	}
 
 	// 在指定文件内替换#include
-	void ParsingFile::CleanByReplace(const FileHistory &eachFile, FileID file)
+	void ParsingFile::CleanByReplace(const FileHistory &history, FileID file)
 	{
-		if (eachFile.m_replaces.empty())
+		if (history.m_replaces.empty())
 		{
 			return;
 		}
 
-		for (auto replaceItr : eachFile.m_replaces)
+		for (auto replaceItr : history.m_replaces)
 		{
 			int line						= replaceItr.first;
 			const ReplaceLine &replaceLine	= replaceItr.second;
@@ -3144,7 +3150,7 @@ namespace cxxcleantool
 				continue;
 			}
 
-			const char* newLineWord = eachFile.GetNewLineWord();
+			const char* newLineWord = history.GetNewLineWord();
 
 			// 1. 先替换#include
 			{
@@ -3191,12 +3197,12 @@ namespace cxxcleantool
 		}
 	}
 
-	// 清理指定文件
-	void ParsingFile::CleanBy(const FileHistoryMap &files)
+	// 根据历史清理指定文件
+	void ParsingFile::CleanByHistory(const FileHistoryMap &historys)
 	{
-		std::map<std::string, FileID> allFiles;
+		std::map<std::string, FileID> nowFiles;
 
-		// 建立文件名到文件FileID的map映射（注意：同一个文件可能被包含多次，FileID是不一样的，这里只存入最小的FileID）
+		// 建立当前cpp中文件名到文件FileID的map映射（注意：同一个文件可能被包含多次，FileID是不一样的，这里只存入最小的FileID）
 		{
 			for (FileID file : m_files)
 			{
@@ -3207,16 +3213,17 @@ namespace cxxcleantool
 					continue;
 				}
 
-				if (allFiles.find(name) == allFiles.end())
+				if (nowFiles.find(name) == nowFiles.end())
 				{
-					allFiles.insert(std::make_pair(name, file));
+					nowFiles.insert(std::make_pair(name, file));
 				}
 			}
 		}
 
-		for (auto itr : files)
+		for (auto itr : historys)
 		{
 			const string &fileName		= itr.first;
+			const FileHistory &history	= itr.second;
 
 			if (!ProjectHistory::instance.HasFile(fileName))
 			{
@@ -3233,24 +3240,24 @@ namespace cxxcleantool
 				continue;
 			}
 
-			// 找到文件名对应的文件ID（注意：同一个文件可能被包含多次，FileID是不一样的，这里取出来的是最小的FileID）
-			auto findItr = allFiles.find(fileName);
-			if (findItr == allFiles.end())
+			if (history.m_isSkip || history.HaveFatalError())
 			{
 				continue;
 			}
 
-			FileID file					= findItr->second;
-			const FileHistory &eachFile	= ProjectHistory::instance.m_files[fileName];
-
-			if (eachFile.m_isSkip)
+			// 根据名称在当前cpp各文件中找到对应的文件ID（注意：同一个文件可能被包含多次，FileID是不一样的，这里取出来的是最小的FileID）
+			auto findItr = nowFiles.find(fileName);
+			if (findItr == nowFiles.end())
 			{
+				// llvm::errs() << "[error][ParsingFile::CleanBy] if (findItr == allFiles.end()) filename = " << fileName << "\n";
 				continue;
 			}
 
-			CleanByReplace(eachFile, file);
-			CleanByForward(eachFile, file);
-			CleanByUnusedLine(eachFile, file);
+			FileID file	= findItr->second;
+
+			CleanByReplace(history, file);
+			CleanByForward(history, file);
+			CleanByUnusedLine(history, file);
 
 			ProjectHistory::instance.OnCleaned(fileName);
 		}
@@ -3259,7 +3266,7 @@ namespace cxxcleantool
 	// 清理所有有必要清理的文件
 	void ParsingFile::CleanAllFile()
 	{
-		CleanBy(ProjectHistory::instance.m_files);
+		CleanByHistory(ProjectHistory::instance.m_files);
 	}
 
 	// 清理主文件
@@ -3278,7 +3285,7 @@ namespace cxxcleantool
 			}
 		}
 
-		CleanBy(root);
+		CleanByHistory(root);
 	}
 
 	// 打印头文件搜索路径
@@ -3648,7 +3655,7 @@ namespace cxxcleantool
 			}
 		}
 
-		MergeCountTo(oldFiles);
+		// MergeCountTo(oldFiles);
 	}
 
 	// 文件格式是否是windows格式，换行符为[\r\n]，类Unix下为[\n]
@@ -3867,7 +3874,7 @@ namespace cxxcleantool
 	}
 
 	// 取出指定文件的#include替换信息
-	void ParsingFile::TakeBeReplaceOfFile(FileHistory &eachFile, FileID top, const ChildrenReplaceMap &childernReplaces) const
+	void ParsingFile::TakeBeReplaceOfFile(FileHistory &history, FileID top, const ChildrenReplaceMap &childernReplaces) const
 	{
 		for (auto itr : childernReplaces)
 		{
@@ -3882,7 +3889,7 @@ namespace cxxcleantool
 				SourceRange	lineRange		= GetCurLineWithLinefeed(include_loc);
 				int line					= (isBeForceIncluded ? 0 : GetLineNo(include_loc));
 
-				ReplaceLine &replaceLine	= eachFile.m_replaces[line];
+				ReplaceLine &replaceLine	= history.m_replaces[line];
 				replaceLine.m_oldFile		= GetAbsoluteFileName(oldFile);
 				replaceLine.m_oldText		= GetRawIncludeStr(oldFile);
 				replaceLine.m_beg			= m_srcMgr->getFileOffset(lineRange.getBegin());
