@@ -117,7 +117,7 @@ namespace strtool
 			return path;
 		}
 
-		int i = path.size();
+		int i = path.size() - 1;
 		for(; i >= 0; i--)
 		{
 			if('\\' == path[i] || '/' == path[i])
@@ -234,7 +234,7 @@ namespace pathtool
 
 		relative_path.append(&path_2[diff2_pos]);
 
-		for (int i = depth_1 * 3, len = relative_path.size(); i < len; ++i)
+		for (int i = 0, len = relative_path.size(); i < len; ++i)
 		{
 			if (relative_path[i] == '\\')
 			{
