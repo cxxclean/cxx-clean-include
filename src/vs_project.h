@@ -9,7 +9,7 @@
 #ifndef _vs_config_h_
 #define _vs_config_h_
 
-#include <string>
+#include <iterator>
 #include <vector>
 #include <set>
 

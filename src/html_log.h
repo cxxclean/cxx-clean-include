@@ -9,7 +9,7 @@
 #ifndef _html_log_h_
 #define _html_log_h_
 
-#include <string>
+#include <iterator>
 #include <vector>
 
 namespace cxxcleantool
@@ -67,7 +67,7 @@ namespace cxxcleantool
 	static const char* cn_project_history_src_count		= "本次共分析了%s个cpp（或cxx、cc）源文件";
 
 	// 2. 下面这部分是日志较详细时的提示
-	static const char* cn_file_debug_text				= "[%s](文件ID = %d) 对应于 {[%s] 文件中的 [%s] 行 = %s}";
+	static const char* cn_file_debug_text				= "[%s](文件ID = %d) {该文件来自于 [%s] 文件中的第%s行 = [%s]}";
 	static const char* cn_main_file_debug_text			= "[%s](文件ID = %d)";
 
 	struct DivGrid

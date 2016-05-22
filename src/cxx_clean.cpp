@@ -221,8 +221,8 @@ namespace cxxcleantool
 
 			if (isa<ValueDecl>(calleeDecl))
 			{
-				ValueDecl *namedDecl = cast<ValueDecl>(calleeDecl);
-				m_root->UseValueDecl(loc, namedDecl);
+				ValueDecl *valueDecl = cast<ValueDecl>(calleeDecl);
+				m_root->UseValueDecl(loc, valueDecl);
 
 				{
 					//llvm::outs() << "<pre>------------ CallExpr: NamedDecl ------------:</pre>\n";
@@ -399,23 +399,8 @@ namespace cxxcleantool
 	// 访问函数声明
 	bool CxxCleanASTVisitor::VisitFunctionDecl(FunctionDecl *f)
 	{
-		// 识别返回值类型
-		{
-			// 函数的返回值
-			QualType returnType = f->getReturnType();
-			m_root->UseVarType(f->getLocStart(), returnType);
-		}
+		m_root->UseFuncDecl(f->getLocStart(), f);
 
-		// 识别函数参数
-		{
-			// 依次遍历参数，建立引用关系
-			for (FunctionDecl::param_iterator itr = f->param_begin(), end = f->param_end(); itr != end; ++itr)
-			{
-				ParmVarDecl *vardecl = *itr;
-				QualType vartype = vardecl->getType();
-				m_root->UseVarType(f->getLocStart(), vartype);
-			}
-		}
 
 		/*
 			尝试找到函数的原型声明
@@ -438,20 +423,20 @@ namespace cxxcleantool
 				这里仅关注最早的函数声明
 			*/
 			{
-				FunctionDecl *oldestFunc = nullptr;
+				FunctionDecl *oldestFunction = nullptr;
 
 				for (FunctionDecl *prevFunc = f->getPreviousDecl(); prevFunc; prevFunc = prevFunc->getPreviousDecl())
 				{
-					oldestFunc = prevFunc;
+					oldestFunction = prevFunc;
 				}
 
-				if (nullptr == oldestFunc)
+				if (nullptr == oldestFunction)
 				{
 					return true;
 				}
 
 				// 引用函数原型
-				// m_root->on_use_decl(f->getLocStart(), oldestFunc);
+				m_root->UseFuncDecl(f->getLocStart(), oldestFunction);
 			}
 
 			// 是否属于某个类的成员函数
@@ -462,9 +447,6 @@ namespace cxxcleantool
 				{
 					return false;
 				}
-
-				// 引用对应的方法
-				m_root->UseFuncDecl(f->getLocStart(),	method);
 
 				// 尝试找到该成员函数所属的struct/union/class.
 				CXXRecordDecl *record = method->getParent();
@@ -601,11 +583,6 @@ namespace cxxcleantool
 		return true;
 	}
 
-	bool CxxCleanASTVisitor::VisitCXXConversionDecl(CXXConversionDecl *decl)
-	{
-		return true;
-	}
-
 	// 构造声明
 	bool CxxCleanASTVisitor::VisitCXXConstructorDecl(CXXConstructorDecl *decl)
 	{
@@ -622,7 +599,10 @@ namespace cxxcleantool
 			}
 			else if (initializer->isDelegatingInitializer())
 			{
-				m_root->UseQualType(initializer->getSourceLocation(), initializer->getTypeSourceInfo()->getType());
+				if (initializer->getTypeSourceInfo())
+				{
+					m_root->UseQualType(initializer->getSourceLocation(), initializer->getTypeSourceInfo()->getType());
+				}
 			}
 			else
 			{
@@ -662,14 +642,15 @@ namespace cxxcleantool
 	}
 
 	CxxcleanDiagnosticConsumer::CxxcleanDiagnosticConsumer(DiagnosticOptions *diags)
-		: TextDiagnosticPrinter(g_log, diags)
+		: m_log(m_errorTip)
+		, TextDiagnosticPrinter(m_log, diags, false)
 	{
 	}
 
 	void CxxcleanDiagnosticConsumer::Clear()
 	{
-		g_log.flush();
-		g_errorTip.clear();
+		m_log.flush();
+		m_errorTip.clear();
 	}
 
 	void CxxcleanDiagnosticConsumer::BeginSourceFile(const LangOptions &LO, const Preprocessor *PP)
@@ -699,6 +680,12 @@ namespace cxxcleantool
 	// 当一个错误发生时，会调用此函数，在这个函数里记录编译错误和错误号
 	void CxxcleanDiagnosticConsumer::HandleDiagnostic(DiagnosticsEngine::Level diagLevel, const Diagnostic &info)
 	{
+		// 第1遍时才需要记录编译错误
+		if (!ProjectHistory::instance.m_isFirst)
+		{
+			return;
+		}
+
 		TextDiagnosticPrinter::HandleDiagnostic(diagLevel, info);
 
 		CompileErrorHistory &errHistory = ParsingFile::g_atFile->GetCompileErrorHistory();
@@ -715,7 +702,7 @@ namespace cxxcleantool
 			return;
 		}
 
-		std::string tip = g_errorTip;
+		std::string tip = m_errorTip;
 		Clear();
 
 		int errNum = errHistory.m_errTips.size() + 1;
@@ -733,9 +720,6 @@ namespace cxxcleantool
 
 		errHistory.m_errTips.push_back(tip);
 	}
-
-	std::string			CxxcleanDiagnosticConsumer::g_errorTip;
-	raw_string_ostream	CxxcleanDiagnosticConsumer::g_log(g_errorTip);
 
 	// 开始文件处理
 	bool CxxCleanAction::BeginSourceFileAction(CompilerInstance &compiler, StringRef filename)

@@ -9,7 +9,7 @@
 #ifndef _whole_project_h_
 #define _whole_project_h_
 
-#include <string>
+#include <iterator>
 #include <vector>
 #include <set>
 #include <map>
@@ -78,7 +78,7 @@ namespace cxxcleantool
 		int							m_end;				// 结束偏移
 		string						m_oldText;			// 替换前的#include文本，如: #include "../b/../b/../a.h“
 		string						m_oldFile;			// 替换前的#include对应的文件
-		std::vector<ReplaceTo>		m_newInclude;		// 替换后的#include串列表
+		ReplaceTo					m_newInclude;		// 替换后的#include串列表
 		std::map<string, string>	m_frontNamespace;	// 本行首应添加的using namespace
 		std::map<string, string>	m_backNamespace;	// 本行末应添加的using namespace
 	};

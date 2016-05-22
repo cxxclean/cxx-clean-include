@@ -9,7 +9,7 @@
 #ifndef _project_h_
 #define _project_h_
 
-#include <string>
+#include <iterator>
 #include <set>
 #include <vector>
 

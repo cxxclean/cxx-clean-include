@@ -122,8 +122,6 @@ namespace cxxcleantool
 		// 访问成员变量
 		bool VisitFieldDecl(FieldDecl *decl);
 
-		bool VisitCXXConversionDecl(CXXConversionDecl *decl);
-
 		// 构造声明
 		bool VisitCXXConstructorDecl(CXXConstructorDecl *decl);
 
@@ -168,10 +166,10 @@ namespace cxxcleantool
 		bool IsFatalError(int errid);
 
 		// 当一个错误发生时，会调用此函数，在这个函数里记录编译错误和错误号
-		virtual void HandleDiagnostic(DiagnosticsEngine::Level diagLevel, const Diagnostic &info);
+		virtual void HandleDiagnostic(DiagnosticsEngine::Level diagLevel, const Diagnostic &info) override;
 
-		static std::string			g_errorTip;
-		static raw_string_ostream	g_log;
+		std::string			m_errorTip;
+		raw_string_ostream	m_log;
 	};
 
 	// 对于ClangTool接收到的每个cpp源文件，都将new一个CxxCleanAction

@@ -42,6 +42,8 @@ namespace clang
 	class ValueDecl;
 	class RecordDecl;
 	class UsingDecl;
+	class TemplateArgument;
+	class TemplateArgumentList;
 }
 
 namespace cxxcleantool
@@ -157,6 +159,12 @@ namespace cxxcleantool
 
 		// 新增使用函数声明记录
 		void UseFuncDecl(SourceLocation loc, const FunctionDecl *funcDecl);
+
+		// 引用模板参数
+		void UseTemplateArgument(SourceLocation loc, const TemplateArgument &arg);
+
+		// 引用模板参数列表
+		void UseTemplateArgumentList(SourceLocation loc, const TemplateArgumentList *args);
 
 		// 新增使用class、struct、union记录
 		void UseRecord(SourceLocation loc, const RecordDecl *record);
@@ -551,7 +559,7 @@ namespace cxxcleantool
 		bool IsPrecompileHeader(FileID file) const;
 
 		// 将文件替换记录按父文件进行归类
-		typedef std::map<FileID, std::set<FileID>> ChildrenReplaceMap;
+		typedef std::map<FileID, FileID> ChildrenReplaceMap;
 		typedef std::map<FileID, ChildrenReplaceMap> ReplaceFileMap;
 		void SplitReplaceByFile(ReplaceFileMap &replaces) const;
 
@@ -609,7 +617,7 @@ namespace cxxcleantool
 		std::map<FileID, FileID>					m_parentIDs;
 
 		// 11. 可被置换的#include列表：[文件] -> [该文件可被替换为的文件]
-		std::map<FileID, std::set<FileID>>			m_replaces;
+		std::map<FileID, FileID>					m_replaces;
 
 		// 12. 各文件中可被置换的#include列表：[文件] -> [该文件中哪些文件可被替换成为其他的哪些文件]
 		ReplaceFileMap								m_splitReplaces;

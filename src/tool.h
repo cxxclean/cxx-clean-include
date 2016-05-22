@@ -9,7 +9,7 @@
 #ifndef _cxx_clean_tool_h_
 #define _cxx_clean_tool_h_
 
-#include <string>
+#include <iterator>
 #include <vector>
 
 using namespace std;
