@@ -15,6 +15,7 @@
 #include "clang/Basic/Version.h"
 #include "clang/Driver/ToolChain.h"
 #include "clang/Driver/Driver.h"
+#include "clang/Parse/ParseDiagnostic.h"
 #include "lib/Driver/ToolChains.h"
 
 #include "tool.h"
@@ -233,6 +234,12 @@ namespace cxxcleantool
 		else if (isa<DeclRefExpr>(s))
 		{
 			DeclRefExpr *declRefExpr = cast<DeclRefExpr>(s);
+
+			if (declRefExpr->hasQualifier())
+			{
+				m_root->UseQualifier(loc, declRefExpr->getQualifier());
+			}
+
 			m_root->UseValueDecl(loc, declRefExpr->getDecl());
 		}
 		// 依赖当前范围取成员语句，例如：this->print();
@@ -671,21 +678,40 @@ namespace cxxcleantool
 		errHistory.m_errNum				= NumErrors;
 	}
 
-	// 是否是严重编译错误（暂时用不到）
+	// 是否是严重编译错误
 	bool CxxcleanDiagnosticConsumer::IsFatalError(int errid)
 	{
-		return (diag::DIAG_START_PARSE < errid && errid < diag::DIAG_START_AST);
+		if (errid == clang::diag::err_expected_lparen_after_type)
+		{
+			// 这个是unsigned int(0)类型的错误
+			// int n =  unsigned int(0);
+			//          ~~~~~~~~ ^
+			// error: expected '(' for function-style cast or type construction
+			return true;
+		}
+
+		// 然后这里还有一个编译错误要注意的：
+		// 若试图引用函数返回的临时对象，clang会直接报编译错误
+		// 比如假设有：
+		//     struct B{};
+		//     B f(){ return B() }
+		// 现在我们用下面语句调用
+		//     B &b = f();
+		// 则这条语句会被clang报diag::err_lvalue_reference_bind_to_temporary错误
+		//     non-const lvalue reference to type 'B' cannot bind to a temporary of type 'B'
+		//         B &b = f();
+        //            ^   ~~~
+		// 于是clang会跳过f()函数，导致清理工具识别不到f函数的调用了
+		// 这里我们想办法绕过去，通过直接改clang的源码，在llvm\tools\clang\lib\Sema\SemaInit.cpp删掉第4296行起的if判断函数
+		//     if (isLValueRef && !(T1Quals.hasConst() && !T1Quals.hasVolatile())) {
+		// 屏蔽该类报错
+
+		return false;
 	}
 
 	// 当一个错误发生时，会调用此函数，在这个函数里记录编译错误和错误号
 	void CxxcleanDiagnosticConsumer::HandleDiagnostic(DiagnosticsEngine::Level diagLevel, const Diagnostic &info)
 	{
-		// 第1遍时才需要记录编译错误
-		if (!ProjectHistory::instance.m_isFirst)
-		{
-			return;
-		}
-
 		TextDiagnosticPrinter::HandleDiagnostic(diagLevel, info);
 
 		CompileErrorHistory &errHistory = ParsingFile::g_atFile->GetCompileErrorHistory();
@@ -707,7 +733,7 @@ namespace cxxcleantool
 
 		int errNum = errHistory.m_errTips.size() + 1;
 
-		if (diagLevel >= DiagnosticIDs::Fatal)
+		if (diagLevel >= DiagnosticIDs::Fatal || IsFatalError(errId))
 		{
 			errHistory.m_fatalErrors.insert(errId);
 
@@ -758,7 +784,6 @@ namespace cxxcleantool
 		if (ProjectHistory::instance.m_isFirst)
 		{
 			m_root->GenerateResult();
-			ProjectHistory::instance.AddFile(m_root);
 			m_root->Print();
 		}
 

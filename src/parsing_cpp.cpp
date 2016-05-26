@@ -195,6 +195,8 @@ namespace cxxcleantool
 		GenerateCanReplace();
 
 		GenerateUsefulUsingNamespace();
+
+		ProjectHistory::instance.AddFile(this);
 	}
 
 	/*
@@ -1960,6 +1962,12 @@ namespace cxxcleantool
 	// 新增使用函数声明记录
 	void ParsingFile::UseFuncDecl(SourceLocation loc, const FunctionDecl *f)
 	{
+		// 嵌套名称修饰
+		if (f->getQualifier())
+		{
+			UseQualifier(loc, f->getQualifier());
+		}
+
 		// 识别返回值类型
 		{
 			// 函数的返回值
@@ -3697,7 +3705,7 @@ namespace cxxcleantool
 				}
 				// 若该行没有新的替换记录，说明该行无法被替换，删除该行旧的替换记录
 				else
-				{					
+				{
 					oldFile.m_replaces.erase(oldLineItr++);
 				}
 			}

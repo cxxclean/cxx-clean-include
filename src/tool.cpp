@@ -242,6 +242,7 @@ namespace pathtool
 			}
 		}
 
+		strtool::replace(relative_path, "//", "/");
 		return relative_path;
 	}
 
