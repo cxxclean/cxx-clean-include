@@ -9,13 +9,22 @@ cxx-clean-include是一个用于清理c++文件中多余#include的工具，可�
 
 然后：
 
-* 1. 下载cxxclean.rar文件并解压，将得到可执行文件cxxclean.exe和一个文件夹hello（hello里面是示例代码）
+* 1. 下载cxxclean.rar文件并解压，将得到cxxclean.exe和hello文件夹（hello里面是示例代码）
 * 2. 双击运行hello文件夹下的run_cxxclean_hello.bat
 * 3. 如果成功的话，将生成cxxclean_hello.html日志，并且hello项目已被清理成功
 
 将run_cxxclean_hello.bat里面的./hello.vcxproj改成你自己的vs工程文件，就可以清理你的工程了
 
 注意：使用前请备份你的代码
+
+## cxx-clean-include的一些测试结果
+
+目前，已在网上的一些开源vs项目上测试使用了本工具（只是自行测试）
+
+1. https://github.com/MSOpenTech/redis
+
+该项目是由[MS Open Tech组织]将redis移植到windows下的版本，使用本工具清理msvs\RedisServer.vcxproj后发现共有28个文件（含.c文件和.h头文件）包含多余的#include，清理后仍可编译成功。
+（清理前须将头文件包含路径中的$(SolutionDir)删掉）
 
 ## cxx-clean-include的作用
 
