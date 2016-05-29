@@ -3102,12 +3102,6 @@ namespace cxxcleantool
 	// 开始清理文件（将改动c++源文件）
 	void ParsingFile::Clean()
 	{
-		// 若本文件有严重编译错误或编译错误数过多，则禁止改动
-		if (m_compileErrorHistory.HaveFatalError())
-		{
-			return;
-		}
-
 		if (Project::instance.m_isDeepClean)
 		{
 			CleanAllFile();
@@ -3131,6 +3125,12 @@ namespace cxxcleantool
 		SourceLocation begLoc		= fileBegLoc.getLocWithOffset(beg);
 		SourceLocation endLoc		= fileBegLoc.getLocWithOffset(end);
 
+		if (nullptr == GetSourceAtLoc(begLoc) || nullptr == GetSourceAtLoc(endLoc))
+		{
+			llvm::errs() << "[error][ParsingFile::RemoveText] nullptr == GetSourceAtLoc(begLoc) || nullptr == GetSourceAtLoc(endLoc)\n";
+			return;
+		}
+
 		SourceRange range(begLoc, endLoc);
 
 		// cxx::log() << "\n------->replace text = [" << get_source_of_range(range) << "] in [" << get_absolute_file_name(file) << "]\n";
@@ -3144,6 +3144,12 @@ namespace cxxcleantool
 	{
 		SourceLocation fileBegLoc	= m_srcMgr->getLocForStartOfFile(file);
 		SourceLocation insertLoc	= fileBegLoc.getLocWithOffset(loc);
+
+		if (nullptr == GetSourceAtLoc(insertLoc))
+		{
+			llvm::errs() << "[error][ParsingFile::RemoveText] nullptr == GetSourceAtLoc(insertLoc)\n";
+			return;
+		}
 
 		m_rewriter->InsertText(insertLoc, text, true, true);
 	}
@@ -3160,6 +3166,12 @@ namespace cxxcleantool
 
 		SourceLocation begLoc		= fileBegLoc.getLocWithOffset(beg);
 		SourceLocation endLoc		= fileBegLoc.getLocWithOffset(end);
+
+		if (nullptr == GetSourceAtLoc(begLoc) || nullptr == GetSourceAtLoc(endLoc))
+		{
+			llvm::errs() << "[error][ParsingFile::RemoveText] nullptr == GetSourceAtLoc(begLoc) || nullptr == GetSourceAtLoc(endLoc)\n";
+			return;
+		}
 
 		SourceRange range(begLoc, endLoc);
 
