@@ -174,59 +174,47 @@ const char* g_beginHtml = R"--(
         </style>
     </head>
     <body>
-        <div id="main">
-)--";
+        <div id="main">)--";
 
 const char* g_endHtml = R"--(
         </div>
     </body>
-</html>
-)--";
+</html>)--";
 
 const char* g_divHtml = R"--(
             <div class="box">
                 <div class="title">
-                    <ul>
-                        #{div_titles}
+                    <ul>#{div_titles}
                     </ul>
                 </div>
                 <div class="chart">
-                    <dl>
-                        #{div_rows}
+                    <dl>#{div_rows}
                     </dl>
                 </div>
-            </div>
-)--";
+            </div>)--";
 
 const char *g_titleHtml = R"--(
                         <li class="col" style="width:#{width}%;">
                             #{title}
-                        </li>
-)--";
+                        </li>)--";
 
 const char* g_rowHtml = R"--(
-                        <dd class="row"#{bold}>
-                            #{row}
-                        </dd>
-)--";
+                        <dd class="row"#{bold}>#{row}
+                        </dd>)--";
 
 const char* g_errorRowHtml = R"--(
-                        <dd class="error_row"#{bold}>
-                            #{row}
-                        </dd>
-)--";
+                        <dd class="error_row"#{bold}>#{row}
+                        </dd>)--";
 
 const char* g_gridHtml = R"--(
                             <div class="grid" style="width:#{width}%;text-indent:#{indent}px;">
                                 #{text}
-                            </div>
-)--";
+                            </div>)--";
 
 const char* g_errorGridHtml = R"--(
                             <div class="grid">
                                 <pre style="padding:0 #{indent}px;">#{text}</pre>
-                            </div>
-)--";
+                            </div>)--";
 
 namespace cxxcleantool
 {

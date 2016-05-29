@@ -11,7 +11,7 @@ cxx-clean-include是一个用于清理c++文件中多余#include的工具，可�
 
 * 1. 下载cxxclean.rar文件并解压，将得到cxxclean.exe和hello文件夹（hello里面是示例代码）
 * 2. 双击运行hello文件夹下的run_cxxclean_hello.bat
-* 3. 如果成功的话，将生成cxxclean_hello.html日志，并且hello项目已被清理成功
+* 3. 如果成功的话，将在hello文件夹下生成html格式的日志（可使用浏览器查看），并且hello项目已被清理成功
 
 将run_cxxclean_hello.bat里面的./hello.vcxproj改成你自己的vs工程文件，就可以清理你的工程了
 
