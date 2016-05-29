@@ -147,45 +147,45 @@ namespace cxxcleantool
 
 	void VsConfiguration::Print() const
 	{
-		llvm::outs() << "\n////////////////////////////////\n";
-		llvm::outs() << "\nvs configuration of: " << mode << "\n";
-		llvm::outs() << "////////////////////////////////\n";
+		cxx::log() << "\n////////////////////////////////\n";
+		cxx::log() << "\nvs configuration of: " << mode << "\n";
+		cxx::log() << "////////////////////////////////\n";
 
-		llvm::outs() << "\n    predefine: " << mode << "\n";
+		cxx::log() << "\n    predefine: " << mode << "\n";
 		for (auto pre_define : preDefines)
 		{
-			llvm::outs() << "        #define " << pre_define << "\n";
+			cxx::log() << "        #define " << pre_define << "\n";
 		}
 
-		llvm::outs() << "\n    force includes: \n";
+		cxx::log() << "\n    force includes: \n";
 		for (auto force_include : forceIncludes)
 		{
-			llvm::outs() << "        #include \"" << force_include << "\"\n";
+			cxx::log() << "        #include \"" << force_include << "\"\n";
 		}
 
-		llvm::outs() << "\n    search directorys: \n";
+		cxx::log() << "\n    search directorys: \n";
 		for (auto search_dir : searchDirs)
 		{
-			llvm::outs() << "        search = \"" << search_dir << "\"\n";
+			cxx::log() << "        search = \"" << search_dir << "\"\n";
 		}
 
-		llvm::outs() << "\n    additional options: \n";
+		cxx::log() << "\n    additional options: \n";
 		for (auto extra_option : extraOptions)
 		{
-			llvm::outs() << "        option = \"" << extra_option << "\"\n";
+			cxx::log() << "        option = \"" << extra_option << "\"\n";
 		}
 	}
 
 	// ´òÓ¡vs¹¤³ÌÅäÖÃ
 	void Vsproject::Print() const
 	{
-		llvm::outs() << "\n////////////////////////////////\n";
-		llvm::outs() << "print vs configuration of: " << m_project_full_path << "\n";
-		llvm::outs() << "////////////////////////////////\n";
+		cxx::log() << "\n////////////////////////////////\n";
+		cxx::log() << "print vs configuration of: " << m_project_full_path << "\n";
+		cxx::log() << "////////////////////////////////\n";
 
 		if (m_configs.empty())
 		{
-			llvm::outs() << "can not print vs configuration,  configuration is empty!\n";
+			cxx::log() << "can not print vs configuration,  configuration is empty!\n";
 			return;
 		}
 
@@ -194,10 +194,10 @@ namespace cxxcleantool
 			m_configs[i].Print();
 		}
 
-		llvm::outs() << "all file in project:\n";
+		cxx::log() << "all file in project:\n";
 		for (const string &file : m_all)
 		{
-			llvm::outs() << "    file = " << file << "\n";
+			cxx::log() << "    file = " << file << "\n";
 		}
 	}
 
@@ -226,7 +226,7 @@ namespace cxxcleantool
 		rapidxml::xml_document<> doc;
 		if (!xml_file.data())
 		{
-			llvm::outs() << "err: load vs2005 project " << vcproj << " failed, please check the file path\n";
+			cxx::log() << "err: load vs2005 project " << vcproj << " failed, please check the file path\n";
 			return false;
 		}
 
@@ -235,21 +235,21 @@ namespace cxxcleantool
 		rapidxml::xml_node<>* root = doc.first_node("VisualStudioProject");
 		if (!root)
 		{
-			llvm::outs() << "err: parse vs2005 project <" << vcproj << "> failed, not found <VisualStudioProject> node\n";
+			cxx::log() << "err: parse vs2005 project <" << vcproj << "> failed, not found <VisualStudioProject> node\n";
 			return false;
 		}
 
 		rapidxml::xml_node<>* configs_node = root->first_node("Configurations");
 		if (!configs_node)
 		{
-			llvm::outs() << "err: parse vs2005 project <" << vcproj << "> failed, not found <Configurations> node\n";
+			cxx::log() << "err: parse vs2005 project <" << vcproj << "> failed, not found <Configurations> node\n";
 			return false;
 		}
 
 		rapidxml::xml_node<>* files_node = root->first_node("Files");
 		if (!files_node)
 		{
-			llvm::outs() << "err: parse vs2005 project <" << vcproj << "> failed, not found <Files> node\n";
+			cxx::log() << "err: parse vs2005 project <" << vcproj << "> failed, not found <Files> node\n";
 			return false;
 		}
 
@@ -334,7 +334,7 @@ namespace cxxcleantool
 		rapidxml::xml_document<> doc;
 		if (!xml_file.data())
 		{
-			llvm::outs() << "err: load " << vcxproj << " failed, please check the file path\n";
+			cxx::log() << "err: load " << vcxproj << " failed, please check the file path\n";
 			return false;
 		}
 
@@ -343,7 +343,7 @@ namespace cxxcleantool
 		rapidxml::xml_node<>* root = doc.first_node("Project");
 		if (!root)
 		{
-			llvm::outs() << "err: parse <" << vcxproj << "> failed, not found <Project> node\n";
+			cxx::log() << "err: parse <" << vcxproj << "> failed, not found <Project> node\n";
 			return false;
 		}
 

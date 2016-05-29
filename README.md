@@ -83,22 +83,22 @@ cxx-clean-include目前支持清理visual studio项目（vs2005及以上版本�
 ```cpp
 cxxclean -clean vs项目名称
 
-// 比如：cxxclean -clean d:/vs2005/hello.vcproj > cxxclean_hello.html
+// 比如：cxxclean -clean d:/vs2005/hello.vcproj
 // vs项目名称最好是绝对路径，如: d:/vs2005/hello.vcproj、d:/vs2008/hello.vcxproj
 ```
 
-该命令将清理整个vs项目内的c++文件，同时日志存入cxxclean_hello.html
+该命令将清理整个vs项目内的c++文件，同时将在当前文件夹自动生成清理日志
 
 * 2. 对于单个文件夹，可以使用以下命令
 
 ```cpp
 cxxclean -clean 文件夹路径
 
-// 比如：cxxclean -clean d:/a/b/hello/ > cxxclean_hello.html
+// 比如：cxxclean -clean d:/a/b/hello/
 // 文件夹路径最好是绝对路径，如: d:/a/b/hello/、/home/proj/hello/
 ```
 
-该命令将清理该文件夹内的c++文件，同时日志存入cxxclean_hello.html
+该命令将清理该文件夹内的c++文件，同时将在当前文件夹自动生成清理日志
 
 但很多情况下需要指定更详细的编译条件，如指定头文件路径、预定义宏等，clang库已内置提供了相应的命令行参数供使用，可使用如下方式（注意添加--号）：
 

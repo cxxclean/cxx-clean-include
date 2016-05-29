@@ -14,10 +14,13 @@
 
 namespace cxxcleantool
 {
-	// 1. 下面这部分是日志较简单时的提示
+	// 1. 中文
+	static const char* cn_log							= "清理%s的日志-%s.html";
+	static const char* cn_time							= "%04d年%02d年%02d日%02d时%02d分%02d秒";
 	static const char* cn_cpp_file						= "[ %s ] c++ 文件";
 	static const char* cn_folder						= "[ %s ] 文件夹";
 	static const char* cn_project						= "[ %s ] visual studio工程";
+	static const char* cn_project_1						= "%s工程";
 	static const char* cn_clean							= "本页面是对 %s 的分析日志，最终结果以本页面最底部的统计结果为准";
 	static const char* cn_project_text					= "允许清理的c++文件列表以及待分析的c++源文件列表";
 	static const char* cn_project_allow_files			= "允许清理的c++文件列表：文件个数 = %s（不属于该列表的c++文件不允许被改动）";
@@ -66,7 +69,6 @@ namespace cxxcleantool
 	static const char* cn_project_history_clean_count	= "清理结果：共有%s个c++文件可被清理";
 	static const char* cn_project_history_src_count		= "本次共分析了%s个cpp（或cxx、cc）源文件";
 
-	// 2. 下面这部分是日志较详细时的提示
 	static const char* cn_file_debug_text				= "[%s](文件ID = %d) {该文件来自于 [%s] 文件中的第%s行 = [%s]}";
 	static const char* cn_main_file_debug_text			= "[%s](文件ID = %d)";
 

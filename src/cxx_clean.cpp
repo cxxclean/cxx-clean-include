@@ -106,7 +106,7 @@ namespace cxxcleantool
 
 		if (filenameRange.getBegin() == filenameRange.getEnd())
 		{
-			llvm::outs() << "InclusionDirective filenameRange.getBegin() == filenameRange.getEnd()\n";
+			cxx::log() << "InclusionDirective filenameRange.getBegin() == filenameRange.getEnd()\n";
 		}
 
 		m_root->AddIncludeLoc(filenameRange.getBegin(), range);
@@ -143,8 +143,8 @@ namespace cxxcleantool
 		{
 			SourceRange spellingRange(srcMgr.getSpellingLoc(range.getBegin()), srcMgr.getSpellingLoc(range.getEnd()));
 
-			llvm::outs() << "<pre>text = " << m_root->GetSourceOfRange(range) << "</pre>\n";
-			llvm::outs() << "<pre>macroName = " << macroName.getIdentifierInfo()->getName().str() << "</pre>\n";
+			cxx::log() << "<pre>text = " << m_root->GetSourceOfRange(range) << "</pre>\n";
+			cxx::log() << "<pre>macroName = " << macroName.getIdentifierInfo()->getName().str() << "</pre>\n";
 		}
 		*/
 	}
@@ -171,10 +171,10 @@ namespace cxxcleantool
 	{
 		SourceLocation loc = s->getLocStart();
 
-		llvm::outs() << "<pre>source = " << m_root->DebugRangeText(s->getSourceRange()) << "</pre>\n";
-		llvm::outs() << "<pre>";
-		s->dump(llvm::outs());
-		llvm::outs() << "</pre>";
+		cxx::log() << "<pre>source = " << m_root->DebugRangeText(s->getSourceRange()) << "</pre>\n";
+		cxx::log() << "<pre>";
+		s->dump(cxx::log());
+		cxx::log() << "</pre>";
 	}
 
 	// 访问单条语句
@@ -185,7 +185,7 @@ namespace cxxcleantool
 		/*
 		if (m_root->GetSrcMgr().isInMainFile(loc))
 		{
-			llvm::outs() << "<pre>------------ VisitStmt ------------:</pre>\n";
+			cxx::log() << "<pre>------------ VisitStmt ------------:</pre>\n";
 			PrintStmt(s);
 		}
 		*/
@@ -201,10 +201,10 @@ namespace cxxcleantool
 			/*
 			if (m_root->GetSrcMgr().isInMainFile(loc))
 			{
-				llvm::outs() << "<pre>------------ CastExpr ------------:</pre>\n";
-				llvm::outs() << "<pre>";
-				llvm::outs() << castExpr->getCastKindName();
-				llvm::outs() << "</pre>";
+				cxx::log() << "<pre>------------ CastExpr ------------:</pre>\n";
+				cxx::log() << "<pre>";
+				cxx::log() << castExpr->getCastKindName();
+				cxx::log() << "</pre>";
 			}
 			*/
 
@@ -226,7 +226,7 @@ namespace cxxcleantool
 				m_root->UseValueDecl(loc, valueDecl);
 
 				{
-					//llvm::outs() << "<pre>------------ CallExpr: NamedDecl ------------:</pre>\n";
+					//cxx::log() << "<pre>------------ CallExpr: NamedDecl ------------:</pre>\n";
 					//PrintStmt(s);
 				}
 			}
@@ -395,7 +395,7 @@ namespace cxxcleantool
 		}
 		else
 		{
-			llvm::outs() << "<pre>------------ havn't support stmt ------------:</pre>\n";
+			cxx::log() << "<pre>------------ havn't support stmt ------------:</pre>\n";
 			PrintStmt(s);
 		}
 		*/
@@ -634,10 +634,10 @@ namespace cxxcleantool
 	void CxxCleanASTConsumer::HandleTranslationUnit(ASTContext& context)
 	{
 		/*
-		llvm::outs() << "<pre>------------ HandleTranslationUnit ------------:</pre>\n";
-		llvm::outs() << "<pre>";
-		context.getTranslationUnitDecl()->dump(llvm::outs());
-		llvm::outs() << "</pre>";
+		cxx::log() << "<pre>------------ HandleTranslationUnit ------------:</pre>\n";
+		cxx::log() << "<pre>";
+		context.getTranslationUnitDecl()->dump(cxx::log());
+		cxx::log() << "</pre>";
 		*/
 
 		if (!ProjectHistory::instance.m_isFirst)
@@ -700,7 +700,7 @@ namespace cxxcleantool
 		// 则这条语句会被clang报diag::err_lvalue_reference_bind_to_temporary错误
 		//     non-const lvalue reference to type 'B' cannot bind to a temporary of type 'B'
 		//         B &b = f();
-        //            ^   ~~~
+		//            ^   ~~~
 		// 于是clang会跳过f()函数，导致清理工具识别不到f函数的调用了
 		// 这里我们想办法绕过去，通过直接改clang的源码，在llvm\tools\clang\lib\Sema\SemaInit.cpp删掉第4296行起的if判断函数
 		//     if (isLValueRef && !(T1Quals.hasConst() && !T1Quals.hasVolatile())) {
@@ -817,9 +817,9 @@ namespace cxxcleantool
 	// 用于调试：打印包含文件
 	void CxxCleanAction::PrintIncludes()
 	{
-		llvm::outs() << "\n////////////////////////////////\n";
-		llvm::outs() << "print fileinfo_iterator include:\n";
-		llvm::outs() << "////////////////////////////////\n";
+		cxx::log() << "\n////////////////////////////////\n";
+		cxx::log() << "print fileinfo_iterator include:\n";
+		cxx::log() << "////////////////////////////////\n";
 
 		SourceManager &srcMgr = m_rewriter.getSourceMgr();
 
@@ -834,16 +834,16 @@ namespace cxxcleantool
 			SrcMgr::ContentCache *cache = itr->second;
 
 			//printf("#include = %s\n", fileEntry->getName());
-			llvm::outs() << "    #include = "<< fileEntry->getName()<< "\n";
+			cxx::log() << "    #include = "<< fileEntry->getName()<< "\n";
 		}
 	}
 
 	// 用于调试：打印主文件的包含文件
 	void CxxCleanAction::PrintTopIncludes()
 	{
-		llvm::outs() << "\n////////////////////////////////\n";
-		llvm::outs() << "print top getLocalSLocEntry include:\n";
-		llvm::outs() << "////////////////////////////////\n";
+		cxx::log() << "\n////////////////////////////////\n";
+		cxx::log() << "print top getLocalSLocEntry include:\n";
+		cxx::log() << "////////////////////////////////\n";
 
 		SourceManager &srcMgr = m_rewriter.getSourceMgr();
 		int include_size = srcMgr.local_sloc_entry_size();
@@ -856,7 +856,7 @@ namespace cxxcleantool
 				continue;
 			}
 
-			llvm::outs() << "    #include = "<< srcMgr.getFilename(locEntry.getFile().getIncludeLoc()) << "\n";
+			cxx::log() << "    #include = "<< srcMgr.getFilename(locEntry.getFile().getIncludeLoc()) << "\n";
 		}
 	}
 
@@ -895,8 +895,8 @@ namespace cxxcleantool
 
 	void PrintVersion()
 	{
-		llvm::outs() << "cxx-clean-include version is 1.0\n";
-		llvm::outs() << clang::getClangToolFullVersion("clang lib version is") << '\n';
+		cxx::log() << "cxx-clean-include version is 1.0\n";
+		cxx::log() << clang::getClangToolFullVersion("clang lib version is") << '\n';
 	}
 
 	// 解析选项并将解析结果存入相应的对象，若应中途退出则返回true，否则返回false
@@ -1119,6 +1119,8 @@ namespace cxxcleantool
 			HtmlLog::instance.SetHtmlTitle(strtool::get_text(cn_cpp_file, src.c_str()));
 			HtmlLog::instance.SetBigTitle(strtool::get_text(cn_cpp_file, htmltool::get_file_html(src).c_str()));
 			m_sourceList.push_back(src);
+
+			cxx::init_log(strtool::get_text(cn_cpp_file, pathtool::get_file_name(src).c_str()));
 		}
 		else
 		{
@@ -1131,6 +1133,10 @@ namespace cxxcleantool
 
 			HtmlLog::instance.SetHtmlTitle(strtool::get_text(cn_folder, src.c_str()));
 			HtmlLog::instance.SetBigTitle(strtool::get_text(cn_folder, htmltool::get_file_html(src).c_str()));
+
+			std::string log_file = strtool::replace(src, "/", "_");
+			log_file = strtool::replace(src, ".", "_");
+			cxx::init_log(strtool::get_text(cn_folder, log_file.c_str()));
 		}
 
 		return true;
@@ -1160,11 +1166,12 @@ namespace cxxcleantool
 					return false;
 				}
 
-				// llvm::outs() << "parse vs project<" << clean_option << "> succeed!\n";
+				// cxx::log() << "parse vs project<" << clean_option << "> succeed!\n";
 
 				HtmlLog::instance.SetHtmlTitle(strtool::get_text(cn_project, clean_option.c_str()));
 				HtmlLog::instance.SetBigTitle(strtool::get_text(cn_project, htmltool::get_file_html(clean_option).c_str()));
 
+				cxx::init_log(strtool::get_text(cn_project_1, llvm::sys::path::stem(clean_option).str().c_str()));
 				vs.TakeSourceListTo(project);
 			}
 			else if (llvm::sys::fs::is_directory(clean_option))
@@ -1187,8 +1194,10 @@ namespace cxxcleantool
 						return false;
 					}
 
-					HtmlLog::instance.SetHtmlTitle(strtool::get_text(cn_project, clean_option.c_str()));
-					HtmlLog::instance.SetBigTitle(strtool::get_text(cn_project, htmltool::get_file_html(clean_option).c_str()));
+					HtmlLog::instance.SetHtmlTitle(strtool::get_text(cn_folder, clean_option.c_str()));
+					HtmlLog::instance.SetBigTitle(strtool::get_text(cn_folder, htmltool::get_file_html(clean_option).c_str()));
+
+					cxx::init_log(strtool::get_text(cn_folder, clean_option.c_str()));
 				}
 			}
 			else

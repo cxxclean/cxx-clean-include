@@ -86,7 +86,7 @@ namespace cxxcleantool
 			return;
 		}
 
-		llvm::outs() << "\n    " << 3 << ". file be #include and be use count : file count = " << m_files.size() << "";
+		cxx::log() << "\n    " << 3 << ". file be #include and be use count : file count = " << m_files.size() << "";
 
 		for (auto fileItr : m_files)
 		{
@@ -98,17 +98,17 @@ namespace cxxcleantool
 				continue;
 			}
 
-			llvm::outs() << "\n        file = {" << file << "} be use num = " << eachFile.m_beUseCount
+			cxx::log() << "\n        file = {" << file << "} be use num = " << eachFile.m_beUseCount
 			             << ", old be include num = " << eachFile.m_oldBeIncludeCount
 			             << ", new be include num = " << eachFile.m_newBeIncludeCount;
 
 			if (eachFile.m_beUseCount * 2 < eachFile.m_newBeIncludeCount)
 			{
-				llvm::outs() << " -------> can move to other c++ file\n";
+				cxx::log() << " -------> can move to other c++ file\n";
 			}
 			else
 			{
-				llvm::outs() << "\n";
+				cxx::log() << "\n";
 			}
 		}
 	}

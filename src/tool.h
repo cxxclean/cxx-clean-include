@@ -12,6 +12,11 @@
 #include <iterator>
 #include <vector>
 
+namespace llvm
+{
+	class raw_ostream;
+}
+
 using namespace std;
 
 namespace strtool
@@ -45,6 +50,10 @@ namespace strtool
 	// 移掉路径，只返回文件名称
 	// 例如：../../xxxx.txt -> xxxx.txt
 	string strip_dir(const string &path);
+
+	// 从左数起直到指定分隔符的字符串
+	// 例如：r_trip_at("123_456", '_') = 123
+	string trip_at(const string &str, char delimiter);
 
 	// 从右数起直到指定分隔符的字符串
 	// 例如：r_trip_at("123_456", '_') = 456
@@ -238,7 +247,14 @@ namespace htmltool
 
 namespace timetool
 {
-	std::string nowText();
+	std::string get_now(const char* format = "%04d/%02d/%02d-%02d:%02d:%02d");
+}
+
+namespace cxx
+{
+	void init_log(std::string log_path);
+
+	llvm::raw_ostream& log();
 }
 
 #endif // _cxx_clean_tool_h_

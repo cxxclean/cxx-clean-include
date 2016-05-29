@@ -179,7 +179,7 @@ namespace cxxcleantool
 	public:
 		void OnCleaned(const string &file)
 		{
-			// llvm::outs() << "on_cleaned file: " << file << " ...\n";
+			// cxx::log() << "on_cleaned file: " << file << " ...\n";
 			m_cleanedFiles.insert(file);
 		}
 

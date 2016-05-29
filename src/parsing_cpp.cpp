@@ -48,7 +48,7 @@ namespace cxxcleantool
 	{
 		SourceRange spellingRange(GetExpasionLoc(range.getBegin()), GetExpasionLoc(range.getEnd()));
 
-		// llvm::outs() << "ParsingFile::AddIncludeLoc = " << GetSourceOfLine(GetExpasionLoc(loc)) << "\n";
+		// cxx::log() << "ParsingFile::AddIncludeLoc = " << GetSourceOfLine(GetExpasionLoc(loc)) << "\n";
 
 		m_includeLocs[GetExpasionLoc(loc)] = range;
 	}
@@ -310,7 +310,7 @@ namespace cxxcleantool
 					{
 						m_replaces.erase(lv2Top);
 
-						// llvm::outs() << "fatal: there is replace cleared!\n";
+						// cxx::log() << "fatal: there is replace cleared!\n";
 						return true;
 					}
 
@@ -445,7 +445,7 @@ namespace cxxcleantool
 		// 属于ancestor的后代文件列表
 		std::set<FileID> children;
 
-		// llvm::outs() << "ancestor = " << get_file_name(ancestor) << "\n";
+		// cxx::log() << "ancestor = " << get_file_name(ancestor) << "\n";
 
 		// 获取属于该文件的后代中被主文件使用的一部分
 		for (FileID child : all_children)
@@ -455,7 +455,7 @@ namespace cxxcleantool
 				continue;
 			}
 
-			// llvm::outs() << "    child = " << get_file_name(child) << "\n";
+			// cxx::log() << "    child = " << get_file_name(child) << "\n";
 			children.insert(child);
 		}
 
@@ -742,20 +742,20 @@ namespace cxxcleantool
 				/*
 				// 打印前后对比
 				{
-					llvm::outs() << "\nprocessing file: " << GetAbsoluteFileName(file) << "\n";
-					llvm::outs() << "    old forwarddecl list: \n";
+					cxx::log() << "\nprocessing file: " << GetAbsoluteFileName(file) << "\n";
+					cxx::log() << "    old forwarddecl list: \n";
 
 					for (const CXXRecordDecl* cxxRecordDecl : old_forwards)
 					{
-						llvm::outs() << "        forwarddecl: " << GetCxxrecordName(*cxxRecordDecl) << " in " << GetAbsoluteFileName(file) << "\n";
+						cxx::log() << "        forwarddecl: " << GetCxxrecordName(*cxxRecordDecl) << " in " << GetAbsoluteFileName(file) << "\n";
 					}
 
-					llvm::outs() << "\n";
-					llvm::outs() << "    new forwarddecl list: \n";
+					cxx::log() << "\n";
+					cxx::log() << "    new forwarddecl list: \n";
 
 					for (const CXXRecordDecl* cxxRecordDecl : can_forwards)
 					{
-						llvm::outs() << "        forwarddecl: " << GetCxxrecordName(*cxxRecordDecl) << "\n";
+						cxx::log() << "        forwarddecl: " << GetCxxrecordName(*cxxRecordDecl) << "\n";
 					}
 				}
 				*/
@@ -1192,8 +1192,8 @@ namespace cxxcleantool
 
 		if (nullptr == rootFileEntry || nullptr == beusedFileEntry)
 		{
-			// llvm::outs() << "------->error: use_include() : m_srcMgr->getFileEntryForID(file) failed!" << m_srcMgr->getFilename(m_srcMgr->getLocForStartOfFile(file)) << ":" << m_srcMgr->getFilename(m_srcMgr->getLocForStartOfFile(beusedFile)) << "\n";
-			// llvm::outs() << "------->error: use_include() : m_srcMgr->getFileEntryForID(file) failed!" << get_source_of_line(m_srcMgr->getLocForStartOfFile(file)) << ":" << get_source_of_line(m_srcMgr->getLocForStartOfFile(beusedFile)) << "\n";
+			// cxx::log() << "------->error: use_include() : m_srcMgr->getFileEntryForID(file) failed!" << m_srcMgr->getFilename(m_srcMgr->getLocForStartOfFile(file)) << ":" << m_srcMgr->getFilename(m_srcMgr->getLocForStartOfFile(beusedFile)) << "\n";
+			// cxx::log() << "------->error: use_include() : m_srcMgr->getFileEntryForID(file) failed!" << get_source_of_line(m_srcMgr->getLocForStartOfFile(file)) << ":" << get_source_of_line(m_srcMgr->getLocForStartOfFile(beusedFile)) << "\n";
 			return;
 		}
 
@@ -1242,7 +1242,7 @@ namespace cxxcleantool
 
 		string macroName = macroNameTok.getIdentifierInfo()->getName().str() + "[macro]";
 
-		// llvm::outs() << "macro id = " << macroName.getIdentifierInfo()->getName().str() << "\n";
+		// cxx::log() << "macro id = " << macroName.getIdentifierInfo()->getName().str() << "\n";
 		Use(loc, info->getDefinitionLoc(), macroName.c_str());
 	}
 
@@ -1736,7 +1736,7 @@ namespace cxxcleantool
 		StringRef Buffer = SM.getBufferData(LocInfo.first, &Invalid);
 		if (Invalid)
 		{
-			llvm::outs() << "LexSkipComment Invalid = true";
+			cxx::log() << "LexSkipComment Invalid = true";
 			return true;
 		}
 
@@ -3133,7 +3133,7 @@ namespace cxxcleantool
 
 		SourceRange range(begLoc, endLoc);
 
-		// llvm::outs() << "\n------->replace text = [" << get_source_of_range(range) << "] in [" << get_absolute_file_name(file) << "]\n";
+		// cxx::log() << "\n------->replace text = [" << get_source_of_range(range) << "] in [" << get_absolute_file_name(file) << "]\n";
 
 		m_rewriter->ReplaceText(begLoc, end - beg, text);
 	}
@@ -3168,7 +3168,7 @@ namespace cxxcleantool
 		rewriteOption.IncludeInsertsAtEndOfRange	= false;
 		rewriteOption.RemoveLineIfEmpty				= false;
 
-		// llvm::outs() << "\n------->remove text = [" << get_source_of_range(range) << "] in [" << get_absolute_file_name(file) << "]\n";
+		// cxx::log() << "\n------->remove text = [" << get_source_of_range(range) << "] in [" << get_absolute_file_name(file) << "]\n";
 
 		bool err = m_rewriter->RemoveText(range.getBegin(), end - beg, rewriteOption);
 		if (err)
@@ -3570,7 +3570,7 @@ namespace cxxcleantool
 					oldFile.m_replaces[line] = newReplaceLine;
 				}
 
-				// llvm::outs() << oldFile.m_filename << ": conflict at line " << line << " -> " << oldLineItr->second.m_text << "\n";
+				// cxx::log() << oldFile.m_filename << ": conflict at line " << line << " -> " << oldLineItr->second.m_text << "\n";
 				oldLines.erase(oldLineItr++);
 			}
 		}
@@ -3646,7 +3646,7 @@ namespace cxxcleantool
 				// 说明该文件未新生成任何替换记录，此时应将该文件内所有旧替换记录全部删除
 				if (newFileID.isInvalid())
 				{
-					// llvm::outs() << "error, merge_replace_line_to not found = " << oldFile.m_filename << "\n";
+					// cxx::log() << "error, merge_replace_line_to not found = " << oldFile.m_filename << "\n";
 					// oldFile.m_replaces.clear();
 					++oldLineItr;
 					continue;
@@ -3691,7 +3691,7 @@ namespace cxxcleantool
 				// 否则，若没有直系关系，则该行无法被替换，删除该行原有的替换记录
 				else
 				{
-					// llvm::outs() << "merge_replace_line_to: " << oldFile.m_filename << " should remove conflict old line = " << line << " -> " << oldLine.m_oldText << "\n";
+					// cxx::log() << "merge_replace_line_to: " << oldFile.m_filename << " should remove conflict old line = " << line << " -> " << oldLine.m_oldText << "\n";
 					oldFile.m_replaces.erase(oldLineItr++);
 				}
 			}
@@ -3855,14 +3855,14 @@ namespace cxxcleantool
 			PresumedLoc presumedLoc = m_srcMgr->getPresumedLoc(loc);
 			if (presumedLoc.isInvalid())
 			{
-				llvm::outs() << "------->error: take_unused_line_by_file getPresumedLoc failed\n";
+				cxx::log() << "------->error: take_unused_line_by_file getPresumedLoc failed\n";
 				continue;
 			}
 
 			string fileName			= pathtool::get_absolute_path(presumedLoc.getFilename());
 			if (!Project::instance.CanClean(fileName))
 			{
-				// llvm::outs() << "------->error: !Vsproject::instance.has_file(fileName) : " << fileName << "\n";
+				// cxx::log() << "------->error: !Vsproject::instance.has_file(fileName) : " << fileName << "\n";
 				continue;
 			}
 
@@ -3919,7 +3919,7 @@ namespace cxxcleantool
 				PresumedLoc insertPresumedLoc = m_srcMgr->getPresumedLoc(insertLoc);
 				if (insertPresumedLoc.isInvalid())
 				{
-					llvm::outs() << "------->error: take_new_forwarddecl_by_file getPresumedLoc failed\n";
+					cxx::log() << "------->error: take_new_forwarddecl_by_file getPresumedLoc failed\n";
 					continue;
 				}
 
@@ -3945,7 +3945,7 @@ namespace cxxcleantool
 						SourceLocation fileStart = m_srcMgr->getLocForStartOfFile(GetFileID(insertLoc));
 						if (fileStart.getLocWithOffset(forwardLine.m_offsetAtFile) != insertLoc)
 						{
-							llvm::outs() << "error: fileStart.getLocWithOffset(forwardLine.m_offsetAtFile) != insertLoc \n";
+							cxx::log() << "error: fileStart.getLocWithOffset(forwardLine.m_offsetAtFile) != insertLoc \n";
 						}
 					}
 				}

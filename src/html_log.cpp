@@ -297,18 +297,18 @@ namespace cxxcleantool
 
 	void HtmlLog::BeginLog()
 	{
-		llvm::outs() << GetHtmlStart(m_htmlTitle.c_str());
+		cxx::log() << GetHtmlStart(m_htmlTitle.c_str());
 
-		llvm::outs() << timetool::nowText() << "\n";
-		llvm::outs() << "<span style=\"float:right\">" << m_bigTitle << "</span>" << "\n";
-		llvm::outs() << "<hr/>\n";
+		cxx::log() << timetool::get_now() << "\n";
+		cxx::log() << "<span style=\"float:right\">" << m_bigTitle << "</span>" << "\n";
+		cxx::log() << "<hr/>\n";
 
 		AddBigTitle(m_bigTitle);
 	}
 
 	void HtmlLog::EndLog()
 	{
-		llvm::outs() << g_endHtml;
+		cxx::log() << g_endHtml;
 	}
 
 	void HtmlLog::AddDiv(const HtmlDiv &div)
@@ -365,12 +365,12 @@ namespace cxxcleantool
 		strtool::replace(divHtml, "#{div_titles}",	divTitlesHtml.c_str());
 		strtool::replace(divHtml, "#{div_rows}",	divRowsHtml.c_str());
 
-		llvm::outs() << divHtml;
+		cxx::log() << divHtml;
 	}
 
 	// 添加大标题
 	void HtmlLog::AddBigTitle(const std::string &title)
 	{
-		llvm::outs() << "<h1>" << title << "</h1>";
+		cxx::log() << "<h1>" << title << "</h1>";
 	}
 }

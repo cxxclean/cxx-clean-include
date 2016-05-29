@@ -176,7 +176,7 @@ namespace cxxcleantool
 	class CxxCleanAction : public ASTFrontendAction
 	{
 	public:
-		CxxCleanAction() 
+		CxxCleanAction()
 			: m_root(nullptr)
 		{
 		}

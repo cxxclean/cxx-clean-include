@@ -10,15 +10,21 @@
 
 #include <sys/stat.h>
 #include <io.h>
+#include <fstream>
 #include <stdarg.h>
 #include <llvm/Support/FileSystem.h>
 #include <llvm/Support/Path.h>
+#include <llvm/Support/raw_ostream.h>
+
+#include "html_log.h"
 
 #ifdef WIN32
 	#include <direct.h>
 #else
 	#include <unistd.h>
 #endif
+
+using namespace cxxcleantool;
 
 namespace strtool
 {
@@ -127,6 +133,19 @@ namespace strtool
 		}
 
 		return path.c_str() + (i + 1);
+	}
+
+	// 从左数起直到指定分隔符的字符串
+	// 例如：r_trip_at("123_456", '_') = 123
+	string trip_at(const string &str, char delimiter)
+	{
+		string::size_type pos = str.find(delimiter);
+		if(pos == string::npos)
+		{
+			return "";
+		}
+
+		return string(str.begin(), str.begin() + pos);
 	}
 
 	// 从右数起直到指定分隔符的字符串
@@ -580,19 +599,66 @@ namespace htmltool
 
 namespace timetool
 {
-	std::string  nowText()
+	std::string get_now(const char* format /* = "%04d/%02d/%02d-%02d:%02d:%02d" */)
 	{
+		if (NULL == format)
+		{
+			return "";
+		}
+
 		time_t now;
 		time(&now);// time函数读取现在的时间(国际标准时间非北京时间)，然后传值给now
 
 		tm *localnow = localtime(&now); // 转为本时区时间
 
 		char buf[128] = { 0 };
-		sprintf_s(buf, sizeof buf, "%04d/%02d/%02d-%02d:%02d:%02d",
+		sprintf_s(buf, sizeof buf, format,
 		          1900 + localnow->tm_year, 1 + localnow->tm_mon, localnow->tm_mday,
 		          localnow->tm_hour, localnow->tm_min, localnow->tm_sec
 		         );
 
 		return buf;
+	}
+}
+
+namespace cxx
+{
+	static std::string s_log_path;
+
+	void init_log(std::string log_path)
+	{
+		if (s_log_path.empty())
+		{
+			log_path = strtool::replace(log_path, "[", "");
+			log_path = strtool::replace(log_path, "]", "");
+			log_path = strtool::replace(log_path, " ", "");
+			log_path = strtool::replace(log_path, ".", "-");
+			log_path = strtool::replace(log_path, "/", "-");
+			log_path = strtool::replace(log_path, "\\", "-");
+			log_path = strtool::replace(log_path, ":", "-");
+
+			s_log_path = strtool::get_text(cn_log, log_path.c_str(), timetool::get_now(cn_time).c_str());
+		}
+	}
+
+	llvm::raw_ostream& log()
+	{
+		static llvm::raw_fd_ostream *o = nullptr;
+		if (nullptr == o)
+		{
+			FILE *file = fopen(s_log_path.c_str(), "w"); // 文件打开方式：如果原来有内容也会销毁
+			if (file)
+			{
+				static llvm::raw_fd_ostream fd_os(file->_file, true);
+				o = &fd_os;
+			}
+			else
+			{
+				static llvm::raw_fd_ostream err_os(0, true);
+				o = &err_os;
+			}
+		}
+
+		return *o;
 	}
 }

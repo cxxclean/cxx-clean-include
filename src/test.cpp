@@ -9,6 +9,7 @@
 #include "clang/Rewrite/Core/RewriteBuffer.h"
 
 #include <llvm/Support/raw_ostream.h>
+#include "tool.h"
 
 using namespace llvm;
 using namespace clang;
@@ -48,8 +49,8 @@ namespace test
 		Buf.write(OS);
 		OS.flush();
 
-		llvm::outs() << "Output = " << Output << "\n";
-		llvm::outs() << "Result = " << Result << "\n";
+		cxx::log() << "Output = " << Output << "\n";
+		cxx::log() << "Result = " << Result << "\n";
 	}
 
 	void test2()
@@ -106,8 +107,8 @@ namespace test
 			OS.flush();
 		}
 
-		llvm::outs() << "old =\n" << oldText << "\n";
-		llvm::outs() << "new =\n" << newText << "\n";
+		cxx::log() << "old =\n" << oldText << "\n";
+		cxx::log() << "new =\n" << newText << "\n";
 	}
 	
 	void test()
