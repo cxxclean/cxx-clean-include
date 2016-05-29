@@ -277,6 +277,7 @@ namespace pathtool
 				ret[i] = '/';
 		}
 
+		strtool::replace(ret, "//", "/");
 		return ret;
 	}
 
