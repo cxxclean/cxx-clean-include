@@ -57,22 +57,29 @@ namespace cxxcleantool
 {
 	Vsproject Vsproject::instance;
 
+	// 简单修正一些需要额外计算的搜索路径
 	void VsConfiguration::Fix()
 	{
 		// 删除类似以下格式的选项：$(NOINHERIT)(vs2005格式)、%(AdditionalIncludeDirectories)(vs2008及以上版本格式)
+		if (!searchDirs.empty())
 		{
-			if (!searchDirs.empty())
+			for (int i = 0, n = searchDirs.size(); i < n; ++i)
 			{
-				const std::string &last_dir = searchDirs.back();
+				std::string &dir = searchDirs[i];
 
-				bool clean_last_option =
-				    (last_dir.find_first_of('%') != string::npos) ||
-				    (last_dir.find_first_of('$') != string::npos);
+				// 替换$(ProjectDir)为空，$(ProjectDir)是本项目文件的路径
+				strtool::replace(dir, "$(ProjectDir)", "");
+			}
 
-				if (clean_last_option)
-				{
-					searchDirs.erase(searchDirs.end() - 1);
-				}
+			const std::string &last_dir = searchDirs.back();
+
+			bool clean_last_option =
+			    (last_dir.find_first_of('%') != string::npos) ||
+			    (last_dir.find_first_of('$') != string::npos);
+
+			if (clean_last_option)
+			{
+				searchDirs.erase(searchDirs.end() - 1);
 			}
 		}
 

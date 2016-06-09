@@ -1962,6 +1962,11 @@ namespace cxxcleantool
 	// 新增使用函数声明记录
 	void ParsingFile::UseFuncDecl(SourceLocation loc, const FunctionDecl *f)
 	{
+		if (nullptr == f)
+		{
+			return;
+		}
+
 		// 嵌套名称修饰
 		if (f->getQualifier())
 		{
@@ -3104,17 +3109,23 @@ namespace cxxcleantool
 	{
 		if (Project::instance.m_isDeepClean)
 		{
+			// 清理所有c++文件
 			CleanAllFile();
 		}
 		else
 		{
+			// 仅清理当前cpp文件
 			CleanMainFile();
 		}
 
 		// 仅当开启覆盖选项时，才将变动回写到c++文件
 		if (Project::instance.m_isOverWrite)
 		{
-			m_rewriter->overwriteChangedFiles();
+			bool err = m_rewriter->overwriteChangedFiles();
+			if (err)
+			{
+				llvm::errs() << "[Error]overwrite some changed files failed!\n";
+			}			
 		}
 	}
 

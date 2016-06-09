@@ -278,7 +278,7 @@ namespace cxxcleantool
 			CXXTypeidExpr *expr = cast<CXXTypeidExpr>(s);
 			m_root->UseQualType(loc, expr->getType());
 		}
-		// 构造符
+		// 类构造语句
 		else if (isa<CXXConstructExpr>(s))
 		{
 			CXXConstructExpr *cxxConstructExpr = cast<CXXConstructExpr>(s);
@@ -291,6 +291,17 @@ namespace cxxcleantool
 			}
 
 			m_root->UseValueDecl(loc, decl);
+		}
+		// new语句
+		else if (isa<CXXNewExpr>(s))
+		{
+			CXXNewExpr *cxxNewExpr = cast<CXXNewExpr>(s);
+
+			FunctionDecl *operatorNew		= cxxNewExpr->getOperatorNew();
+			FunctionDecl *operatorDelete	= cxxNewExpr->getOperatorDelete();
+
+			m_root->UseFuncDecl(loc, operatorNew);
+			m_root->UseFuncDecl(loc, operatorDelete);
 		}
 		/*
 		// 注意：下面这一大段很重要，用于以后日志跟踪
@@ -633,12 +644,15 @@ namespace cxxcleantool
 	// 这个函数对于每个源文件仅被调用一次，比如，若有一个hello.cpp中#include了许多头文件，也只会调用一次本函数
 	void CxxCleanASTConsumer::HandleTranslationUnit(ASTContext& context)
 	{
-		/*
-		cxx::log() << "<pre>------------ HandleTranslationUnit ------------:</pre>\n";
-		cxx::log() << "<pre>";
-		context.getTranslationUnitDecl()->dump(cxx::log());
-		cxx::log() << "</pre>";
-		*/
+		// 用于调试：打印语法树
+		if (Project::instance.m_verboseLvl >= VerboseLvl_6)
+		{
+			cxx::log() << "<pre>------------ HandleTranslationUnit ------------:</pre>\n";
+			cxx::log() << "<pre>";
+			context.getTranslationUnitDecl()->dump(cxx::log());
+			cxx::log() << "</pre>";
+			cxx::log() << "<pre>------------ HandleTranslationUnit-End ------------:</pre>\n";
+		}
 
 		if (!ProjectHistory::instance.m_isFirst)
 		{
@@ -982,7 +996,7 @@ namespace cxxcleantool
 	}
 
 	// 根据vs工程文件里调整clang的参数
-	bool CxxCleanOptionsParser::AddCleanVsArgument(const Vsproject &vs, ClangTool &tool)
+	bool CxxCleanOptionsParser::AddCleanVsArgument(const Vsproject &vs, ClangTool &tool) const
 	{
 		if (vs.m_configs.empty())
 		{
@@ -1026,7 +1040,7 @@ namespace cxxcleantool
 	}
 
 	// 获取visual studio的安装路径
-	std::string CxxCleanOptionsParser::GetVsInstallDir()
+	std::string CxxCleanOptionsParser::GetVsInstallDir() const
 	{
 		std::string vsInstallDir;
 
@@ -1072,7 +1086,7 @@ namespace cxxcleantool
 	}
 
 	// 添加visual studio的额外的包含路径，因为clang库遗漏了一个包含路径会导致#include <atlcomcli.h>时找不到头文件
-	void CxxCleanOptionsParser::AddVsSearchDir(ClangTool &tool)
+	void CxxCleanOptionsParser::AddVsSearchDir(ClangTool &tool) const
 	{
 		if (Vsproject::instance.m_configs.empty())
 		{
@@ -1236,6 +1250,7 @@ namespace cxxcleantool
 
 		if (g_verbose < 0 || g_verbose > VerboseLvl_Max)
 		{
+			llvm::errs() << "unsupport verbose level: " << g_verbose << ", must be 1 ~ " << VerboseLvl_Max - 1 << "!\n";
 			return false;
 		}
 

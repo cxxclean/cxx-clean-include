@@ -30,6 +30,7 @@ namespace cxxcleantool
 		std::vector<std::string>	searchDirs;		// 搜索路径列表
 		std::vector<std::string>	extraOptions;	// 额外选项
 
+		// 简单修正一些需要额外计算的搜索路径
 		void Fix();
 
 		void Print() const;

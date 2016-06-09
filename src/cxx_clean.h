@@ -222,13 +222,13 @@ namespace cxxcleantool
 		static FixedCompilationDatabase *CxxCleanOptionsParser::SplitCommandLine(int &argc, const char *const *argv, Twine directory = ".");
 
 		// 根据vs工程文件里调整clang的参数
-		bool AddCleanVsArgument(const Vsproject &vs, ClangTool &tool);
+		bool AddCleanVsArgument(const Vsproject &vs, ClangTool &tool) const;
 
 		// 获取visual studio的安装路径
-		std::string GetVsInstallDir();
+		std::string GetVsInstallDir() const;
 
 		// 添加visual studio的额外的包含路径，因为clang库遗漏了一个包含路径会导致#include <atlcomcli.h>时找不到头文件
-		void AddVsSearchDir(ClangTool &tool);
+		void AddVsSearchDir(ClangTool &tool) const;
 
 		// 解析-src选项
 		bool ParseSrcOption();
@@ -239,7 +239,7 @@ namespace cxxcleantool
 		// 解析-v选项
 		bool ParseVerboseOption();
 
-		CompilationDatabase &getCompilations() {return *m_compilation;}
+		CompilationDatabase &getCompilations() const {return *m_compilation;}
 
 		std::vector<std::string>& getSourcePathList() {return m_sourceList;}
 
