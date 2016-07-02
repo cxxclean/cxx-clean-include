@@ -212,6 +212,10 @@ namespace cxxcleantool
 		// 开始清理文件（将改动c++源文件）
 		void Clean();
 
+		// 将清理结果回写到c++源文件，返回：true回写文件时发生错误 false回写成功
+		// （本接口拷贝自Rewriter::overwriteChangedFiles，唯一的不同是回写成功时会删除文件缓存）
+		bool Overwrite();
+
 		// 打印索引 + 1
 		std::string AddPrintIdx() const;
 

@@ -302,6 +302,22 @@ namespace cxxcleantool
 
 			m_root->UseFuncDecl(loc, operatorNew);
 			m_root->UseFuncDecl(loc, operatorDelete);
+
+			const CXXConstructExpr *constructExpr = cxxNewExpr->getConstructExpr();
+			if (constructExpr)
+			{
+				m_root->UseNameDecl(loc, constructExpr->getFoundDecl());
+			}
+		}
+		// delete语句
+		else if (isa<CXXDeleteExpr>(s))
+		{
+			CXXDeleteExpr *cxxDeleteExpr = cast<CXXDeleteExpr>(s);			
+
+			FunctionDecl *operatorDelete	= cxxDeleteExpr->getOperatorDelete();
+			m_root->UseFuncDecl(loc, operatorDelete);
+
+			m_root->UseQualType(loc, cxxDeleteExpr->getDestroyedType());
 		}
 		/*
 		// 注意：下面这一大段很重要，用于以后日志跟踪

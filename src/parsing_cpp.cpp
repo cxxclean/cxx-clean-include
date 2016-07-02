@@ -3118,15 +3118,97 @@ namespace cxxcleantool
 			CleanMainFile();
 		}
 
-		// 仅当开启覆盖选项时，才将变动回写到c++文件
+		// 覆盖c++源文件
 		if (Project::instance.m_isOverWrite)
 		{
-			bool err = m_rewriter->overwriteChangedFiles();
+			// 仅当开启覆盖选项时，才将变动回写到c++文件
+			bool err = Overwrite();
 			if (err)
 			{
 				llvm::errs() << "[Error]overwrite some changed files failed!\n";
-			}			
+			}
 		}
+	}
+
+	// 将清理结果回写到c++源文件，返回：true回写文件时发生错误 false回写成功
+	// （本接口拷贝自Rewriter::overwriteChangedFiles，唯一的不同是回写成功时会删除文件缓存）
+	bool ParsingFile::Overwrite()
+	{
+		// 下面这个类是从clang\lib\Rewrite\Rewriter.cpp文件拷贝过来的
+		// A wrapper for a file stream that atomically overwrites the target.
+		//
+		// Creates a file output stream for a temporary file in the constructor,
+		// which is later accessible via getStream() if ok() return true.
+		// Flushes the stream and moves the temporary file to the target location
+		// in the destructor.
+		class AtomicallyMovedFile
+		{
+		public:
+			AtomicallyMovedFile(DiagnosticsEngine &Diagnostics, StringRef Filename,
+			                    bool &AllWritten)
+				: Diagnostics(Diagnostics), Filename(Filename), AllWritten(AllWritten)
+			{
+				TempFilename = Filename;
+				TempFilename += "-%%%%%%%%";
+				int FD;
+				if (llvm::sys::fs::createUniqueFile(TempFilename, FD, TempFilename))
+				{
+					AllWritten = false;
+					Diagnostics.Report(clang::diag::err_unable_to_make_temp)
+					        << TempFilename;
+				}
+				else
+				{
+					FileStream.reset(new llvm::raw_fd_ostream(FD, /*shouldClose=*/true));
+				}
+			}
+
+			~AtomicallyMovedFile()
+			{
+				if (!ok()) return;
+
+				// Close (will also flush) theFileStream.
+				FileStream->close();
+				if (std::error_code ec = llvm::sys::fs::rename(TempFilename, Filename))
+				{
+					AllWritten = false;
+					Diagnostics.Report(clang::diag::err_unable_to_rename_temp)
+					        << TempFilename << Filename << ec.message();
+					// If the remove fails, there's not a lot we can do - this is already an
+					// error.
+					llvm::sys::fs::remove(TempFilename);
+				}
+			}
+
+			bool ok() { return (bool)FileStream; }
+			raw_ostream &getStream() { return *FileStream; }
+
+		private:
+			DiagnosticsEngine &Diagnostics;
+			StringRef Filename;
+			SmallString<128> TempFilename;
+			std::unique_ptr<llvm::raw_fd_ostream> FileStream;
+			bool &AllWritten;
+		};
+
+		SourceManager &srcMgr	= m_rewriter->getSourceMgr();
+		FileManager &fileMgr	= srcMgr.getFileManager();
+
+		bool AllWritten = true;
+		for (Rewriter::buffer_iterator I = m_rewriter->buffer_begin(), E = m_rewriter->buffer_end(); I != E; ++I)
+		{
+			const FileEntry *Entry				= srcMgr.getFileEntryForID(I->first);
+			const RewriteBuffer &rewriteBuffer	= I->second;
+
+			AtomicallyMovedFile File(srcMgr.getDiagnostics(), Entry->getName(), AllWritten);
+			if (File.ok())
+			{
+				rewriteBuffer.write(File.getStream());
+				fileMgr.invalidateCache(Entry);
+			}
+		}
+
+		return !AllWritten;
 	}
 
 	// 替换指定范围文本
