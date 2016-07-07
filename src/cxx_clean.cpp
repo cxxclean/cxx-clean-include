@@ -925,8 +925,8 @@ namespace cxxcleantool
 
 	void PrintVersion()
 	{
-		cxx::log() << "cxx-clean-include version is 1.0\n";
-		cxx::log() << clang::getClangToolFullVersion("clang lib version is") << '\n';
+		llvm::outs() << "cxx-clean-include version is 1.0\n";
+		llvm::outs() << clang::getClangToolFullVersion("clang lib version is") << '\n';
 	}
 
 	// 解析选项并将解析结果存入相应的对象，若应中途退出则返回true，否则返回false
