@@ -545,8 +545,6 @@ namespace cxxcleantool
 			}
 		}
 
-		bool found = false;
-
 		FileID ancestor = highest_child;
 		while (!IsCommonAncestor(children, ancestor))
 		{
@@ -1834,8 +1832,6 @@ namespace cxxcleantool
 		{
 			return;
 		}
-
-		string cxxRecordName = GetRecordName(*cxxRecordDecl);
 
 		// 添加文件所使用的前置声明记录（对于不必要添加的前置声明将在之后进行清理）
 		m_forwardDecls[file].insert(cxxRecordDecl);
@@ -3204,8 +3200,9 @@ namespace cxxcleantool
 			if (File.ok())
 			{
 				rewriteBuffer.write(File.getStream());
-				fileMgr.invalidateCache(Entry);
 			}
+
+			fileMgr.invalidateCache(Entry);
 		}
 
 		return !AllWritten;
@@ -3292,7 +3289,6 @@ namespace cxxcleantool
 
 		for (auto unusedLineItr : history.m_unusedLines)
 		{
-			int line				= unusedLineItr.first;
 			UselessLine &unusedLine	= unusedLineItr.second;
 
 			RemoveText(file, unusedLine.m_beg, unusedLine.m_end);
@@ -3318,7 +3314,6 @@ namespace cxxcleantool
 
 		for (auto forwardItr : history.m_forwards)
 		{
-			int line						= forwardItr.first;
 			const ForwardLine &forwardLine	= forwardItr.second;
 
 			std::stringstream text;
@@ -3343,7 +3338,6 @@ namespace cxxcleantool
 
 		for (auto replaceItr : history.m_replaces)
 		{
-			int line						= replaceItr.first;
 			const ReplaceLine &replaceLine	= replaceItr.second;
 
 			// 若是被-include参数强制引入，则跳过，因为替换并没有效果

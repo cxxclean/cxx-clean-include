@@ -43,7 +43,7 @@ namespace cxxcleantool
 	class CxxCleanPreprocessor : public PPCallbacks
 	{
 	public:
-		CxxCleanPreprocessor(ParsingFile *mainFile);
+		explicit CxxCleanPreprocessor(ParsingFile *mainFile);
 
 	public:
 		// 文件切换
@@ -90,7 +90,7 @@ namespace cxxcleantool
 	class CxxCleanASTVisitor : public RecursiveASTVisitor<CxxCleanASTVisitor>
 	{
 	public:
-		CxxCleanASTVisitor(ParsingFile *rootFile);
+		explicit CxxCleanASTVisitor(ParsingFile *rootFile);
 
 		// 用于调试：打印语句的信息
 		void PrintStmt(Stmt *s);
@@ -134,7 +134,7 @@ namespace cxxcleantool
 	class CxxCleanASTConsumer : public ASTConsumer
 	{
 	public:
-		CxxCleanASTConsumer(ParsingFile *rootFile);
+		explicit CxxCleanASTConsumer(ParsingFile *rootFile);
 
 		// 覆盖：遍历最顶层声明的方法
 		bool HandleTopLevelDecl(DeclGroupRef declgroup) override;
@@ -154,7 +154,7 @@ namespace cxxcleantool
 	class CxxcleanDiagnosticConsumer : public TextDiagnosticPrinter
 	{
 	public:
-		CxxcleanDiagnosticConsumer(DiagnosticOptions *diags);
+		explicit CxxcleanDiagnosticConsumer(DiagnosticOptions *diags);
 
 		void Clear();
 

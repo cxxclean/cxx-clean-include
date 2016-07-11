@@ -95,6 +95,7 @@ namespace cxxcleantool
 	{
 		HtmlDiv()
 			: hasErrorTip(false)
+			, errorTipCount(0)
 		{
 		}
 

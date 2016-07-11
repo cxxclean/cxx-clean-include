@@ -56,7 +56,7 @@ namespace strtool
 	}
 
 	// 将字符串根据分隔符分割为字符串数组
-	void split(const std::string src, std::vector<std::string> &strvec, char cut /* = ';' */)
+	void split(const std::string &src, std::vector<std::string> &strvec, char cut /* = ';' */)
 	{
 		std::string::size_type pos1 = 0, pos2 = 0;
 		while (pos2 != std::string::npos)

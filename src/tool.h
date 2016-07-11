@@ -41,7 +41,7 @@ namespace strtool
 	string& replace(string &str, const char *old, const char* to);
 
 	// 将字符串根据分隔符分割为字符串数组
-	void split(const std::string src, std::vector<std::string> &strvec, char cut = ';');
+	void split(const std::string &src, std::vector<std::string> &strvec, char cut = ';');
 
 	// 返回文件夹路径，返回结果末尾含/或\
 	// 例如：get_dir(../../xxxx.txt) = ../../
