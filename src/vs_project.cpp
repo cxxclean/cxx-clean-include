@@ -69,6 +69,9 @@ namespace cxxcleantool
 
 				// 替换$(ProjectDir)为空，$(ProjectDir)是本项目文件的路径
 				strtool::replace(dir, "$(ProjectDir)", "");
+
+				// 替换$(SolutionDir)为空，$(SolutionDir)是解决方案的路径
+				strtool::replace(dir, "$(SolutionDir)", "");				
 			}
 
 			const std::string &last_dir = searchDirs.back();

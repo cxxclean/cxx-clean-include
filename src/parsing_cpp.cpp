@@ -1195,6 +1195,11 @@ namespace cxxcleantool
 			return;
 		}
 
+		if (GetAbsoluteFileName(file) == GetAbsoluteFileName(beusedFile))
+		{
+			return;
+		}
+
 		m_uses[file].insert(beusedFile);
 		UseName(file, beusedFile, name, line);
 	}
@@ -3200,9 +3205,10 @@ namespace cxxcleantool
 			if (File.ok())
 			{
 				rewriteBuffer.write(File.getStream());
+				fileMgr.modifyFileEntry(const_cast<FileEntry*>(Entry), rewriteBuffer.size(), Entry->getModificationTime());
 			}
 
-			fileMgr.invalidateCache(Entry);
+			//fileMgr.invalidateCache(Entry);
 		}
 
 		return !AllWritten;

@@ -196,7 +196,7 @@ namespace cxxcleantool
 			CastExpr *castExpr = cast<CastExpr>(s);
 
 			QualType castType = castExpr->getType();
-			m_root->UseQualType(loc, castType);
+			m_root->UseVarType(loc, castType);
 
 			/*
 			if (m_root->GetSrcMgr().isInMainFile(loc))
