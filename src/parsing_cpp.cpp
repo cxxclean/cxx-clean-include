@@ -1943,7 +1943,7 @@ namespace cxxcleantool
 		name << valueDecl->getQualifiedNameAsString() << "[" << valueDecl->getDeclKindName() << "]";
 
 		Use(loc, valueDecl->getLocEnd(), name.str().c_str());
-		UseVarType(loc, valueDecl->getType());
+		UseQualType(loc, valueDecl->getType());
 	}
 
 	// 引用带有名称的声明

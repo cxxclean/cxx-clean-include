@@ -282,15 +282,9 @@ namespace cxxcleantool
 		else if (isa<CXXConstructExpr>(s))
 		{
 			CXXConstructExpr *cxxConstructExpr = cast<CXXConstructExpr>(s);
-			CXXConstructorDecl *decl = cxxConstructExpr->getConstructor();
-			if (nullptr == decl)
-			{
-				// llvm::errs() << "------------ CXXConstructExpr->getConstructor() = null ------------:\n";
-				// s->dumpColor();
-				return false;
-			}
 
-			m_root->UseValueDecl(loc, decl);
+			m_root->UseNameDecl(loc, cxxConstructExpr->getFoundDecl());
+			m_root->UseValueDecl(loc, cxxConstructExpr->getConstructor());
 		}
 		// new”Ôæ‰
 		else if (isa<CXXNewExpr>(s))
@@ -302,21 +296,14 @@ namespace cxxcleantool
 
 			m_root->UseFuncDecl(loc, operatorNew);
 			m_root->UseFuncDecl(loc, operatorDelete);
-
-			const CXXConstructExpr *constructExpr = cxxNewExpr->getConstructExpr();
-			if (constructExpr)
-			{
-				m_root->UseNameDecl(loc, constructExpr->getFoundDecl());
-			}
 		}
 		// delete”Ôæ‰
 		else if (isa<CXXDeleteExpr>(s))
 		{
-			CXXDeleteExpr *cxxDeleteExpr = cast<CXXDeleteExpr>(s);			
-
+			CXXDeleteExpr *cxxDeleteExpr	= cast<CXXDeleteExpr>(s);			
 			FunctionDecl *operatorDelete	= cxxDeleteExpr->getOperatorDelete();
-			m_root->UseFuncDecl(loc, operatorDelete);
 
+			m_root->UseFuncDecl(loc, operatorDelete);
 			m_root->UseQualType(loc, cxxDeleteExpr->getDestroyedType());
 		}
 		/*
