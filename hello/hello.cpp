@@ -65,6 +65,7 @@ void A_Func_Test()
 	n = A_TopFunc(100);
 	n = A_TemplateFunc(100, 200);
 	n = A::A_StaticClassMemberFunc();
+	n = unsigned int(0); // 这里会有编译错误，疑似clang的bug，clang仅支持int(0)，却不支持unsigned int(0)，这里要对clang\lib\Parse\ParseExprCXX.cpp中的Parser::ParseCXXSimpleTypeSpecifier方法作修改使其while循环解析才不会有编译错误
 
 	auto func = A::A_FuncPointer;
 
