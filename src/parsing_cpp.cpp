@@ -1946,7 +1946,6 @@ namespace cxxcleantool
 			}
 
 			UseFuncDecl(loc, f);
-			return;
 		}
 
 		std::stringstream name;

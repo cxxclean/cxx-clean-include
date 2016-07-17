@@ -282,8 +282,6 @@ namespace cxxcleantool
 		else if (isa<CXXConstructExpr>(s))
 		{
 			CXXConstructExpr *cxxConstructExpr = cast<CXXConstructExpr>(s);
-
-			m_root->UseNameDecl(loc, cxxConstructExpr->getFoundDecl());
 			m_root->UseValueDecl(loc, cxxConstructExpr->getConstructor());
 		}
 		// new语句
@@ -300,7 +298,7 @@ namespace cxxcleantool
 		// delete语句
 		else if (isa<CXXDeleteExpr>(s))
 		{
-			CXXDeleteExpr *cxxDeleteExpr	= cast<CXXDeleteExpr>(s);			
+			CXXDeleteExpr *cxxDeleteExpr	= cast<CXXDeleteExpr>(s);
 			const FunctionDecl *operatorDelete	= cxxDeleteExpr->getOperatorDelete();
 
 			m_root->UseFuncDecl(loc, operatorDelete);
@@ -310,8 +308,8 @@ namespace cxxcleantool
 		else if (isa<UnaryExprOrTypeTraitExpr>(s))
 		{
 			UnaryExprOrTypeTraitExpr *unaryExprOrTypeTraitExpr = cast<UnaryExprOrTypeTraitExpr>(s);
-			m_root->UseVarType(loc, unaryExprOrTypeTraitExpr->getTypeOfArgument());		
-			
+			m_root->UseVarType(loc, unaryExprOrTypeTraitExpr->getTypeOfArgument());
+
 		}
 		/*
 		// 注意：下面这一大段很重要，用于以后日志跟踪

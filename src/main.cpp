@@ -17,7 +17,7 @@
 
 bool init(cxxcleantool::CxxCleanOptionsParser &optionParser, int argc, const char **argv)
 {
-	llvm::sys::PrintStackTraceOnErrorSignal();
+	llvm::sys::PrintStackTraceOnErrorSignal("");
 
 	llvm::InitializeNativeTarget();								// 初始化当前平台环境
 	llvm::InitializeNativeTargetAsmParser();					// 支持解析asm
