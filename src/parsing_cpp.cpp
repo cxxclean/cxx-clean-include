@@ -1518,8 +1518,7 @@ namespace cxxcleantool
 		else if (isa<TemplateSpecializationType>(t))
 		{
 			const TemplateSpecializationType *templateType = cast<TemplateSpecializationType>(t);
-
-			UseNameDecl(loc, templateType->getTemplateName().getAsTemplateDecl());
+			UseTemplateDecl(loc, templateType->getTemplateName().getAsTemplateDecl());
 
 			for (int i = 0, size = templateType->getNumArgs(); i < size; ++i)
 			{
@@ -1927,6 +1926,17 @@ namespace cxxcleantool
 			return;
 		}
 
+		if (isa<TemplateDecl>(valueDecl))
+		{
+			const TemplateDecl *t = cast<TemplateDecl>(valueDecl);
+			if (nullptr == t)
+			{
+				return;
+			}
+
+			UseTemplateDecl(loc, t);
+		}
+
 		if (isa<FunctionDecl>(valueDecl))
 		{
 			const FunctionDecl *f = cast<FunctionDecl>(valueDecl);
@@ -1974,22 +1984,15 @@ namespace cxxcleantool
 			UseQualifier(loc, f->getQualifier());
 		}
 
-		// 识别返回值类型
-		{
-			// 函数的返回值
-			QualType returnType = f->getReturnType();
-			UseVarType(loc, returnType);
-		}
+		// 函数的返回值
+		QualType returnType = f->getReturnType();
+		UseVarType(loc, returnType);
 
-		// 识别函数参数
+		// 依次遍历参数，建立引用关系
+		for (FunctionDecl::param_const_iterator itr = f->param_begin(), end = f->param_end(); itr != end; ++itr)
 		{
-			// 依次遍历参数，建立引用关系
-			for (FunctionDecl::param_const_iterator itr = f->param_begin(), end = f->param_end(); itr != end; ++itr)
-			{
-				ParmVarDecl *vardecl = *itr;
-				QualType vartype = vardecl->getType();
-				UseVarType(loc, vartype);
-			}
+			ParmVarDecl *vardecl = *itr;
+			UseVarDecl(loc, vardecl);
 		}
 
 		if (f->getTemplateSpecializationArgs())
@@ -2002,6 +2005,14 @@ namespace cxxcleantool
 		name << f->getQualifiedNameAsString() << "[" << f->clang::Decl::getDeclKindName() << "]";
 
 		Use(loc, f->getTypeSpecStartLoc(), name.str().c_str());
+
+		// 若本函数与模板有关
+		FunctionDecl::TemplatedKind templatedKind = f->getTemplatedKind();
+		if (templatedKind != FunctionDecl::TK_NonTemplate)
+		{
+			// [调用模板处] 引用 [模板定义处]
+			Use(f->getLocStart(), f->getLocation(), name.str().c_str());
+		}
 	}
 
 	// 引用模板参数
@@ -2043,6 +2054,25 @@ namespace cxxcleantool
 		{
 			const TemplateArgument &arg = args->get(i);
 			UseTemplateArgument(loc, arg);
+		}
+	}
+
+	// 引用模板定义
+	void ParsingFile::UseTemplateDecl(SourceLocation loc, const TemplateDecl *decl)
+	{
+		if (nullptr == decl)
+		{
+			return;
+		}
+
+		UseNameDecl(loc, decl);
+
+		TemplateParameterList *params = decl->getTemplateParameters();
+
+		for (int i = 0, n = params->size(); i < n; ++i)
+		{
+			NamedDecl *param = params->getParam(i);
+			UseNameDecl(loc, param);
 		}
 	}
 

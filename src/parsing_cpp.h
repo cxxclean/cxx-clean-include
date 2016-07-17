@@ -44,6 +44,7 @@ namespace clang
 	class UsingDecl;
 	class TemplateArgument;
 	class TemplateArgumentList;
+	class TemplateDecl;
 }
 
 namespace cxxcleantool
@@ -165,6 +166,9 @@ namespace cxxcleantool
 
 		// 引用模板参数列表
 		void UseTemplateArgumentList(SourceLocation loc, const TemplateArgumentList *args);
+
+		// 引用模板定义
+		void UseTemplateDecl(SourceLocation loc, const TemplateDecl *decl);
 
 		// 新增使用class、struct、union记录
 		void UseRecord(SourceLocation loc, const RecordDecl *record);

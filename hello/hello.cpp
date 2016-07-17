@@ -75,6 +75,12 @@ void A_Func_Test()
 	Macro_A_Func(100, "abcdefg");
 
 	A_OverloadBug::m_a->func("", A_Derived());
+
+	size_t s = sizeof(A_Func(10, ""));
+
+	A1 a1;
+	A2 a2;
+	convert2(a1, a2);
 }
 
 ///////////////////// 2. 测试b_class.h：某个文件内的类如果被使用到，则对应的#include应该被保留 /////////////////////

@@ -41,7 +41,8 @@ void run(const cxxcleantool::CxxCleanOptionsParser &optionParser)
 	tool.appendArgumentsAdjuster(getInsertArgumentAdjuster("-nobuiltininc",				ArgumentInsertPosition::BEGIN));	// 禁止使用clang内置的头文件
 	tool.appendArgumentsAdjuster(getInsertArgumentAdjuster("-w",						ArgumentInsertPosition::BEGIN));	// 禁用警告
 	tool.appendArgumentsAdjuster(getInsertArgumentAdjuster("-ferror-limit=5",			ArgumentInsertPosition::BEGIN));	// 限制单个cpp产生的编译错误数，超过则不再编译
-
+	tool.appendArgumentsAdjuster(getInsertArgumentAdjuster("-fpermissive",				ArgumentInsertPosition::BEGIN));	// 对不某些不符合标准的行为，允许编译通过，即对标准做降级处理
+	
 	DiagnosticOptions diagnosticOptions;
 	diagnosticOptions.ShowOptionNames = 1;
 	tool.setDiagnosticConsumer(new cxxcleantool::CxxcleanDiagnosticConsumer(&diagnosticOptions)); // 注意：这里用new没关系，会被释放

@@ -291,8 +291,8 @@ namespace cxxcleantool
 		{
 			CXXNewExpr *cxxNewExpr = cast<CXXNewExpr>(s);
 
-			FunctionDecl *operatorNew		= cxxNewExpr->getOperatorNew();
-			FunctionDecl *operatorDelete	= cxxNewExpr->getOperatorDelete();
+			const FunctionDecl *operatorNew		= cxxNewExpr->getOperatorNew();
+			const FunctionDecl *operatorDelete	= cxxNewExpr->getOperatorDelete();
 
 			m_root->UseFuncDecl(loc, operatorNew);
 			m_root->UseFuncDecl(loc, operatorDelete);
@@ -301,10 +301,17 @@ namespace cxxcleantool
 		else if (isa<CXXDeleteExpr>(s))
 		{
 			CXXDeleteExpr *cxxDeleteExpr	= cast<CXXDeleteExpr>(s);			
-			FunctionDecl *operatorDelete	= cxxDeleteExpr->getOperatorDelete();
+			const FunctionDecl *operatorDelete	= cxxDeleteExpr->getOperatorDelete();
 
 			m_root->UseFuncDecl(loc, operatorDelete);
 			m_root->UseQualType(loc, cxxDeleteExpr->getDestroyedType());
+		}
+		// sizeof(A)语句
+		else if (isa<UnaryExprOrTypeTraitExpr>(s))
+		{
+			UnaryExprOrTypeTraitExpr *unaryExprOrTypeTraitExpr = cast<UnaryExprOrTypeTraitExpr>(s);
+			m_root->UseVarType(loc, unaryExprOrTypeTraitExpr->getTypeOfArgument());		
+			
 		}
 		/*
 		// 注意：下面这一大段很重要，用于以后日志跟踪
@@ -402,11 +409,6 @@ namespace cxxcleantool
 		else if (isa<UnresolvedMemberExpr>(s))
 		{
 		}
-		// new关键字
-		else if (isa<CXXNewExpr>(s))
-		{
-			// 注：这里不需要处理，由之后的CXXConstructExpr处理
-		}
 		else
 		{
 			cxx::log() << "<pre>------------ havn't support stmt ------------:</pre>\n";
@@ -420,8 +422,8 @@ namespace cxxcleantool
 	// 访问函数声明
 	bool CxxCleanASTVisitor::VisitFunctionDecl(FunctionDecl *f)
 	{
+		// 处理函数参数、返回值等
 		m_root->UseFuncDecl(f->getLocStart(), f);
-
 
 		/*
 			尝试找到函数的原型声明
@@ -444,9 +446,9 @@ namespace cxxcleantool
 				这里仅关注最早的函数声明
 			*/
 			{
-				FunctionDecl *oldestFunction = nullptr;
+				const FunctionDecl *oldestFunction = nullptr;
 
-				for (FunctionDecl *prevFunc = f->getPreviousDecl(); prevFunc; prevFunc = prevFunc->getPreviousDecl())
+				for (const FunctionDecl *prevFunc = f->getPreviousDecl(); prevFunc; prevFunc = prevFunc->getPreviousDecl())
 				{
 					oldestFunction = prevFunc;
 				}

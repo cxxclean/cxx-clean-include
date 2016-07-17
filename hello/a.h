@@ -52,3 +52,24 @@ int A_TemplateFunc(T x, T y)
 {
 	return x > y ? x : y;
 }
+
+class A1
+{
+public:
+	int aaaaaaa;
+};
+
+class A2
+{
+public:
+	int bbbbbbb;
+};
+
+template<typename T1, typename T2>
+void convert(const T1& t1, T2& t2);
+
+template<typename T1, typename T2>
+void convert2(const T1& t1, T2& t2)
+{
+	convert(t1, t2);
+}
