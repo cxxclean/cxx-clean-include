@@ -13,6 +13,7 @@
 #include "clang/AST/RecursiveASTVisitor.h"
 #include "clang/Lex/Preprocessor.h"
 #include "llvm/Support/CommandLine.h"
+#include "llvm/Support/Path.h"
 #include "clang/Frontend/TextDiagnosticPrinter.h"
 #include "clang/Frontend/FrontendAction.h"
 #include "clang/Frontend/CompilerInstance.h"

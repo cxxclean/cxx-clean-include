@@ -146,7 +146,7 @@ cxx-clean-include提供以下选项：
 
 注意：在使用cxx-clean-include清理c++文件前，最好先传入-print-project参数，确保打印出的允许被清理c++文件列表符合要求。
 
-## 源码对应的clang版本：275699
+## 源码对应的llvm版本：276522，clang版本：276517
 
 ## 感谢
 
