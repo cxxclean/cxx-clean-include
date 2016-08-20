@@ -1,13 +1,12 @@
-///<------------------------------------------------------------------------------
-//< @file:   tool.h
-//< @author: 洪坤安
-//< @date:   2016年2月22日
-//< @brief:  本工具用到的各种基础接口
-//< Copyright (c) 2016. All rights reserved.
-///<------------------------------------------------------------------------------
+//------------------------------------------------------------------------------
+// 文件: tool.h
+// 作者: 洪坤安
+// 说明: 本工具用到的各种基础接口
+// Copyright (c) 2016 game. All rights reserved.
+//------------------------------------------------------------------------------
 
-#ifndef _cxx_clean_tool_h_
-#define _cxx_clean_tool_h_
+#ifndef _tool_h_
+#define _tool_h_
 
 #include <iterator>
 #include <vector>
@@ -34,6 +33,8 @@ namespace strtool
 	}
 
 	std::string itoa(int n);
+	
+	int atoi(const char*);
 
 	// 替换字符串，传入的字符串将被修改
 	// 例如：replace("this is an expmple", "is", "") = "th  an expmple"
@@ -257,4 +258,4 @@ namespace cxx
 	llvm::raw_ostream& log();
 }
 
-#endif // _cxx_clean_tool_h_
+#endif // _tool_h_

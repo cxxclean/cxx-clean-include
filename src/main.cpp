@@ -1,21 +1,21 @@
-///<------------------------------------------------------------------------------
-//< @file:   main.cpp
-//< @author: 洪坤安
-//< @date:   2016年1月16日
-//< @brief:
-//< Copyright (c) 2016 game. All rights reserved.
-///<------------------------------------------------------------------------------
+//------------------------------------------------------------------------------
+// 文件: main.cpp
+// 作者: 洪坤安
+// 说明: 入口文件
+// Copyright (c) 2016 game. All rights reserved.
+//------------------------------------------------------------------------------
 
 #include "cxx_clean.h"
 
-#include "llvm/Support/Signals.h"
-#include "llvm/Support/TargetSelect.h"
+#include <llvm/Support/Signals.h>
+#include <llvm/Support/TargetSelect.h>
 
 #include "project.h"
-#include "vs_project.h"
-#include "project_history.h"
+#include "vs.h"
+#include "history.h"
 
-bool init(cxxcleantool::CxxCleanOptionsParser &optionParser, int argc, const char **argv)
+// 初始化环境配置
+bool Init(cxxclean::CxxCleanOptionsParser &optionParser, int argc, const char **argv)
 {
 	llvm::sys::PrintStackTraceOnErrorSignal("");
 
@@ -23,21 +23,20 @@ bool init(cxxcleantool::CxxCleanOptionsParser &optionParser, int argc, const cha
 	llvm::InitializeNativeTargetAsmParser();					// 支持解析asm
 
 	// 解析命令行参数
-	bool ok = optionParser.ParseOptions(argc, argv, cxxcleantool::g_optionCategory);
+	bool ok = optionParser.ParseOptions(argc, argv);
 	return ok;
 }
 
-void run(const cxxcleantool::CxxCleanOptionsParser &optionParser)
+// 开始分析
+void Run(const cxxclean::CxxCleanOptionsParser &optionParser)
 {
-	ClangTool tool(optionParser.getCompilations(), cxxcleantool::Project::instance.m_cpps);
+	ClangTool tool(optionParser.getCompilations(), cxxclean::Project::instance.m_cpps);
 	tool.clearArgumentsAdjusters();
 	tool.appendArgumentsAdjuster(getClangSyntaxOnlyAdjuster());
 
-	optionParser.AddCleanVsArgument(cxxcleantool::Vsproject::instance, tool);
+	optionParser.AddCleanVsArgument(cxxclean::VsProject::instance, tool);
 
 	tool.appendArgumentsAdjuster(getInsertArgumentAdjuster("-fcxx-exceptions",			ArgumentInsertPosition::BEGIN));
-	tool.appendArgumentsAdjuster(getInsertArgumentAdjuster("-Winvalid-source-encoding", ArgumentInsertPosition::BEGIN));
-	tool.appendArgumentsAdjuster(getInsertArgumentAdjuster("-Wdeprecated-declarations", ArgumentInsertPosition::BEGIN));
 	tool.appendArgumentsAdjuster(getInsertArgumentAdjuster("-nobuiltininc",				ArgumentInsertPosition::BEGIN));	// 禁止使用clang内置的头文件
 	tool.appendArgumentsAdjuster(getInsertArgumentAdjuster("-w",						ArgumentInsertPosition::BEGIN));	// 禁用警告
 	tool.appendArgumentsAdjuster(getInsertArgumentAdjuster("-ferror-limit=5",			ArgumentInsertPosition::BEGIN));	// 限制单个cpp产生的编译错误数，超过则不再编译
@@ -45,37 +44,37 @@ void run(const cxxcleantool::CxxCleanOptionsParser &optionParser)
 	
 	DiagnosticOptions diagnosticOptions;
 	diagnosticOptions.ShowOptionNames = 1;
-	tool.setDiagnosticConsumer(new cxxcleantool::CxxcleanDiagnosticConsumer(&diagnosticOptions)); // 注意：这里用new没关系，会被释放
+	tool.setDiagnosticConsumer(new cxxclean::CxxcleanDiagnosticConsumer(&diagnosticOptions)); // 注意：这里用new没关系，会被释放
 
 	// 对每个文件进行语法分析
-	std::unique_ptr<FrontendActionFactory> factory = newFrontendActionFactory<cxxcleantool::CxxCleanAction>();
+	std::unique_ptr<FrontendActionFactory> factory = newFrontendActionFactory<cxxclean::CxxCleanAction>();
 	tool.run(factory.get());
 }
 
 int main(int argc, const char **argv)
 {
 	// 命令行解析器
-	cxxcleantool::CxxCleanOptionsParser optionParser;
+	cxxclean::CxxCleanOptionsParser optionParser;
 
 	// 初始化
-	if (!init(optionParser, argc, argv))
+	if (!Init(optionParser, argc, argv))
 	{
 		return 0;
 	}
 
-	// 第1遍对每个文件进行分析，然后汇总并打印统计日志
-	run(optionParser);
+	// 1. 分析每个文件，并打印统计日志
+	Run(optionParser);
 
-	// 打印统计日志
-	cxxcleantool::ProjectHistory::instance.Print();
+	cxxclean::ProjectHistory::instance.Fix();
+	cxxclean::ProjectHistory::instance.Print();
 
-	// 第2遍才开始清理，第2遍就不打印html日志了
-	if (cxxcleantool::Project::instance.m_need2Step)
+	// 2. 开始清理
+	if (cxxclean::Project::instance.m_need2Step)
 	{
-		cxxcleantool::ProjectHistory::instance.m_isFirst		= false;
-		cxxcleantool::ProjectHistory::instance.g_printFileNo	= 0;
+		cxxclean::ProjectHistory::instance.m_isFirst		= false;
+		cxxclean::ProjectHistory::instance.g_printFileNo	= 0;
 
-		run(optionParser);
+		Run(optionParser);
 	}
 
 	// 这里故意打印到err输出

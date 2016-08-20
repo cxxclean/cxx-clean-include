@@ -125,6 +125,11 @@ cxx-clean-include提供以下选项：
 						       cxxclean -clean ./hello.vcproj （或 cxxclean -clean ./hello.vcxproj）
 						   该命令将清理hello项目中的所有c++文件
 
+  -mode=<string>  - 用于指定哪些清理类型应开启，默认为[-mode 1+2]，不同清理类型用+号连接，例如：[-mode 1+2+3]
+                        清理类型1. 清除多余的#include
+						清理类型2. 尝试替换#include
+						清理类型3. 尝试将一些#include转移到直接使用该#include的文件中						
+
   -no             - 即no overwrite的首字母缩写, 当传入此参数时，本工具仅执行分析并打印分析结果，所有的c++文件将不会被改动
 
   -onlycpp        - 仅允许清理源文件(cpp、cc、cxx后缀等), 禁止清理头文件(h、hxx、hh后缀等)
@@ -155,3 +160,5 @@ cxx-clean-include提供以下选项：
 卢文茂：指出定义子类class B : public A时未能成功引用父类A，给出建议屏蔽预编译头文件的修改，且不重复打印相同文件的日志
 
 张宇飞：指出本工具无法处理由编译器合成的构造函数调用，例如，若有类class A{}，由于A未拥有显式构造函数，所以new A时会导致无法引用到类A。指出由于未能正确地引用特化后的模板将导致链接失败，以及无法处理sizeof(A)的问题
+
+大fedor：指出当有更深层次的包含关系时替换会有问题，给出建议增加功能参数以单独控制不同的清理类型，更加灵活

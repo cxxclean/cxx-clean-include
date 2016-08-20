@@ -1,7 +1,6 @@
 ///<------------------------------------------------------------------------------
 //< @file:   cxx_clean.h
 //< @author: 洪坤安
-//< @date:   2016年2月24日
 //< @brief:  实现clang库中与抽象语法树有关的各种基础类
 //< Copyright (c) 2016 game. All rights reserved.
 ///<------------------------------------------------------------------------------
@@ -30,16 +29,14 @@ using namespace llvm::sys;
 using namespace llvm::sys::path;
 using namespace llvm::sys::fs;
 
-namespace cxxcleantool
+namespace cxxclean
 {
 	class ParsingFile;
-	class Vsproject;
+	class VsProject;
 }
 
-namespace cxxcleantool
+namespace cxxclean
 {
-	static llvm::cl::OptionCategory g_optionCategory("cxx-clean-include category");
-
 	// 预处理器，当#define、#if、#else等预处理关键字被预处理时使用本预处理器
 	class CxxCleanPreprocessor : public PPCallbacks
 	{
@@ -151,7 +148,7 @@ namespace cxxcleantool
 		CxxCleanASTVisitor	m_visitor;
 	};
 
-	// `TextDiagnosticPrinter`可以将错误信息打印在控制台上，为了调试方便我从它派生而来
+	// `TextDiagnosticPrinter`可以将错误信息打印在控制台上，为了调试方便将其作为基类
 	class CxxcleanDiagnosticConsumer : public TextDiagnosticPrinter
 	{
 	public:
@@ -213,7 +210,7 @@ namespace cxxcleantool
 		CxxCleanOptionsParser() {}
 
 		// 解析选项并将解析结果存入相应的对象，若应中途退出则返回true，否则返回false
-		bool ParseOptions(int &argc, const char **argv, llvm::cl::OptionCategory &category);
+		bool ParseOptions(int &argc, const char **argv);
 
 		// 拆分传入的命令行参数，"--"分隔符前面的命令行参数将被本工具解析，后面的命令行参数将被clang库解析
 		// 注意：argc将被更改为"--"分隔符前的参数个数
@@ -223,7 +220,7 @@ namespace cxxcleantool
 		static FixedCompilationDatabase *CxxCleanOptionsParser::SplitCommandLine(int &argc, const char *const *argv, Twine directory = ".");
 
 		// 根据vs工程文件里调整clang的参数
-		bool AddCleanVsArgument(const Vsproject &vs, ClangTool &tool) const;
+		bool AddCleanVsArgument(const VsProject &vs, ClangTool &tool) const;
 
 		// 获取visual studio的安装路径
 		std::string GetVsInstallDir() const;
@@ -239,6 +236,9 @@ namespace cxxcleantool
 
 		// 解析-v选项
 		bool ParseVerboseOption();
+
+		// 解析-level选项
+		bool ParseCleanLvlOption();
 
 		CompilationDatabase &getCompilations() const {return *m_compilation;}
 

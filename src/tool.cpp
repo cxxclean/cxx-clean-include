@@ -1,10 +1,9 @@
-///<------------------------------------------------------------------------------
-//< @file:   tool.cpp
-//< @author: 洪坤安
-//< @date:   2016年2月22日
-//< @brief:  本工具用到的各种基础接口
-//< Copyright (c) 2016. All rights reserved.
-///<------------------------------------------------------------------------------
+//------------------------------------------------------------------------------
+// 文件: tool.cpp
+// 作者: 洪坤安
+// 说明: 本工具用到的各种基础接口
+// Copyright (c) 2016 game. All rights reserved.
+//------------------------------------------------------------------------------
 
 #include "tool.h"
 
@@ -24,7 +23,7 @@
 	#include <unistd.h>
 #endif
 
-using namespace cxxcleantool;
+using namespace cxxclean;
 
 namespace strtool
 {
@@ -35,6 +34,12 @@ namespace strtool
 
 		::_itoa_s(n, buf, 10);
 		return buf;
+	}
+
+	int atoi(const char* str)
+	{
+		int n = ::atoi(str);
+		return n;
 	}
 
 	// 替换字符串，传入的字符串将被修改
@@ -579,17 +584,17 @@ namespace htmltool
 
 	std::string get_include_html(const std::string &text)
 	{
-		return strtool::get_text(R"--(<span class="include-text">%s</span>)--", htmltool::escape_html(text).c_str());
+		return strtool::get_text(R"--(<span class="src">%s</span>)--", htmltool::escape_html(text).c_str());
 	}
 
 	std::string get_number_html(int num)
 	{
-		return strtool::get_text(R"--(<span class="number-text">%s</span>)--", strtool::itoa(num).c_str());
+		return strtool::get_text(R"--(<span class="num">%s</span>)--", strtool::itoa(num).c_str());
 	}
 
 	std::string get_warn_html(const char *text)
 	{
-		return strtool::get_text(R"--(<span class="number-text">%s</span>)--", text);
+		return strtool::get_text(R"--(<span class="num">%s</span>)--", text);
 	}
 
 	std::string get_pre_html(const char *text)

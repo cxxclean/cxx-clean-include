@@ -1,7 +1,6 @@
 ///<------------------------------------------------------------------------------
 //< @file:   html_log.cpp
 //< @author: 洪坤安
-//< @date:   2016年3月19日
 //< @brief:  html日志类，用来美化打印日志的
 //< Copyright (c) 2016 game. All rights reserved.
 ///<------------------------------------------------------------------------------
@@ -13,16 +12,16 @@
 
 const char* g_beginHtml = R"--(
 <html>
-    <head>
-        <meta http-equiv="Content-Type" content="text/html; charset=gb18030" />
-        <title>
-            #{title}
-        </title>
-        <style type="text/css">
-            body, button, input, select, textarea {
-                font: 12px/1.5 tahoma, arial, "宋体"!important;
-            }
-            #main{top:50px;left:0px;right:0px;width:80%;z-index:1;position:absolute;MARGIN-RIGHT:auto;MARGIN-LEFT:auto;}
+	<head>
+		<meta http-equiv="Content-Type" content="text/html; charset=gb18030" />
+		<title>
+			#{title}
+		</title>
+		<style type="text/css">
+			body, button, input, select, textarea {
+				font: 12px/1.5 tahoma, arial, "宋体"!important;
+			}
+			#main{top:50px;left:0px;right:0px;width:80%;z-index:1;position:absolute;MARGIN-RIGHT:auto;MARGIN-LEFT:auto;}
 
 			body,div,dl,dt,dd,ul,ol,li,h1,h2,h3,h4,h5,h6,pre,code,form,textarea,select,optgroup,option,fieldset,legend,p,blockquote,th,td {
 				margin: 0;
@@ -68,12 +67,12 @@ const char* g_beginHtml = R"--(
 				text-decoration: underline
 			}
 
-			.include-text {
+			.src {
 				color: #743481;
 				font-weight: bold;
 			}
 
-			.number-text {
+			.num {
 				color: #FF6C00;
 				font-weight: bold;
 			}
@@ -96,8 +95,8 @@ const char* g_beginHtml = R"--(
 			}
 
 			.title ul {
-				box-shadow: 1px 1px 0 rgba(255,255,255,.2) inset,3px 3px 0 rgba(0,0,0,.2);    
-				border: 1px solid #0D6EB8;    
+				box-shadow: 1px 1px 0 rgba(255,255,255,.2) inset,3px 3px 0 rgba(0,0,0,.2);
+				border: 1px solid #0D6EB8;
 				background: #f7f7f7;
 				border-radius: 2px;
 				border: 2px solid #d2d2d2;
@@ -160,6 +159,7 @@ const char* g_beginHtml = R"--(
 
 			.chart .row .grid {
 				float: left;
+				height: 100%;
 			}
 
 			.chart a {
@@ -171,52 +171,52 @@ const char* g_beginHtml = R"--(
 				cursor: pointer;
 				text-decoration: underline
 			}
-        </style>
-    </head>
-    <body>
-        <div id="main">)--";
+		</style>
+	</head>
+	<body>
+		<div id="main">)--";
 
 const char* g_endHtml = R"--(
-        </div>
-    </body>
+		</div>
+	</body>
 </html>)--";
 
 const char* g_divHtml = R"--(
-            <div class="box">
-                <div class="title">
-                    <ul>#{div_titles}
-                    </ul>
-                </div>
-                <div class="chart">
-                    <dl>#{div_rows}
-                    </dl>
-                </div>
-            </div>)--";
+			<div class="box">
+				<div class="title">
+					<ul>#{div_titles}
+					</ul>
+				</div>
+				<div class="chart">
+					<dl>#{div_rows}
+					</dl>
+				</div>
+			</div>)--";
 
 const char *g_titleHtml = R"--(
-                        <li class="col" style="width:#{width}%;">
-                            #{title}
-                        </li>)--";
+						<li class="col" style="width:#{width}%;">
+							#{title}
+						</li>)--";
 
 const char* g_rowHtml = R"--(
-                        <dd class="row"#{bold}>#{row}
-                        </dd>)--";
+						<dd class="row"#{bold}>#{row}
+						</dd>)--";
 
 const char* g_errorRowHtml = R"--(
-                        <dd class="error_row"#{bold}>#{row}
-                        </dd>)--";
+						<dd class="error_row"#{bold}>#{row}
+						</dd>)--";
 
 const char* g_gridHtml = R"--(
-                            <div class="grid" style="width:#{width}%;text-indent:#{indent}px;">
-                                #{text}
-                            </div>)--";
+							<div class="grid" style="#{width}text-indent:#{indent}px;">
+								#{text}
+							</div>)--";
 
 const char* g_errorGridHtml = R"--(
-                            <div class="grid">
-                                <pre style="padding:0 #{indent}px;">#{text}</pre>
-                            </div>)--";
+							<div class="grid">
+								<pre style="padding:0 #{indent}px;">#{text}</pre>
+							</div>)--";
 
-namespace cxxcleantool
+namespace cxxclean
 {
 	HtmlLog HtmlLog::instance;
 
@@ -287,6 +287,7 @@ namespace cxxcleantool
 	{
 		cxx::log() << GetHtmlStart(m_htmlTitle.c_str());
 
+		cxx::log() << "\n";
 		cxx::log() << timetool::get_now() << "\n";
 		cxx::log() << "<span style=\"float:right\">" << m_bigTitle << "</span>" << "\n";
 		cxx::log() << "<hr/>\n";
@@ -326,13 +327,23 @@ namespace cxxcleantool
 			for (DivGrid grid : row.grids)
 			{
 				std::string gridHtml  = (row.isErrTip ? g_errorGridHtml : g_gridHtml);
+				std::string widthHtml = (grid.width == 100 || grid.width == 0) ? "" : strtool::get_text("width:%d%%;", grid.width);
 
 				int indent = ((i == 0) ? row.tabCount * 35 : 0);
 				++i;
 
-				strtool::replace(gridHtml, "#{indent}",		strtool::itoa(indent).c_str());
+				if (indent == 0)
+				{
+					strtool::replace(gridHtml, "text-indent:#{indent}px;", "");
+				}
+				else
+				{
+					strtool::replace(gridHtml, "#{indent}",	strtool::itoa(indent).c_str());
+				}
+
 				strtool::replace(gridHtml, "#{text}",		grid.text.c_str());
-				strtool::replace(gridHtml, "#{width}",		strtool::itoa(grid.width).c_str());
+				strtool::replace(gridHtml, "#{width}",		widthHtml.c_str());
+				strtool::replace(gridHtml, " style=\"\"",	"");
 
 				gridsHtml += gridHtml;
 			}

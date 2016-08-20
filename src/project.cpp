@@ -1,7 +1,6 @@
 ///<------------------------------------------------------------------------------
 //< @file:   project.cpp
 //< @author: 洪坤安
-//< @date:   2016年3月7日
 //< @brief:  本次清理c++的任务内容
 //< Copyright (c) 2016. All rights reserved.
 ///<------------------------------------------------------------------------------
@@ -11,10 +10,10 @@
 #include <llvm/Support/raw_ostream.h>
 
 #include "tool.h"
-#include "parsing_cpp.h"
+#include "parser.h"
 #include "html_log.h"
 
-namespace cxxcleantool
+namespace cxxclean
 {
 	Project Project::instance;
 
@@ -83,6 +82,17 @@ namespace cxxcleantool
 				m_allowCleanList.insert(absolutePath);
 			}
 		}
+	}
+
+	// 指定的清理选项是否开启
+	bool Project::IsCleanModeOpen(CleanMode mode)
+	{
+		if (mode <= 0 || mode > m_cleanModes.size())
+		{
+			return false;
+		}
+
+		return m_cleanModes[mode - 1];
 	}
 
 	// 该文件是否允许被清理

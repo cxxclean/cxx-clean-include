@@ -1,7 +1,6 @@
 ///<------------------------------------------------------------------------------
 //< @file:   html_log.h
 //< @author: 洪坤安
-//< @date:   2016年3月19日
 //< @brief:  html日志类，用来美化打印日志的
 //< Copyright (c) 2016 game. All rights reserved.
 ///<------------------------------------------------------------------------------
@@ -12,7 +11,7 @@
 #include <iterator>
 #include <vector>
 
-namespace cxxcleantool
+namespace cxxclean
 {
 	// 1. 中文
 	static const char* cn_log							= "清理%s的日志-%s.html";
@@ -50,7 +49,6 @@ namespace cxxcleantool
 	static const char* cn_file_add_front_using_ns		= "应在行首新增%s";
 	static const char* cn_file_add_back_using_ns		= "应在行末新增%s";
 
-	static const char* cn_file_count_can_replace		= "共有%s个文件可以替换#include";
 	static const char* cn_file_can_replace_num			= "该文件中有%s个#include可被替换";
 	static const char* cn_file_can_replace_line			= "第%s行可以被替换，该行原来的内容 = %s";
 	static const char* cn_file_replace_same_text		= "可以被替换为新的 = %s";
@@ -64,6 +62,18 @@ namespace cxxcleantool
 	static const char* cn_file_add_forward_line			= "可在第%s行新增前置声明，该行原来的内容 = %s";
 	static const char* cn_file_add_forward_old_text		= "该行原来的内容 = %s";
 	static const char* cn_file_add_forward_new_text		= "新增前置声明 = %s";
+
+	static const char* cn_file_move_num					= "该文件中有%s个#include可被转移";
+	static const char* cn_file_move_to_line				= "第%s行可以转移到其他文件，该行原来的内容 = %s";
+	static const char* cn_file_move_to					= "可以转移到%s文件中的第%s行之后";
+	static const char* cn_file_move_to_old				= "该行原来的文本 = %s";
+	static const char* cn_file_move_to_new				= "转移之后的文本 = %s";
+	static const char* cn_file_move_to_replace			= "（注：转移之后的#include来自于%s文件的第%s行）";
+	static const char* cn_file_move_from_line			= "第%s行应新增其他文件转移的#include，该行原来的内容 = %s";
+	static const char* cn_file_move_from				= "可以由%s文件的第%s行转移";
+	static const char* cn_file_move_from_old			= "该行原来的文本 = %s";
+	static const char* cn_file_move_from_new			= "转移之后的文本 = %s";
+	static const char* cn_file_move_skip				= "注意：检测到本文件为预编译文件，将忽略该改动";
 
 	static const char* cn_project_history_title			= "统计结果";
 	static const char* cn_project_history_clean_count	= "清理结果：共有%s个c++文件可被清理";
@@ -120,9 +130,9 @@ namespace cxxcleantool
 			AddRow(text.c_str(), tabCount, width, needEscape, isErrorTip);
 		}
 
-		void AddGrid(const char* text, int width, bool needEscape = false);
+		void AddGrid(const char* text, int width = 0, bool needEscape = false);
 
-		void AddGrid(const std::string &text, int width, bool needEscape = false)
+		void AddGrid(const std::string &text, int width = 0, bool needEscape = false)
 		{
 			AddGrid(text.c_str(), width, needEscape);
 		}

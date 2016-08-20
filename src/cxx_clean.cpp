@@ -1,7 +1,6 @@
 //<------------------------------------------------------------------------------
 //< @file  : cxx_clean.cpp
 //< @author: 洪坤安
-//< @date  : 2016年1月2日
 //< @brief : 实现clang库中与抽象语法树有关的各种基础类
 //< Copyright (c) 2016. All rights reserved.
 ///<------------------------------------------------------------------------------
@@ -19,12 +18,12 @@
 #include "lib/Driver/ToolChains.h"
 
 #include "tool.h"
-#include "vs_project.h"
-#include "parsing_cpp.h"
+#include "vs.h"
+#include "parser.h"
 #include "project.h"
 #include "html_log.h"
 
-namespace cxxcleantool
+namespace cxxclean
 {
 	// 预处理器，当#define、#if、#else等预处理关键字被预处理时使用本预处理器
 	CxxCleanPreprocessor::CxxCleanPreprocessor(ParsingFile *rootFile)
@@ -196,7 +195,25 @@ namespace cxxcleantool
 			CastExpr *castExpr = cast<CastExpr>(s);
 
 			QualType castType = castExpr->getType();
-			m_root->UseVarType(loc, castType);
+
+			CastKind castKind = castExpr->getCastKind();
+
+			switch (castKind)
+			{
+			// 父类与子类互相转换时，需要特殊处理
+			case CK_UncheckedDerivedToBase :
+			case CK_BaseToDerived:
+			case CK_BaseToDerivedMemberPointer:
+			case CK_DerivedToBase:
+			case CK_DerivedToBaseMemberPointer:
+			case CK_Dynamic:
+				m_root->UseQualType(loc, castType);
+				m_root->UseQualType(loc, castExpr->getSubExpr()->getType());
+				break;
+
+			default:
+				m_root->UseVarType(loc, castType);
+			}
 
 			/*
 			if (m_root->GetSrcMgr().isInMainFile(loc))
@@ -208,7 +225,12 @@ namespace cxxcleantool
 			}
 			*/
 
-			// 这里注意，CastExpr有一个getSubExpr()函数，表示子表达式，但此处不需要继续处理，因为子表达式将作为Stmt仍然会被VisitStmt访问到
+		}
+		else if (isa<CXXMemberCallExpr>(s))
+		{
+			CXXMemberCallExpr *callExpr = cast<CXXMemberCallExpr>(s);
+			m_root->UseFuncDecl(loc, callExpr->getMethodDecl());
+			m_root->UseRecord(loc, callExpr->getRecordDecl());
 		}
 		else if (isa<CallExpr>(s))
 		{
@@ -600,7 +622,7 @@ namespace cxxcleantool
 	// 访问成员变量
 	bool CxxCleanASTVisitor::VisitFieldDecl(FieldDecl *decl)
 	{
-		// m_root->use_var(decl->getLocStart(), decl->getType());
+		m_root->UseValueDecl(decl->getLocStart(), decl);
 		return true;
 	}
 
@@ -647,6 +669,11 @@ namespace cxxcleantool
 	// 这个函数对于每个源文件仅被调用一次，比如，若有一个hello.cpp中#include了许多头文件，也只会调用一次本函数
 	void CxxCleanASTConsumer::HandleTranslationUnit(ASTContext& context)
 	{
+		if (!ProjectHistory::instance.m_isFirst)
+		{
+			return;
+		}
+
 		// 用于调试：打印语法树
 		if (Project::instance.m_verboseLvl >= VerboseLvl_6)
 		{
@@ -655,11 +682,6 @@ namespace cxxcleantool
 			context.getTranslationUnitDecl()->dump(cxx::log());
 			cxx::log() << "</pre>";
 			cxx::log() << "<pre>------------ HandleTranslationUnit-End ------------:</pre>\n";
-		}
-
-		if (!ProjectHistory::instance.m_isFirst)
-		{
-			return;
 		}
 
 		m_visitor.TraverseDecl(context.getTranslationUnitDecl());
@@ -692,7 +714,7 @@ namespace cxxcleantool
 		TextDiagnosticPrinter::EndSourceFile();
 
 		CompileErrorHistory &errHistory = ParsingFile::g_atFile->GetCompileErrorHistory();
-		errHistory.m_errNum				= NumErrors;
+		errHistory.errNum				= NumErrors;
 	}
 
 	// 是否是严重编译错误
@@ -729,6 +751,11 @@ namespace cxxcleantool
 	// 当一个错误发生时，会调用此函数，在这个函数里记录编译错误和错误号
 	void CxxcleanDiagnosticConsumer::HandleDiagnostic(DiagnosticsEngine::Level diagLevel, const Diagnostic &info)
 	{
+		if (!ProjectHistory::instance.m_isFirst)
+		{
+			return;
+		}
+
 		TextDiagnosticPrinter::HandleDiagnostic(diagLevel, info);
 
 		CompileErrorHistory &errHistory = ParsingFile::g_atFile->GetCompileErrorHistory();
@@ -736,7 +763,7 @@ namespace cxxcleantool
 		int errId = info.getID();
 		if (errId == diag::fatal_too_many_errors)
 		{
-			errHistory.m_hasTooManyError = true;
+			errHistory.hasTooManyError = true;
 		}
 
 		if (diagLevel < DiagnosticIDs::Error)
@@ -748,11 +775,11 @@ namespace cxxcleantool
 		std::string tip = m_errorTip;
 		Clear();
 
-		int errNum = errHistory.m_errTips.size() + 1;
+		int errNum = errHistory.errTips.size() + 1;
 
 		if (diagLevel >= DiagnosticIDs::Fatal || IsFatalError(errId))
 		{
-			errHistory.m_fatalErrors.insert(errId);
+			errHistory.fatalErrors.insert(errId);
 
 			tip += strtool::get_text(cn_fatal_error_num_tip, strtool::itoa(errNum).c_str(), htmltool::get_number_html(errId).c_str());
 		}
@@ -761,7 +788,7 @@ namespace cxxcleantool
 			tip += strtool::get_text(cn_error_num_tip, strtool::itoa(errNum).c_str(), htmltool::get_number_html(errId).c_str());
 		}
 
-		errHistory.m_errTips.push_back(tip);
+		errHistory.errTips.push_back(tip);
 	}
 
 	// 开始文件处理
@@ -806,7 +833,7 @@ namespace cxxcleantool
 
 		bool can_clean	 = false;
 		can_clean		|= Project::instance.m_onlyHas1File;;
-		can_clean		|= !Project::instance.m_isDeepClean;
+		can_clean		|= !Project::instance.m_isCleanAll;
 		can_clean		|= !ProjectHistory::instance.m_isFirst;
 
 		if (can_clean)
@@ -877,17 +904,29 @@ namespace cxxcleantool
 		}
 	}
 
+	static llvm::cl::OptionCategory g_optionCategory("cxx-clean-include category");
+
 	static cl::opt<string>	g_cleanOption	("clean",
 	        cl::desc("you can use this option to:\n"
 	                 "    1. clean directory, for example: -clean ../hello/\n"
-	                 "    2. clean visual studio project(version 2005 or upper): for example: -clean ./hello.vcproj or -clean ./hello.vcxproj\n"),
+	                 "    2. clean visual studio project(version 2005 or upper): for example: -clean ./hello.vcproj or -clean ./hello.vcxproj\n"
+	                ),
+	        cl::cat(g_optionCategory));
+
+	static cl::opt<string>	g_cleanModes	("mode",
+	        cl::desc("clean modes, can use like [ -mode 1+2+3 ], default is [ -mode 1+2 ]\n"
+	                 "mode 1. clean unused #include\n"
+	                 "mode 2. replace some #include to other #include\n"
+	                 "mode 3. try move #include to other file"
+	                ),
 	        cl::cat(g_optionCategory));
 
 	static cl::opt<string>	g_src			("src",
 	        cl::desc("target c++ source file to be cleaned, must have valid path, if this option was valued, only the target c++ file will be cleaned\n"
 	                 "this option can be used with -clean option, for example, you can use: \n"
 	                 "    cxxclean -clean hello.vcproj -src ./hello.cpp\n"
-	                 "it will clean hello.cpp and using hello.vcproj configuration"),
+	                 "it will only clean hello.cpp and using hello.vcproj configuration"
+	                ),
 	        cl::cat(g_optionCategory));
 
 	static cl::opt<bool>	g_noWriteOption	("no",
@@ -898,6 +937,10 @@ namespace cxxcleantool
 	        cl::desc("only allow clean cpp file(cpp, cc, cxx), don't clean the header file(h, hxx, hh)"),
 	        cl::cat(g_optionCategory));
 
+	static cl::opt<bool>	g_deepClean	("deep",
+	                                     cl::desc("deep clean"),
+	                                     cl::cat(g_optionCategory));
+
 	static cl::opt<bool>	g_printVsConfig	("print-vs",
 	        cl::desc("print vs configuration, for example, print header search path, print c++ file list, print predefine macro and so on"),
 	        cl::cat(g_optionCategory));
@@ -907,8 +950,8 @@ namespace cxxcleantool
 	        cl::cat(g_optionCategory));
 
 	static cl::opt<int>		g_verbose		("v",
-	        cl::desc("verbose level, level can be 0 ~ 5, default is 1, higher level will print more detail"),
-	        cl::NotHidden);
+	        cl::desc("verbose level, level can be 0 ~ 6, default is 1, higher level will print more detail"),
+	        cl::cat(g_optionCategory));
 
 	void PrintVersion()
 	{
@@ -917,17 +960,22 @@ namespace cxxcleantool
 	}
 
 	// 解析选项并将解析结果存入相应的对象，若应中途退出则返回true，否则返回false
-	bool CxxCleanOptionsParser::ParseOptions(int &argc, const char **argv, llvm::cl::OptionCategory &category)
+	bool CxxCleanOptionsParser::ParseOptions(int &argc, const char **argv)
 	{
 		// 使用-help选项时，仅打印本工具的选项
-		cl::HideUnrelatedOptions(category);
-		cl::SetVersionPrinter(cxxcleantool::PrintVersion);
+		cl::HideUnrelatedOptions(cxxclean::g_optionCategory);
+		cl::SetVersionPrinter(cxxclean::PrintVersion);
 
 		m_compilation.reset(CxxCleanOptionsParser::SplitCommandLine(argc, argv));
 
 		cl::ParseCommandLineOptions(argc, argv, nullptr);
 
 		if (!ParseVerboseOption())
+		{
+			return false;
+		}
+
+		if (!ParseCleanLvlOption())
 		{
 			return false;
 		}
@@ -944,7 +992,7 @@ namespace cxxcleantool
 
 		if (g_printVsConfig)
 		{
-			Vsproject::instance.Print();
+			VsProject::instance.Print();
 			return false;
 		}
 
@@ -999,14 +1047,14 @@ namespace cxxcleantool
 	}
 
 	// 根据vs工程文件里调整clang的参数
-	bool CxxCleanOptionsParser::AddCleanVsArgument(const Vsproject &vs, ClangTool &tool) const
+	bool CxxCleanOptionsParser::AddCleanVsArgument(const VsProject &vs, ClangTool &tool) const
 	{
 		if (vs.m_configs.empty())
 		{
 			return false;
 		}
 
-		const VsConfiguration &vsconfig = vs.m_configs[0];
+		const VsConfig &vsconfig = vs.m_configs[0];
 
 		for (const std::string &dir	: vsconfig.searchDirs)
 		{
@@ -1024,7 +1072,7 @@ namespace cxxcleantool
 			tool.appendArgumentsAdjuster(argAdjuster);
 		}
 
-		for (auto predefine : vsconfig.preDefines)
+		for (auto &predefine : vsconfig.preDefines)
 		{
 			std::string arg = "-D" + predefine;
 
@@ -1034,7 +1082,11 @@ namespace cxxcleantool
 
 		tool.appendArgumentsAdjuster(getInsertArgumentAdjuster("-fms-extensions", ArgumentInsertPosition::BEGIN));
 		tool.appendArgumentsAdjuster(getInsertArgumentAdjuster("-fms-compatibility", ArgumentInsertPosition::BEGIN));
-		tool.appendArgumentsAdjuster(getInsertArgumentAdjuster("-fms-compatibility-version=18", ArgumentInsertPosition::BEGIN));
+
+		if (vs.m_version >= 2008)
+		{
+			tool.appendArgumentsAdjuster(getInsertArgumentAdjuster("-fms-compatibility-version=18", ArgumentInsertPosition::BEGIN));
+		}
 
 		AddVsSearchDir(tool);
 
@@ -1091,7 +1143,7 @@ namespace cxxcleantool
 	// 添加visual studio的额外的包含路径，因为clang库遗漏了一个包含路径会导致#include <atlcomcli.h>时找不到头文件
 	void CxxCleanOptionsParser::AddVsSearchDir(ClangTool &tool) const
 	{
-		if (Vsproject::instance.m_configs.empty())
+		if (VsProject::instance.m_configs.empty())
 		{
 			return;
 		}
@@ -1162,11 +1214,12 @@ namespace cxxcleantool
 	// 解析-clean选项
 	bool CxxCleanOptionsParser::ParseCleanOption()
 	{
-		Vsproject &vs				= Vsproject::instance;
+		VsProject &vs				= VsProject::instance;
 		Project &project			= Project::instance;
 
-		project.m_isDeepClean		= !g_onlyCleanCpp;
+		project.m_isCleanAll		= !g_onlyCleanCpp;
 		project.m_isOverWrite		= !g_noWriteOption;
+		project.m_isDeepClean		= g_deepClean;
 		project.m_workingDir		= pathtool::get_current_path();
 		project.m_cpps				= m_sourceList;
 
@@ -1236,7 +1289,7 @@ namespace cxxcleantool
 			project.m_onlyHas1File = true;
 		}
 
-		Project::instance.m_need2Step = Project::instance.m_isDeepClean && !Project::instance.m_onlyHas1File && Project::instance.m_isOverWrite;
+		Project::instance.m_need2Step = Project::instance.m_isCleanAll && !Project::instance.m_onlyHas1File && Project::instance.m_isOverWrite;
 		return true;
 	}
 
@@ -1249,12 +1302,49 @@ namespace cxxcleantool
 			return true;
 		}
 
-		Project::instance.m_verboseLvl = g_verbose;
+		int lvl = g_verbose;
+		Project::instance.m_verboseLvl = (VerboseLvl)lvl;
 
-		if (g_verbose < 0 || g_verbose > VerboseLvl_Max)
+		if (lvl < 0 || lvl >= VerboseLvl_Max)
 		{
-			llvm::errs() << "unsupport verbose level: " << g_verbose << ", must be 1 ~ " << VerboseLvl_Max - 1 << "!\n";
+			llvm::errs() << "unsupport verbose level: " << lvl << ", must be 1 ~ " << VerboseLvl_Max - 1 << "!\n";
 			return false;
+		}
+
+		return true;
+	}
+
+	// 解析-level选项
+	bool CxxCleanOptionsParser::ParseCleanLvlOption()
+	{
+		string strLvls ;
+
+		if (g_cleanModes.getNumOccurrences() == 0)
+		{
+			// 默认： [删除多余#include] + [替换#include]
+			strLvls = "1+2";
+		}
+		else
+		{
+			strLvls = g_cleanModes;
+		}
+
+		std::vector<string> strLvlVec;
+		strtool::split(strLvls, strLvlVec, '+');
+
+		Project::instance.m_cleanModes.resize(CleanMode_Max - 1, false);
+
+		for (const string &strLvl : strLvlVec)
+		{
+			int lvl = strtool::atoi(strLvl.c_str());
+
+			if (lvl < 0 || lvl >= CleanMode_Max)
+			{
+				llvm::errs() << "[ -level " << strLvls << " ] is invalid: unsupport [" << lvl << "], must be 1 ~ " << CleanMode_Max - 1 << "!\n";
+				return false;
+			}
+
+			Project::instance.m_cleanModes[lvl - 1] = true;
 		}
 
 		return true;
@@ -1266,18 +1356,20 @@ namespace cxxcleantool
 	    "\n"
 	    "\n    there are 2 ways to use cxx-clean-include"
 	    "\n"
-	    "\n    1. if your project is msvc project(visual studio 2005 and upper)"
-	    "\n        if you want to clean the whole vs project: you can use:"
+	    "\n    1. for msvc project(visual studio 2005 and upper)"
+	    "\n"
+	    "\n        -> clean the whole msvc project:"
+	    "\n            cxxclean -clean hello.vcproj"
+	    "\n"
+	    "\n        -> only want to clean a single c++ file, and using the vs configuration:"
 	    "\n            cxxclean -clean hello.vcproj -src hello.cpp"
 	    "\n"
-	    "\n        if your only want to clean a single c++ file, and use the vs configuration, you can use:"
-	    "\n            cxxclean -clean hello.vcproj -src hello.cpp"
+	    "\n    2. for a directory"
 	    "\n"
-	    "\n    2. if all your c++ file is in a directory\n"
-	    "\n        if you wan to clean all c++ file in the directory, you can use:"
+	    "\n        -> clean all c++ file in the directory:"
 	    "\n            cxxclean -clean ./hello"
 	    "\n"
-	    "\n        if your only want to clean a single c++ file, you can use:"
+	    "\n        -> only clean a single c++ file, you can use:"
 	    "\n            cxxclean -clean ./hello -src hello.cpp"
 	);
 }
