@@ -2,12 +2,12 @@ set(LLVM_LINK_COMPONENTS support)
 
 add_clang_executable(cxxclean
 	cxx_clean.cpp
-	parsing_cpp.cpp	
+	parser.cpp	
 	project.cpp
-	project_history.cpp
+	history.cpp
 	test.cpp
 	tool.cpp
-	vs_project.cpp
+	vs.cpp
 	html_log.cpp
 	main.cpp
 )

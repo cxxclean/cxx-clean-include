@@ -8,6 +8,12 @@
 #include "parser.h"
 
 #include <sstream>
+#include <fstream>
+
+// 下面3个#include是_chmod函数需要用的
+#include <io.h>
+#include <sys/stat.h>
+#include <sys/types.h>
 
 #include <clang/AST/DeclTemplate.h>
 #include <clang/Lex/HeaderSearch.h>
@@ -299,7 +305,7 @@ namespace cxxclean
 				}
 
 				FileID canReplaceTo;
-				
+
 				// 仅[替换#include]清理选项开启时，才尝试替换
 				if (Project::instance.IsCleanModeOpen(CleanMode_Replace))
 				{
@@ -2669,6 +2675,49 @@ namespace cxxclean
 			bool &AllWritten;
 		};
 
+		class CxxCleanReWriter
+		{
+		public:
+			// 给文件添加可写权限
+			static bool EnableWrite(const char *file_name)
+			{
+				struct stat s;
+				int err = stat(file_name, &s);
+				if (err > 0)
+				{
+					return false;
+				}
+
+				err = _chmod(file_name, s.st_mode|S_IWRITE);
+				return err == 0;
+			}
+
+			// 覆盖文件
+			static bool WriteToFile(const RewriteBuffer &rewriteBuffer, const FileEntry &entry)
+			{
+				if (!EnableWrite(entry.getName()))
+				{
+					return false;
+				}
+
+				std::ofstream fout;
+				fout.open(entry.getName(), ios_base::out | ios_base::binary);
+
+				if (!fout.is_open())
+				{
+					return false;
+				}
+
+				for (RopePieceBTreeIterator itr = rewriteBuffer.begin(), end = rewriteBuffer.end(); itr != end; itr.MoveToNextPiece())
+				{
+					fout << itr.piece().str();
+				}
+
+				fout.close();
+				return true;
+			}
+		};
+
 		SourceManager &srcMgr	= m_rewriter->getSourceMgr();
 		FileManager &fileMgr	= srcMgr.getFileManager();
 
@@ -2678,6 +2727,14 @@ namespace cxxclean
 			const FileEntry *Entry				= srcMgr.getFileEntryForID(I->first);
 			const RewriteBuffer &rewriteBuffer	= I->second;
 
+			bool ok = CxxCleanReWriter::WriteToFile(rewriteBuffer, *Entry);
+			if (!ok)
+			{
+				llvm::errs() << "======> [error] overwrite file[" << Entry->getName() << "] failed!\n";
+				AllWritten = false;
+			}
+
+			/*
 			AtomicallyMovedFile File(srcMgr.getDiagnostics(), Entry->getName(), AllWritten);
 			if (File.ok())
 			{
@@ -2685,6 +2742,7 @@ namespace cxxclean
 				fileMgr.modifyFileEntry(const_cast<FileEntry*>(Entry), rewriteBuffer.size(), Entry->getModificationTime());
 			}
 
+			*/
 			//fileMgr.invalidateCache(Entry);
 		}
 
@@ -2704,17 +2762,27 @@ namespace cxxclean
 			return;
 		}
 
-		SourceRange range(begLoc, endLoc);
+		if (Project::instance.m_verboseLvl >= VerboseLvl_2)
+		{
+			llvm::errs() << "------->replace [" << GetAbsoluteFileName(file) << "]: [" << beg << "," << end << "] to text = [" << text << "]\n";
+		}
 
-		// cxx::log() << "\n------->replace text = [" << get_source_of_range(range) << "] in [" << get_absolute_file_name(file) << "]\n";
-
-		m_rewriter->ReplaceText(begLoc, end - beg, text);
+		bool err = m_rewriter->ReplaceText(begLoc, end - beg, text);
+		if (err)
+		{
+			llvm::errs() << "=======>[error] replace [" << GetAbsoluteFileName(file) << "]: [" << beg << "," << end << "] to text = [" << text << "] failed\n";
+		}
 	}
 
 	// 将文本插入到指定位置之前
 	// 例如：假设有"abcdefg"文本，则在c处插入123的结果将是："ab123cdefg"
 	void ParsingFile::InsertText(FileID file, int loc, string text)
 	{
+		if (text.empty())
+		{
+			return;
+		}
+
 		SourceLocation fileBegLoc	= m_srcMgr->getLocForStartOfFile(file);
 		SourceLocation insertLoc	= fileBegLoc.getLocWithOffset(loc);
 
@@ -2724,7 +2792,16 @@ namespace cxxclean
 			return;
 		}
 
-		m_rewriter->InsertText(insertLoc, text, false, false);
+		if (Project::instance.m_verboseLvl >= VerboseLvl_2)
+		{
+			llvm::errs() << "------->insert [" << GetAbsoluteFileName(file) << "]: [" << loc << "] to text = [" << text << "]\n";
+		}
+
+		bool err = m_rewriter->InsertText(insertLoc, text, false, false);
+		if (err)
+		{
+			llvm::errs() << "=======>[error] insert [" << GetAbsoluteFileName(file) << "]: [" << loc << "] to text = [" << text << "] failed\n";
+		}
 	}
 
 	// 移除指定范围文本，若移除文本后该行变为空行，则将该空行一并移除
@@ -2753,12 +2830,15 @@ namespace cxxclean
 		rewriteOption.IncludeInsertsAtEndOfRange	= false;
 		rewriteOption.RemoveLineIfEmpty				= false;
 
-		// cxx::log() << "\n------->remove text = [" << get_source_of_range(range) << "] in [" << get_absolute_file_name(file) << "]\n";
+		if (Project::instance.m_verboseLvl >= VerboseLvl_2)
+		{
+			llvm::errs() << "------->remove [" << GetAbsoluteFileName(file) << "]: [" << beg << "," << end << "], text = [" << GetSourceOfRange(range) << "]\n";
+		}
 
 		bool err = m_rewriter->RemoveText(range.getBegin(), end - beg, rewriteOption);
 		if (err)
 		{
-			llvm::errs() << "[error][ParsingFile::RemoveText]: remove text = [" << GetSourceOfRange(range) << "] in [" << GetAbsoluteFileName(file) << "] failed!\n";
+			llvm::errs() << "=======>[error] remove [" << GetAbsoluteFileName(file) << "]: [" << beg << "," << end << "], text = [" << GetSourceOfRange(range) << "] failed\n";
 		}
 	}
 
@@ -2819,6 +2899,8 @@ namespace cxxclean
 			return;
 		}
 
+		const std::string newLineWord = history.GetNewLineWord();
+
 		for (auto & replaceItr : history.m_replaces)
 		{
 			const ReplaceLine &replaceLine	= replaceItr.second;
@@ -2828,8 +2910,6 @@ namespace cxxclean
 			{
 				continue;
 			}
-
-			const char* newLineWord = history.GetNewLineWord();
 
 			// 1. 先替换#include
 			{
