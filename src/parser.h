@@ -34,6 +34,7 @@ namespace clang
 	class NestedNameSpecifier;
 	class Type;
 	class NamespaceDecl;
+	class NamespaceAliasDecl;
 	class UsingDirectiveDecl;
 	class FunctionDecl;
 	class MacroArgs;
@@ -81,8 +82,13 @@ namespace cxxclean
 		// 命令空间信息
 		struct NamespaceInfo
 		{
-			std::string ns_decl;		// 命名空间的声明，如：namespace A{ namespace B { namespace C {} } }
-			std::string ns_name;		// 命名空间的名称，如：A::B::C
+			NamespaceInfo()
+				: ns(nullptr)
+			{
+			}
+
+			std::string			decl;		// 命名空间的声明，如：namespace A{ namespace B { namespace C {} } }
+			const NamespaceDecl	*ns;		// 命名空间的定义
 		};
 
 	public:
@@ -172,8 +178,14 @@ namespace cxxclean
 		// 当前位置使用目标类型（注：Type代表某个类型，但不含const、volatile、static等的修饰）
 		void UseType(SourceLocation loc, const Type *t);
 
-		// 当前位置使用定位
+		// 引用嵌套名字修饰符
 		void UseQualifier(SourceLocation loc, const NestedNameSpecifier*);
+
+		// 引用命名空间声明
+		void UseNamespaceDecl(SourceLocation loc, const NamespaceDecl*);
+
+		// 引用命名空间别名
+		void UseNamespaceAliasDecl(SourceLocation loc, const NamespaceAliasDecl*);
 
 		// 声明了命名空间
 		void DeclareNamespace(const NamespaceDecl *d);
@@ -183,13 +195,6 @@ namespace cxxclean
 
 		// using了命名空间下的某类，比如：using std::string;
 		void UsingXXX(const UsingDecl *d);
-
-		// 获取可能缺失的using namespace
-		bool GetMissingNamespace(SourceLocation loc, std::map<std::string, std::string> &miss) const;
-
-		// 获取可能缺失的using namespace
-		bool GetMissingNamespace(SourceLocation topLoc, SourceLocation oldLoc,
-		                         std::map<std::string, std::string> &frontMiss, std::map<std::string, std::string> &backMiss) const;
 
 		// 获取命名空间的全部路径，例如，返回namespace A{ namespace B{ class C; }}
 		std::string GetNestedNamespace(const NamespaceDecl *d);
@@ -325,9 +330,6 @@ namespace cxxclean
 
 		// 生成文件替换列表
 		void GenerateReplace();
-
-		// 生成应保留的using namespace
-		void GenerateUsefulUsingNamespace();
 
 		// 生成新增前置声明列表
 		void GenerateForwardClass();
@@ -535,11 +537,14 @@ namespace cxxclean
 		// 合并可转移的#include
 		void MergeMoveLine(const FileHistory &newFile, FileHistory &oldFile) const;
 
+		// 将某些文件中的一些行标记为不可修改
+		void SkipRelyLines(const FileSkipLineMap&) const;
+
 		// 取出当前cpp文件产生的待清理记录
 		void TakeHistorys(FileHistoryMap &out) const;
 
 		// 将可清除的行按文件进行存放
-		void TakeUnusedLineByFile(FileHistoryMap &out) const;
+		void TakeUnusedLine(FileHistoryMap &out) const;
 
 		// 将新增的前置声明按文件进行存放
 		void TakeNewForwarddeclByFile(FileHistoryMap &out) const;
@@ -554,7 +559,7 @@ namespace cxxclean
 		void TakeBeReplaceOfFile(FileHistory &history, FileID top, const ChildrenReplaceMap &childernReplaces) const;
 
 		// 取出各文件的#include替换信息
-		void TakeReplaceByFile(FileHistoryMap &out) const;
+		void TakeReplace(FileHistoryMap &out) const;
 
 		// 取出本文件的编译错误历史
 		void TakeCompileErrorHistory(FileHistoryMap &out) const;
@@ -603,9 +608,6 @@ namespace cxxclean
 
 		// 打印各文件内的using namespace
 		void PrintUsingNamespace() const;
-
-		// 打印各文件内应保留的using namespace
-		void PrintUsefulUsingNamespace() const;
 
 		// 打印可被移动到cpp的文件列表
 		void PrintMove() const;
@@ -663,11 +665,8 @@ namespace cxxclean
 		// 16. 各文件内声明的命名空间记录：[文件] -> [该文件内的命名空间记录]
 		std::map<FileID, std::set<std::string>>		m_namespaces;
 
-		// 17. 各文件内声明的using namespace记录：[文件] -> [该文件内的using namespace记录]
-		std::map<FileID, std::set<std::string>>		m_usingNamespaces;
-
-		// 18. 应保留的using namespace记录：[using namespace的位置] -> [using namespace的全称]
-		std::map<SourceLocation, NamespaceInfo>		m_usefulUsingNamespaces;
+		// 18. 应保留的using namespace记录：[using namespace的位置] -> [对应的namespace定义]
+		std::map<SourceLocation, NamespaceInfo>		m_usingNamespaces;
 
 		// 19. 各文件的后代：[文件] -> [该文件包含的全部后代]
 		std::map<FileID, std::set<FileID>>			m_children;

@@ -199,8 +199,6 @@ namespace cxxclean
 		GenerateForwardClass();
 		GenerateReplace();
 
-		GenerateUsefulUsingNamespace();
-
 		Fix();
 
 		ProjectHistory::instance.AddFile(this);
@@ -734,64 +732,6 @@ namespace cxxclean
 		SplitReplaceByFile();
 	}
 
-	// 生成应保留的using namespace
-	void ParsingFile::GenerateUsefulUsingNamespace()
-	{
-		// 1. 取出被引用文件中的命名空间
-		std::set<string> usedNamespaces;
-		for (auto & itr : m_namespaces)
-		{
-			FileID file			= itr.first;
-			auto &namespaces	= itr.second;
-			if (!IsBeRely(file))
-			{
-				continue;
-			}
-
-			usedNamespaces.insert(namespaces.begin(), namespaces.end());
-		}
-
-		// 2. 删除处于被引用文件中的using namespace及对无用namespace的using
-		for (auto & itr = m_usefulUsingNamespaces.begin(); itr != m_usefulUsingNamespaces.end();)
-		{
-			SourceLocation loc		= itr->first;
-			const NamespaceInfo &ns	= itr->second;
-
-			bool need = true;
-			need &= !IsBeRely(GetFileID(loc));
-			need &= (usedNamespaces.find(ns.ns_name) != usedNamespaces.end());
-
-			if (!need)
-			{
-				m_usefulUsingNamespaces.erase(itr++);
-			}
-			else
-			{
-				++itr;
-			}
-		}
-
-		// 3. 删除重复的using namespace
-		{
-			std::set<std::string> namespaces;
-
-			for (auto & itr = m_usefulUsingNamespaces.begin(); itr != m_usefulUsingNamespaces.end();)
-			{
-				const NamespaceInfo &ns	= itr->second;
-
-				if (namespaces.find(ns.ns_name) != namespaces.end())
-				{
-					m_usefulUsingNamespaces.erase(itr++);
-				}
-				else
-				{
-					namespaces.insert(ns.ns_name);
-					++itr;
-				}
-			}
-		}
-	}
-
 	// 当前文件之前是否已有文件声明了该class、struct、union
 	bool ParsingFile::HasRecordBefore(FileID cur, const CXXRecordDecl &cxxRecord) const
 	{
@@ -1237,7 +1177,7 @@ namespace cxxclean
 
 	void ParsingFile::UseName(FileID file, FileID beusedFile, const char* name /* = nullptr */, int line)
 	{
-		if (Project::instance.m_verboseLvl < VerboseLvl_2)
+		if (Project::instance.m_verboseLvl < VerboseLvl_3)
 		{
 			return;
 		}
@@ -1411,7 +1351,7 @@ namespace cxxclean
 	// 文件a使用指定名称的目标文件
 	void ParsingFile::UseByFileName(FileID a, const char* filename)
 	{
-		auto & itr = m_uses.find(a);
+		auto &itr = m_uses.find(a);
 		if (itr == m_uses.end())
 		{
 			llvm::errs() << "[error][ParsingFile::UseByFileName] if (itr == m_uses.end())";
@@ -1434,7 +1374,12 @@ namespace cxxclean
 		if (useList.find(child) == useList.end())
 		{
 			useList.insert(child);
-			m_newUse[a].insert(child);
+
+			if (Project::instance.m_verboseLvl >= VerboseLvl_3)
+			{
+				m_newUse[a].insert(child);
+				return;
+			}
 		}
 	}
 
@@ -1453,21 +1398,67 @@ namespace cxxclean
 		Use(loc, info->getDefinitionLoc(), macroName.c_str());
 	}
 
-	// 当前位置使用定位
+	// 引用嵌套名字修饰符
 	void ParsingFile::UseQualifier(SourceLocation loc, const NestedNameSpecifier *specifier)
 	{
 		while (specifier)
 		{
-			const Type *pType = specifier->getAsType();
-			UseType(loc, pType);
+			NestedNameSpecifier::SpecifierKind kind = specifier->getKind();
+			switch (kind)
+			{
+			case NestedNameSpecifier::Namespace:
+				UseNamespaceDecl(loc, specifier->getAsNamespace());
+				break;
+
+			case NestedNameSpecifier::NamespaceAlias:
+				UseNamespaceAliasDecl(loc, specifier->getAsNamespaceAlias());
+				break;
+
+			default:
+				UseType(loc, specifier->getAsType());
+				break;
+			}
 
 			specifier = specifier->getPrefix();
 		}
 	}
 
+	// 引用命名空间声明
+	void ParsingFile::UseNamespaceDecl(SourceLocation loc, const NamespaceDecl *ns)
+	{
+		UseNameDecl(loc, ns);
+
+		std::string nsName		= GetNestedNamespace(ns);
+		SourceLocation nsLoc	= ns->getLocStart();
+
+		for (auto &itr : m_usingNamespaces)
+		{
+			SourceLocation using_loc	= itr.first;
+			const NamespaceInfo &ns		= itr.second;
+
+			if (nsName == ns.decl)
+			{
+				std::string usingNs		= "using namespace " + ns.ns->getQualifiedNameAsString() + ";";
+				Use(loc, using_loc, usingNs.c_str());
+			}
+		}
+	}
+
+	// 引用命名空间别名
+	void ParsingFile::UseNamespaceAliasDecl(SourceLocation loc, const NamespaceAliasDecl *ns)
+	{
+		UseNameDecl(loc, ns);
+		UseNamespaceDecl(ns->getAliasLoc(), ns->getNamespace());
+	}
+
 	// 声明了命名空间
 	void ParsingFile::DeclareNamespace(const NamespaceDecl *d)
 	{
+		if (Project::instance.m_verboseLvl < VerboseLvl_3)
+		{
+			return;
+		}
+
 		SourceLocation loc = GetSpellingLoc(d->getLocation());
 
 		FileID file = GetFileID(loc);
@@ -1490,17 +1481,14 @@ namespace cxxclean
 			return;
 		}
 
-		const NamespaceDecl *nsDecl	= d->getNominatedNamespace();
-		std::string ns				= nsDecl->getQualifiedNameAsString();
-		m_usingNamespaces[file].insert(ns);
+		const NamespaceDecl *ns	= d->getNominatedNamespace();
 
-		NamespaceInfo nsInfo;
-		nsInfo.ns_decl = GetNestedNamespace(nsDecl);
-		nsInfo.ns_name = ns;
-		m_usefulUsingNamespaces[loc] = nsInfo;
+		NamespaceInfo &nsInfo = m_usingNamespaces[loc];
+		nsInfo.decl	= GetNestedNamespace(ns);
+		nsInfo.ns	= ns;
 
 		// 引用命名空间所在的文件（注意：using namespace时必须能找到对应的namespace声明，比如，using namespace A前一定要有namespace A{}否则编译会报错）
-		Use(loc, nsDecl->getLocation(), GetNestedNamespace(nsDecl).c_str());
+		Use(loc, ns->getLocation(), nsInfo.decl.c_str());
 	}
 
 	// using了命名空间下的某类，比如：using std::string;
@@ -1526,82 +1514,6 @@ namespace cxxclean
 			// 注意：这里要反向引用，因为比如我们在a文件中#include <string>，然后在b文件using std::string，那么b文件也是有用的
 			Use(nameDecl->getLocEnd(), usingLoc);
 		}
-	}
-
-	// 获取可能缺失的using namespace
-	bool ParsingFile::GetMissingNamespace(SourceLocation loc, std::map<std::string, std::string> &miss) const
-	{
-		loc = GetSpellingLoc(loc);
-
-		FileID file = GetFileID(loc);
-
-		bool is_need_add = true;
-
-		for (auto & itr : m_usefulUsingNamespaces)
-		{
-			SourceLocation usingNsLoc	= itr.first;
-			const NamespaceInfo &ns		= itr.second;
-
-			FileID usingNsfile	= GetFileID(usingNsLoc);
-
-			if (!IsAncestor(usingNsfile, file))
-			{
-				continue;
-			}
-
-			FileID lv2 = GetLvl2Ancestor(usingNsfile, file);
-			if (m_srcMgr->getIncludeLoc(lv2) == loc)
-			{
-				std::string addNs = "using namespace " + ns.ns_name + ";";
-				miss[addNs] = ns.ns_decl;
-				is_need_add = true;
-			}
-		}
-
-		return is_need_add;
-	}
-
-	// 获取可能缺失的using namespace
-	bool ParsingFile::GetMissingNamespace(SourceLocation topLoc, SourceLocation oldLoc,
-	                                      std::map<std::string, std::string> &frontMiss, std::map<std::string, std::string> &backMiss) const
-	{
-		FileID file = GetFileID(topLoc);
-
-		bool is_need_add = true;
-
-		for (auto & itr : m_usefulUsingNamespaces)
-		{
-			SourceLocation usingNsLoc	= itr.first;
-			const NamespaceInfo &ns		= itr.second;
-			FileID usingNsfile	= GetFileID(usingNsLoc);
-
-			if (!IsAncestor(usingNsfile, file))
-			{
-				continue;
-			}
-
-			FileID lv2 = GetLvl2Ancestor(usingNsfile, file);
-
-			SourceLocation lv2BeIncludeLoc = m_srcMgr->getIncludeLoc(lv2);
-			if (lv2BeIncludeLoc != topLoc)
-			{
-				continue;
-			}
-
-			is_need_add = true;
-
-			std::string addNs = "using namespace " + ns.ns_name + ";";
-			if (oldLoc < usingNsLoc)
-			{
-				backMiss[addNs] = ns.ns_decl;
-			}
-			else
-			{
-				frontMiss[addNs] = ns.ns_decl;
-			}
-		}
-
-		return is_need_add;
 	}
 
 	// 获取命名空间的全部路径，例如，返回namespace A{ namespace B{ class C; }}
@@ -2855,15 +2767,6 @@ namespace cxxclean
 			const UnUsedLine &unusedLine = unusedLineItr.second;
 
 			RemoveText(file, unusedLine.beg, unusedLine.end);
-
-			for (auto & itr : unusedLine.usingNamespace)
-			{
-				const std::string &ns_name = itr.first;
-				const std::string &ns_decl = itr.second;
-
-				InsertText(file, unusedLine.beg, ns_decl + history.GetNewLineWord());
-				InsertText(file, unusedLine.beg, ns_name + history.GetNewLineWord());
-			}
 		}
 	}
 
@@ -2911,46 +2814,14 @@ namespace cxxclean
 				continue;
 			}
 
-			// 1. 先替换#include
-			{
-				std::stringstream text;
+			// 替换#include
+			std::stringstream text;
 
-				const ReplaceTo &replaceInfo = replaceLine.replaceTo;
-				text << replaceInfo.newText;
-				text << newLineWord;
+			const ReplaceTo &replaceInfo = replaceLine.replaceTo;
+			text << replaceInfo.newText;
+			text << newLineWord;
 
-				ReplaceText(file, replaceLine.beg, replaceLine.end, text.str());
-			}
-
-			// 2. 在原来的#include前添加namespace声明和using namespace
-			{
-				std::stringstream text;
-
-				for (auto & itr : replaceLine.frontNamespace)
-				{
-					const std::string &ns_name = itr.first;
-					const std::string &ns_decl = itr.second;
-
-					text << ns_decl << newLineWord << ns_name << newLineWord;
-				}
-
-				InsertText(file, replaceLine.beg, text.str());
-			}
-
-			// 3. 在原来的#include后添加namespace声明和using namespace
-			{
-				std::stringstream text;
-
-				for (auto & itr : replaceLine.backNamespace)
-				{
-					const std::string &ns_name = itr.first;
-					const std::string &ns_decl = itr.second;
-
-					text << ns_decl << newLineWord << ns_name << newLineWord;
-				}
-
-				InsertText(file, replaceLine.end, text.str());
-			}
+			ReplaceText(file, replaceLine.beg, replaceLine.end, text.str());
 		}
 	}
 
@@ -2982,14 +2853,14 @@ namespace cxxclean
 						text << from.newText;
 						text << newLineWord;
 
-						InsertText(file, moveLine.beg, text.str());
+						InsertText(file, moveLine.line_end, text.str());
 					}
 				}
 			}
 
 			if (!moveLine.moveTo.empty())
 			{
-				RemoveText(file, moveLine.beg, moveLine.end);
+				RemoveText(file, moveLine.line_beg, moveLine.line_end);
 			}
 		}
 	}
@@ -3324,6 +3195,10 @@ namespace cxxclean
 		if (verbose >= VerboseLvl_3)
 		{
 			PrintUsedNames();
+		}
+
+		if (verbose >= VerboseLvl_4)
+		{
 			PrintUse();
 			PrintNewUse();
 
@@ -3332,10 +3207,7 @@ namespace cxxclean
 
 			PrintRelyChildren();
 			PrintMove();
-		}
 
-		if (verbose >= VerboseLvl_4)
-		{
 			PrintAllFile();
 			PrintInclude();
 
@@ -3345,7 +3217,6 @@ namespace cxxclean
 			PrintChildren();
 			PrintNamespace();
 			PrintUsingNamespace();
-			PrintUsefulUsingNamespace();
 		}
 
 		if (verbose >= VerboseLvl_5)
@@ -3364,14 +3235,15 @@ namespace cxxclean
 		for (FileHistory::UnusedLineMap::iterator oldLineItr = oldLines.begin(), end = oldLines.end(); oldLineItr != end; )
 		{
 			int line = oldLineItr->first;
-			UnUsedLine &unusedLine = oldLineItr->second;
+			UnUsedLine &oldLine = oldLineItr->second;
 
 			if (newFile.IsLineUnused(line))
 			{
-				auto & newLineItr = newFile.m_unusedLines.find(line);
-				const UnUsedLine &newUnusedLine = newLineItr->second;
+				if (Project::instance.m_verboseLvl >= VerboseLvl_3)
+				{
+					llvm::errs() << "======> merge unused at [" << oldFile.m_filename << "]: new line unused, old line unused at line = " << line << " -> " << oldLine.text << "\n";
+				}
 
-				unusedLine.usingNamespace.insert(newUnusedLine.usingNamespace.begin(), newUnusedLine.usingNamespace.end());
 				++oldLineItr;
 			}
 			else
@@ -3383,9 +3255,20 @@ namespace cxxclean
 					const ReplaceLine &newReplaceLine = newReplaceLineItr->second;
 
 					oldFile.m_replaces[line] = newReplaceLine;
+
+					if (Project::instance.m_verboseLvl >= VerboseLvl_3)
+					{
+						llvm::errs() << "======> merge unused at [" << oldFile.m_filename << "]: new line replace, old line unused at line = " << line << " -> " << oldLine.text << "\n";
+					}
+				}
+				else
+				{
+					if (Project::instance.m_verboseLvl >= VerboseLvl_3)
+					{
+						llvm::errs() << "======> merge unused at [" << oldFile.m_filename << "]: new line do nothing, old line unused at line = " << line << " -> " << oldLine.text << "\n";
+					}
 				}
 
-				// cxx::log() << oldFile.m_filename << ": conflict at line " << line << " -> " << oldLineItr->second.m_text << "\n";
 				oldLines.erase(oldLineItr++);
 			}
 		}
@@ -3415,9 +3298,9 @@ namespace cxxclean
 	// 合并可替换的#include
 	void ParsingFile::MergeReplaceLine(const FileHistory &newFile, FileHistory &oldFile) const
 	{
-		// 若处理其他cpp文件时并未在本文件产生替换记录，则说明本文件内没有需要替换的#include
-		if (oldFile.m_replaces.empty())
+		if (oldFile.m_replaces.empty() && newFile.m_replaces.empty())
 		{
+			// 本文件内没有需要替换的#include
 			return;
 		}
 
@@ -3436,18 +3319,18 @@ namespace cxxclean
 			}
 		}
 
-		// 合并新增替换记录到历史记录中
+		// 1. 合并新增替换记录到历史记录中
 		for (auto & oldLineItr = oldFile.m_replaces.begin(), end = oldFile.m_replaces.end(); oldLineItr != end; )
 		{
 			int line				= oldLineItr->first;
 			ReplaceLine &oldLine	= oldLineItr->second;
 
 			// 该行是否发生冲突了
-			auto & conflictItr = newFile.m_replaces.find(line);
-			bool conflict = (conflictItr != newFile.m_replaces.end());
+			auto &conflictItr	= newFile.m_replaces.find(line);
+			bool is_conflict	= (conflictItr != newFile.m_replaces.end());
 
 			// 若发生冲突，则分析被新的取代文件与旧的取代文件是否有直系后代关系
-			if (conflict)
+			if (is_conflict)
 			{
 				const ReplaceLine &newLine	= conflictItr->second;
 
@@ -3461,8 +3344,11 @@ namespace cxxclean
 				// 说明该文件未新生成任何替换记录，此时应将该文件内所有旧替换记录全部删除
 				if (newFileID.isInvalid())
 				{
-					// cxx::log() << "error, merge_replace_line_to not found = " << oldFile.m_filename << "\n";
-					// oldFile.m_replaces.clear();
+					if (Project::instance.m_verboseLvl >= VerboseLvl_3)
+					{
+						llvm::errs() << "======> merge repalce at [" << oldFile.m_filename << "]: error, not found newFileID at line = " << line << " -> " << oldLine.oldText << "\n";
+					}
+
 					++oldLineItr;
 					continue;
 				}
@@ -3472,15 +3358,13 @@ namespace cxxclean
 				// 找到该行旧的#include对应的FileID
 				FileID beReplaceFileID;
 
+				for (auto & childItr : newReplaceMap)
 				{
-					for (auto & childItr : newReplaceMap)
+					FileID child = childItr.first;
+					if (GetAbsoluteFileName(child) == newLine.oldFile)
 					{
-						FileID child = childItr.first;
-						if (GetAbsoluteFileName(child) == newLine.oldFile)
-						{
-							beReplaceFileID = child;
-							break;
-						}
+						beReplaceFileID = child;
+						break;
 					}
 				}
 
@@ -3493,20 +3377,33 @@ namespace cxxclean
 				// 若旧的取代文件是新的取代文件的祖先，则保留旧的替换信息
 				if (IsAncestor(beReplaceFileID, oldLine.oldFile.c_str()))
 				{
+					if (Project::instance.m_verboseLvl >= VerboseLvl_3)
+					{
+						llvm::errs() << "======> merge repalce at [" << oldFile.m_filename << "]: old line replace is new line replace ancestorat line = " << line << " -> " << oldLine.oldText << "\n";
+					}
+
 					++oldLineItr;
 				}
 				// 若新的取代文件是旧的取代文件的祖先，则改为使用新的替换信息
 				else if(IsAncestor(oldLine.oldFile.c_str(), beReplaceFileID))
 				{
+					if (Project::instance.m_verboseLvl >= VerboseLvl_3)
+					{
+						llvm::errs() << "======> merge repalce at [" << oldFile.m_filename << "]: new line replace is old line replace ancestor at line = " << line << " -> " << oldLine.oldText << "\n";
+					}
+
 					oldLine.replaceTo = newLine.replaceTo;
-					oldLine.frontNamespace.insert(newLine.frontNamespace.begin(), newLine.frontNamespace.end());
-					oldLine.backNamespace.insert(newLine.backNamespace.begin(), newLine.backNamespace.end());
 					++oldLineItr;
 				}
 				// 否则，若没有直系关系，则该行无法被替换，删除该行原有的替换记录
 				else
 				{
-					// cxx::log() << "merge_replace_line_to: " << oldFile.m_filename << " should remove conflict old line = " << line << " -> " << oldLine.m_oldText << "\n";
+					if (Project::instance.m_verboseLvl >= VerboseLvl_3)
+					{
+						llvm::errs() << "======> merge repalce at [" << oldFile.m_filename << "]: old line replace, new line replace at line = " << line << " -> " << oldLine.oldText << "\n";
+					}
+
+					SkipRelyLines(oldLine.replaceTo.m_rely);
 					oldFile.m_replaces.erase(oldLineItr++);
 				}
 			}
@@ -3515,14 +3412,37 @@ namespace cxxclean
 				// 若在新文件中该行应被删除，而在旧文件中该行应被替换，则保留旧文件的替换记录
 				if (newFile.IsLineUnused(line))
 				{
+					if (Project::instance.m_verboseLvl >= VerboseLvl_3)
+					{
+						llvm::errs() << "======> merge repalce at [" << oldFile.m_filename << "]: old line replace, new line delete at line = " << line << " -> " << oldLine.oldText << "\n";
+					}
+
 					++oldLineItr;
 					continue;
 				}
 				// 若该行没有新的替换记录，说明该行无法被替换，删除该行旧的替换记录
 				else
 				{
+					if (Project::instance.m_verboseLvl >= VerboseLvl_3)
+					{
+						llvm::errs() << "======> merge repalce at [" << oldFile.m_filename << "]: old line replace, new line do nothing at line = " << line << " -> " << oldLine.oldText << "\n";
+					}
+
+					SkipRelyLines(oldLine.replaceTo.m_rely);
 					oldFile.m_replaces.erase(oldLineItr++);
 				}
+			}
+		}
+
+		// 2. 新增的替换记录不能直接被删，要作标记
+		for (auto &newLineItr : newFile.m_replaces)
+		{
+			int line					= newLineItr.first;
+			const ReplaceLine &newLine	= newLineItr.second;
+
+			if (!oldFile.IsLineBeReplaced(line))
+			{
+				SkipRelyLines(newLine.replaceTo.m_rely);
 			}
 		}
 	}
@@ -3562,6 +3482,15 @@ namespace cxxclean
 					oldFroms.insert(newFroms.begin(), newFroms.end());
 				}
 			}
+		}
+	}
+
+	// 将某些文件中的一些行标记为不可修改
+	void ParsingFile::SkipRelyLines(const FileSkipLineMap &skips) const
+	{
+		for (auto &itr : skips)
+		{
+			ProjectHistory::instance.m_skips.insert(itr);
 		}
 	}
 
@@ -3664,13 +3593,13 @@ namespace cxxclean
 		}
 
 		// 1. 将可清除的行按文件进行存放
-		TakeUnusedLineByFile(out);
+		TakeUnusedLine(out);
 
 		// 2. 将新增的前置声明按文件进行存放
 		TakeNewForwarddeclByFile(out);
 
 		// 3. 将可替换的#include按文件进行存放
-		TakeReplaceByFile(out);
+		TakeReplace(out);
 
 		// 4. 将可转移的#include按文件进行存放
 		TakeMove(out);
@@ -3687,7 +3616,7 @@ namespace cxxclean
 	}
 
 	// 将可清除的行按文件进行存放
-	void ParsingFile::TakeUnusedLineByFile(FileHistoryMap &out) const
+	void ParsingFile::TakeUnusedLine(FileHistoryMap &out) const
 	{
 		for (SourceLocation loc : m_unusedLocs)
 		{
@@ -3720,10 +3649,6 @@ namespace cxxclean
 			unusedLine.beg	= m_srcMgr->getFileOffset(lineRange.getBegin());
 			unusedLine.end	= m_srcMgr->getFileOffset(nextLine.getBegin());
 			unusedLine.text	= GetSourceOfRange(lineRange);
-
-			{
-				GetMissingNamespace(loc, unusedLine.usingNamespace);
-			}
 		}
 	}
 
@@ -3829,50 +3754,70 @@ namespace cxxclean
 	// 取出指定文件的#include替换信息
 	void ParsingFile::TakeBeReplaceOfFile(FileHistory &history, FileID top, const ChildrenReplaceMap &childernReplaces) const
 	{
+		// 依次取出每行#include的替换信息[行号 -> 被替换成的#include列表]
 		for (auto & itr : childernReplaces)
 		{
 			FileID oldFile		= itr.first;
 			FileID replaceFile	= itr.second;
 
-			// 取出该行#include的替换信息[行号 -> 被替换成的#include列表]
+			bool isBeForceIncluded		= IsForceIncluded(oldFile);
+
+			// 1. 该行的旧文本
+			SourceLocation include_loc	= m_srcMgr->getIncludeLoc(oldFile);
+			SourceRange	lineRange		= GetCurLineWithLinefeed(include_loc);
+			int line					= (isBeForceIncluded ? 0 : GetLineNo(include_loc));
+
+			ReplaceLine &replaceLine	= history.m_replaces[line];
+			replaceLine.oldFile			= GetAbsoluteFileName(oldFile);
+			replaceLine.oldText			= GetIncludeText(oldFile);
+			replaceLine.beg				= m_srcMgr->getFileOffset(lineRange.getBegin());
+			replaceLine.end				= m_srcMgr->getFileOffset(lineRange.getEnd());
+			replaceLine.isSkip			= isBeForceIncluded || IsPrecompileHeader(oldFile);	// 记载是否是强制包含
+
+			// 2. 该行可被替换成什么
+			ReplaceTo &replaceTo	= replaceLine.replaceTo;
+
+			SourceLocation deep_include_loc	= m_srcMgr->getIncludeLoc(replaceFile);
+
+			// 记录[旧#include、新#include]
+			replaceTo.oldText		= GetIncludeText(replaceFile);
+			replaceTo.newText		= GetRelativeIncludeStr(GetParent(oldFile), replaceFile);
+
+			// 记录[所处的文件、所处行号]
+			replaceTo.line			= GetLineNo(deep_include_loc);
+			replaceTo.fileName		= GetAbsoluteFileName(replaceFile);
+			replaceTo.inFile		= GetAbsoluteFileName(GetFileID(deep_include_loc));
+
+			// 3. 该行依赖于其他文件的哪些行
+			std::string replaceParentName	= GetAbsoluteFileName(GetParent(replaceFile));
+			int replaceLineNo				= GetIncludeLineNo(replaceFile);
+
+			if (Project::instance.CanClean(replaceParentName))
 			{
-				bool isBeForceIncluded		= IsForceIncluded(oldFile);
+				replaceTo.m_rely[replaceParentName].insert(replaceLineNo);
+			}
 
-				SourceLocation include_loc	= m_srcMgr->getIncludeLoc(oldFile);
-				SourceRange	lineRange		= GetCurLineWithLinefeed(include_loc);
-				int line					= (isBeForceIncluded ? 0 : GetLineNo(include_loc));
+			auto childItr = m_relyChildren.find(replaceFile);
+			if (childItr != m_relyChildren.end())
+			{
+				const std::set<FileID> &relys = childItr->second;
 
-				ReplaceLine &replaceLine	= history.m_replaces[line];
-				replaceLine.oldFile			= GetAbsoluteFileName(oldFile);
-				replaceLine.oldText			= GetIncludeText(oldFile);
-				replaceLine.beg				= m_srcMgr->getFileOffset(lineRange.getBegin());
-				replaceLine.end				= m_srcMgr->getFileOffset(lineRange.getEnd());
-				replaceLine.isSkip			= isBeForceIncluded || IsPrecompileHeader(oldFile);	// 记载是否是强制包含
-
+				for (FileID rely : relys)
 				{
-					SourceLocation deep_include_loc	= m_srcMgr->getIncludeLoc(replaceFile);
+					std::string relyParentName	= GetAbsoluteFileName(GetParent(rely));
+					int relyLineNo				= GetIncludeLineNo(rely);
 
-					ReplaceTo replaceTo;
-
-					// 记录[旧#include、新#include]
-					replaceTo.oldText		= GetIncludeText(replaceFile);
-					replaceTo.newText		= GetRelativeIncludeStr(GetParent(oldFile), replaceFile);
-
-					// 记录[所处的文件、所处行号]
-					replaceTo.line			= GetLineNo(deep_include_loc);
-					replaceTo.fileName		= GetAbsoluteFileName(replaceFile);
-					replaceTo.inFile		= GetAbsoluteFileName(GetFileID(deep_include_loc));
-
-					replaceLine.replaceTo = replaceTo;
-
-					GetMissingNamespace(include_loc, deep_include_loc, replaceLine.frontNamespace, replaceLine.backNamespace);
+					if (Project::instance.CanClean(relyParentName))
+					{
+						replaceTo.m_rely[relyParentName].insert(relyLineNo);
+					}
 				}
 			}
 		}
 	}
 
 	// 取出各文件的#include替换信息
-	void ParsingFile::TakeReplaceByFile(FileHistoryMap &out) const
+	void ParsingFile::TakeReplace(FileHistoryMap &out) const
 	{
 		if (m_replaces.empty())
 		{
@@ -3986,12 +3931,12 @@ namespace cxxclean
 					moveTo.newTextFile		= newTextFile;
 					moveTo.newTextLine		= newTextLine;
 
-					if (fromLine.beg == 0)
+					if (fromLine.line_beg == 0)
 					{
-						SourceRange includeRange	= GetIncludeRange(move);
-						fromLine.beg				= m_srcMgr->getFileOffset(includeRange.getBegin());
-						fromLine.end				= m_srcMgr->getFileOffset(includeRange.getEnd());
-						fromLine.oldText			= GetIncludeText(move);
+						SourceRange lineRange	= GetIncludeRange(move);
+						fromLine.line_beg		= m_srcMgr->getFileOffset(lineRange.getBegin());
+						fromLine.line_end		= m_srcMgr->getFileOffset(lineRange.getEnd());
+						fromLine.oldText		= GetIncludeText(move);
 					}
 				}
 
@@ -4007,10 +3952,12 @@ namespace cxxclean
 				moveFrom.newTextFile	= newTextFile;
 				moveFrom.newTextLine	= newTextLine;
 
-				if (toLine.beg == 0)
+				if (toLine.line_beg == 0)
 				{
-					toLine.beg		= m_srcMgr->getFileOffset(GetIncludeRange(lv2).getEnd());
-					toLine.oldText	= toOldText;
+					SourceRange lineRange	= GetIncludeRange(lv2);
+					toLine.line_beg			= m_srcMgr->getFileOffset(lineRange.getBegin());
+					toLine.line_end			= m_srcMgr->getFileOffset(lineRange.getEnd());
+					toLine.oldText			= toOldText;
 				}
 			}
 		}
@@ -4354,7 +4301,7 @@ namespace cxxclean
 				continue;
 			}
 
-			if (Project::instance.m_verboseLvl < VerboseLvl_2)
+			if (Project::instance.m_verboseLvl < VerboseLvl_3)
 			{
 				string ext = strtool::get_ext(history.m_filename);
 				if (!cpptool::is_cpp(ext))
@@ -4408,11 +4355,20 @@ namespace cxxclean
 		}
 	}
 
-	// 打印各文件内的using namespace
+	// 打印各文件内应保留的using namespace
 	void ParsingFile::PrintUsingNamespace() const
 	{
-		int num = 0;
+		std::map<FileID, std::set<std::string>>	nsByFile;
 		for (auto & itr : m_usingNamespaces)
+		{
+			SourceLocation loc		= itr.first;
+			const NamespaceInfo &ns	= itr.second;
+
+			nsByFile[GetFileID(loc)].insert(ns.ns->getQualifiedNameAsString());
+		}
+
+		int num = 0;
+		for (auto & itr : nsByFile)
 		{
 			FileID file = itr.first;
 
@@ -4427,57 +4383,7 @@ namespace cxxclean
 		HtmlDiv &div = HtmlLog::instance.m_newDiv;
 		div.AddRow(AddPrintIdx() + ". each file's using namespace: file count = " + htmltool::get_number_html(num), 1);
 
-		for (auto & itr : m_usingNamespaces)
-		{
-			FileID file = itr.first;
-
-			if (!IsNeedPrintFile(file))
-			{
-				continue;
-			}
-
-			div.AddRow("file = " + htmltool::get_file_html(GetAbsoluteFileName(file)), 2);
-
-			const std::set<std::string> &namespaces = itr.second;
-
-			for (const std::string &ns : namespaces)
-			{
-				div.AddRow("using namespace = " + htmltool::get_include_html(ns), 3);
-			}
-
-			div.AddRow("");
-		}
-	}
-
-	// 打印各文件内应保留的using namespace
-	void ParsingFile::PrintUsefulUsingNamespace() const
-	{
-		std::map<FileID, std::set<std::string>>	remainNamespaces;
-		for (auto & itr : m_usefulUsingNamespaces)
-		{
-			SourceLocation loc		= itr.first;
-			const NamespaceInfo &ns	= itr.second;
-
-			remainNamespaces[GetFileID(loc)].insert(ns.ns_name);
-		}
-
-		int num = 0;
-		for (auto & itr : remainNamespaces)
-		{
-			FileID file = itr.first;
-
-			if (!IsNeedPrintFile(file))
-			{
-				continue;
-			}
-
-			++num;
-		}
-
-		HtmlDiv &div = HtmlLog::instance.m_newDiv;
-		div.AddRow(AddPrintIdx() + ". each file's useful using namespace: file count = " + htmltool::get_number_html(num), 1);
-
-		for (auto & itr : remainNamespaces)
+		for (auto & itr : nsByFile)
 		{
 			FileID file = itr.first;
 
@@ -4492,7 +4398,7 @@ namespace cxxclean
 
 			for (const std::string &ns : namespaces)
 			{
-				div.AddRow("remain using namespace = " + htmltool::get_include_html(ns), 3);
+				div.AddRow("using namespace = " + htmltool::get_include_html(ns), 3);
 			}
 
 			div.AddRow("");

@@ -126,15 +126,6 @@ namespace cxxclean
 
 			div.AddRow(strtool::get_text(cn_file_unused_line, htmltool::get_number_html(line).c_str()), 3, 25);
 			div.AddGrid(strtool::get_text(cn_file_unused_include, htmltool::get_include_html(unusedLine.text).c_str()), 0, true);
-
-			for (auto &itr : unusedLine.usingNamespace)
-			{
-				const std::string &ns_name = itr.first;
-				const std::string &ns_decl = itr.second;
-
-				div.AddRow(strtool::get_text(cn_file_add_using_namespace, htmltool::get_include_html(ns_decl).c_str()), 4);
-				div.AddRow(strtool::get_text(cn_file_add_using_namespace, htmltool::get_include_html(ns_name).c_str()), 4);
-			}
 		}
 
 		div.AddRow("");
@@ -213,24 +204,6 @@ namespace cxxclean
 
 				// 在行尾添加[in 所处的文件 : line = xx]
 				div.AddRow(strtool::get_text(cn_file_replace_in_file, htmltool::get_file_html(replaceInfo.inFile).c_str(), htmltool::get_number_html(replaceInfo.line).c_str()), 5);
-			}
-
-			for (auto & itr : replaceLine.frontNamespace)
-			{
-				const std::string &ns_name = itr.first;
-				const std::string &ns_decl = itr.second;
-
-				div.AddRow(strtool::get_text(cn_file_add_front_using_ns, htmltool::get_include_html(ns_decl).c_str()), 5);
-				div.AddRow(strtool::get_text(cn_file_add_front_using_ns, htmltool::get_include_html(ns_name).c_str()), 5);
-			}
-
-			for (auto & itr : replaceLine.backNamespace)
-			{
-				const std::string &ns_name = itr.first;
-				const std::string &ns_decl = itr.second;
-
-				div.AddRow(strtool::get_text(cn_file_add_back_using_ns, htmltool::get_include_html(ns_decl).c_str()), 5);
-				div.AddRow(strtool::get_text(cn_file_add_back_using_ns, htmltool::get_include_html(ns_name).c_str()), 5);
 			}
 
 			div.AddRow("");
@@ -385,7 +358,7 @@ namespace cxxclean
 
 				auto & moveItr = m_moves.find(line);
 				if (moveItr != m_moves.end())
-				{					
+				{
 					MoveLine &moveLine = moveItr->second;
 					moveLine.moveTo.clear();
 				}
@@ -406,6 +379,11 @@ namespace cxxclean
 	// 打印日志
 	void ProjectHistory::Print() const
 	{
+		if (Project::instance.m_verboseLvl >= VerboseLvl_3)
+		{
+			PrintSkip();
+		}
+
 		if (m_files.empty())
 		{
 			return;
@@ -446,6 +424,31 @@ namespace cxxclean
 
 		HtmlLog::instance.AddDiv(div);
 		HtmlLog::instance.EndLog();
+	}
+
+	// 打印各文件被标记为不可删除的行
+	void ProjectHistory::PrintSkip() const
+	{
+		HtmlDiv &div = HtmlLog::instance.m_newDiv;
+		div.Clear();
+		div.AddRow(AddPrintIdx() + ". list of skip : count = " + htmltool::get_number_html(m_skips.size()), 1);
+
+		for (auto &itr : m_skips)
+		{
+			const std::string &file = itr.first;
+
+			div.AddRow("file = " + htmltool::get_file_html(file), 2);
+
+			for (int relyLineNo : itr.second)
+			{
+				div.AddRow("include = " + htmltool::get_number_html(relyLineNo), 3);
+			}
+
+			div.AddRow("");
+		}
+
+		div.AddRow("");
+		HtmlLog::instance.AddDiv(div);
 	}
 
 	// 打印索引 + 1

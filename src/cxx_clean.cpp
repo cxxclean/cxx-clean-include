@@ -1011,7 +1011,7 @@ namespace cxxclean
 
 		HtmlLog::instance.BeginLog();
 
-		if (Project::instance.m_verboseLvl >= VerboseLvl_2)
+		if (Project::instance.m_verboseLvl >= VerboseLvl_3)
 		{
 			Project::instance.Print();
 		}

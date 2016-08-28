@@ -87,7 +87,7 @@ namespace cxxclean
 	// 指定的清理选项是否开启
 	bool Project::IsCleanModeOpen(CleanMode mode)
 	{
-		if (mode <= 0 || mode > m_cleanModes.size())
+		if (mode <= 0 || mode > (int)m_cleanModes.size())
 		{
 			return false;
 		}

@@ -19,6 +19,9 @@ namespace cxxclean
 {
 	class ParsingFile;
 
+	// 各文件中应保留的行，[文件] -> [该文件中哪些行禁止被删]
+	typedef std::map<string, std::set<int>> FileSkipLineMap;
+
 	// 无用的#include行
 	struct UnUsedLine
 	{
@@ -31,7 +34,6 @@ namespace cxxclean
 		int							beg;				// 起始偏移
 		int							end;				// 结束偏移
 		string						text;				// 废弃的文本串
-		std::map<string, string>	usingNamespace;		// 本行应添加的using namespace
 	};
 
 	// 可新增前置声明的行
@@ -60,6 +62,7 @@ namespace cxxclean
 		int							line;				// 该#include所在的行
 		string						oldText;			// 该#include原串，如: #include "../b/../b/../a.h"
 		string						newText;			// 原#include串经过路径搜索后计算出的新#include串，如: #include "../b/../b/../a.h" -> #include "../a.h"
+		FileSkipLineMap				m_rely;				// 本行替换依赖于其他文件中的哪几行
 	};
 
 	// 可替换#include的行
@@ -78,8 +81,6 @@ namespace cxxclean
 		string						oldText;			// 替换前的#include文本，如: #include "../b/../b/../a.h“
 		string						oldFile;			// 替换前的#include对应的文件
 		ReplaceTo					replaceTo;			// 替换后的#include串列表
-		std::map<string, string>	frontNamespace;		// 本行首应添加的using namespace
-		std::map<string, string>	backNamespace;		// 本行末应添加的using namespace
 	};
 
 	// 新增的#include的来源
@@ -122,17 +123,17 @@ namespace cxxclean
 	struct MoveLine
 	{
 		MoveLine()
-			: beg(0)
-			, end(0)
+			: line_beg(0)
+			, line_end(0)
 		{
 		}
 
-		int							beg;				// 起始位置
-		int							end;				// 结束位置
+		int							line_beg;			// 本行 - 起始位置
+		int							line_end;			// 本行 - 结束位置
 		string						oldText;			// 本行之前的#include文本，如: #include "../b/../b/../a.h“
 
-		std::map<string, std::map<int, MoveFrom>>	moveFrom;	// 新增的#include来源于哪些文件，当m_fromOrTo为真时才有效
-		std::map<string, MoveTo>					moveTo;		// 移除的#include移到哪些文件中，当m_fromOrTo为假时才有效
+		std::map<string, std::map<int, MoveFrom>>	moveFrom;	// 新增的#include来源于哪些文件
+		std::map<string, MoveTo>					moveTo;		// 移除的#include移到哪些文件中
 	};
 
 	// 每个文件的编译错误历史
@@ -254,9 +255,6 @@ namespace cxxclean
 	// 各文件的清理结果，[文件] -> [该文件的清理结果]
 	typedef std::map<string, FileHistory> FileHistoryMap;
 
-	// 各文件中应保留的行，[文件] -> [该文件中哪些行禁止被删]
-	typedef std::map<string, std::set<int>> FileSkipLineMap;
-
 	// 用于存储统计结果，包含对各个c++文件的历史日志
 	class ProjectHistory
 	{
@@ -300,6 +298,9 @@ namespace cxxclean
 
 		// 打印日志
 		void Print() const;
+
+		// 打印各文件被标记为不可删除的行
+		void PrintSkip() const;
 
 	public:
 		static ProjectHistory	instance;
