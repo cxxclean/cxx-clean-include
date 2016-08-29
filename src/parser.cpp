@@ -1164,7 +1164,7 @@ namespace cxxclean
 	}
 
 	// cur位置的代码使用src位置的代码
-	void ParsingFile::Use(SourceLocation cur, SourceLocation src, const char* name /* = nullptr */)
+	inline void ParsingFile::Use(SourceLocation cur, SourceLocation src, const char* name /* = nullptr */)
 	{
 		cur = GetExpasionLoc(cur);
 		src = GetExpasionLoc(src);
@@ -1175,7 +1175,7 @@ namespace cxxclean
 		UseInclude(curFileID, srcFileID, name, GetLineNo(cur));
 	}
 
-	void ParsingFile::UseName(FileID file, FileID beusedFile, const char* name /* = nullptr */, int line)
+	inline void ParsingFile::UseName(FileID file, FileID beusedFile, const char* name /* = nullptr */, int line)
 	{
 		if (Project::instance.m_verboseLvl < VerboseLvl_3)
 		{
@@ -1315,37 +1315,42 @@ namespace cxxclean
 		return itr->second;
 	}
 
-	// 当前文件使用目标文件
-	void ParsingFile::UseInclude(FileID file, FileID beusedFile, const char* name /* = nullptr */, int line)
+	// a文件使用b文件
+	inline void ParsingFile::UseInclude(FileID a, FileID b, const char* name /* = nullptr */, int line)
 	{
-		if (file == beusedFile)
+		if (a == b)
 		{
 			return;
 		}
 
-		if (file.isInvalid() || beusedFile.isInvalid())
+		if (a.isInvalid() || b.isInvalid())
 		{
 			return;
 		}
 
-		// 这段先注释掉
-		const FileEntry *rootFileEntry		= m_srcMgr->getFileEntryForID(file);
-		const FileEntry *beusedFileEntry	= m_srcMgr->getFileEntryForID(beusedFile);
-
-		if (nullptr == rootFileEntry || nullptr == beusedFileEntry)
+		if (nullptr == m_srcMgr->getFileEntryForID(a) || nullptr == m_srcMgr->getFileEntryForID(b))
 		{
+			// 这段先注释掉
 			// cxx::log() << "------->error: use_include() : m_srcMgr->getFileEntryForID(file) failed!" << m_srcMgr->getFilename(m_srcMgr->getLocForStartOfFile(file)) << ":" << m_srcMgr->getFilename(m_srcMgr->getLocForStartOfFile(beusedFile)) << "\n";
 			// cxx::log() << "------->error: use_include() : m_srcMgr->getFileEntryForID(file) failed!" << get_source_of_line(m_srcMgr->getLocForStartOfFile(file)) << ":" << get_source_of_line(m_srcMgr->getLocForStartOfFile(beusedFile)) << "\n";
 			return;
 		}
 
-		if (GetAbsoluteFileName(file) == GetAbsoluteFileName(beusedFile))
+		std::string bFileName = GetAbsoluteFileName(b);
+
+		if (GetAbsoluteFileName(a) == bFileName)
 		{
 			return;
 		}
 
-		m_uses[file].insert(beusedFile);
-		UseName(file, beusedFile, name, line);
+		FileID child = GetDirectChildByName(a, bFileName.c_str());
+		if (child.isValid())
+		{
+			b = child;
+		}
+
+		m_uses[a].insert(b);
+		UseName(a, b, name, line);
 	}
 
 	// 文件a使用指定名称的目标文件
@@ -2140,7 +2145,7 @@ namespace cxxclean
 		switch (argKind)
 		{
 		case TemplateArgument::Type:
-			UseQualType(loc, arg.getAsType());
+			UseVarType(loc, arg.getAsType());
 			break;
 
 		case TemplateArgument::Declaration:

@@ -133,8 +133,8 @@ namespace cxxclean
 		// 是否为可前置声明的类型
 		bool IsForwardType(const QualType &var);
 
-		// 当前文件使用目标文件
-		void UseInclude(FileID file, FileID beusedFile, const char* name = nullptr, int line = 0);
+		// a文件使用b文件
+		inline void UseInclude(FileID a, FileID b, const char* name = nullptr, int line = 0);
 
 		// 文件a使用指定名称的目标文件
 		void UseByFileName(FileID a, const char* filename);
@@ -170,7 +170,7 @@ namespace cxxclean
 		void UseRecord(SourceLocation loc, const RecordDecl *record);
 
 		// cur位置的代码使用src位置的代码
-		void Use(SourceLocation cur, SourceLocation src, const char* name = nullptr);
+		inline void Use(SourceLocation cur, SourceLocation src, const char* name = nullptr);
 
 		// 当前位置使用目标类型（注：QualType包含对某个类型的const、volatile、static等的修饰）
 		void UseQualType(SourceLocation loc, const QualType &t);
@@ -399,7 +399,7 @@ namespace cxxclean
 		*/
 		std::string GetIncludeText(FileID file) const;
 
-		void UseName(FileID file, FileID beusedFile, const char* name = nullptr, int line = 0);
+		inline void UseName(FileID file, FileID beusedFile, const char* name = nullptr, int line = 0);
 
 		// 根据当前文件，查找第2层的祖先（令root为第一层），若当前文件的父文件即为主文件，则返回当前文件
 		FileID GetLvl2Ancestor(FileID file, FileID root) const;
