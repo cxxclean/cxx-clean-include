@@ -154,10 +154,10 @@ namespace cxxclean
 		return m_usedLocs.find(loc) != m_usedLocs.end();
 	}
 
-	// 生成结果前的准备
-	void ParsingFile::PrepareResult()
+	// 生成每个文件的后代文件集
+	void ParsingFile::GenerateChildren()
 	{
-		// 1. 首先生成每个文件的后代文件
+		// 生成每个文件的后代文件
 		for (FileID file : m_files)
 		{
 			for (FileID child = file, parent; (parent = GetParent(child)).isValid(); child = parent)
@@ -165,33 +165,11 @@ namespace cxxclean
 				m_children[parent].insert(file);
 			}
 		}
-
-		// 2. 扩充引用文件集，主要是为了达到这个目标：每个文件优先保留自己文件内的#include语句
-		for (auto & itr : m_uses)
-		{
-			FileID file							= itr.first;
-			const std::set<FileID> &beuseList	= itr.second;
-
-			if (!CanClean(file))
-			{
-				continue;
-			}
-
-			for (FileID beuse : beuseList)
-			{
-				if (!IsIncludedBy(beuse, file))
-				{
-					UseByFileName(file, GetAbsoluteFileName(beuse).c_str());
-				}
-			}
-		}
 	}
 
 	// 生成各文件的待清理记录
 	void ParsingFile::GenerateResult()
 	{
-		PrepareResult();
-
 		GenerateRely();
 
 		GenerateMove();
@@ -801,10 +779,8 @@ namespace cxxclean
 	}
 
 	// 获取文件a将被转移哪些文件中
-	std::set<FileID> ParsingFile::GetMoveToList(FileID a) const
+	bool ParsingFile::GetMoveToList(FileID a, std::set<FileID> &moveToList) const
 	{
-		std::set<FileID> moveToList;
-
 		for (auto & itr : m_moves)
 		{
 			FileID moveTo		= itr.first;
@@ -821,7 +797,7 @@ namespace cxxclean
 			}
 		}
 
-		return moveToList;
+		return !moveToList.empty();
 	}
 
 	// 当前文件是否应新增class、struct、union的前置声明
@@ -836,7 +812,8 @@ namespace cxxclean
 			return true;
 		}
 
-		std::set<FileID> moveToList = GetMoveToList(recordAtFile);
+		std::set<FileID> moveToList;
+		GetMoveToList(recordAtFile, moveToList);
 
 		// 2. 若A被引用，但A未被转移过
 		if (moveToList.empty())
@@ -868,7 +845,7 @@ namespace cxxclean
 	// 生成新增前置声明列表
 	void ParsingFile::GenerateForwardClass()
 	{
-		// 清除一些不必要保留的前置声明
+		// 1. 清除一些不必要保留的前置声明
 		for (auto & itr = m_forwardDecls.begin(), end = m_forwardDecls.end(); itr != end;)
 		{
 			FileID file										= itr->first;
@@ -897,6 +874,8 @@ namespace cxxclean
 				old_forwards = can_forwards;
 			}
 		}
+
+		// 2. 不同文件可能添加了同一个前置声明，这里删掉重复的
 	}
 
 	// 获取指定范围的文本
@@ -1343,7 +1322,8 @@ namespace cxxclean
 			return;
 		}
 
-		FileID child = GetDirectChildByName(a, bFileName.c_str());
+		// 这里注意：每个文件优先保留自己及后代文件中的#include语句
+		FileID child = GetChildByName(a, bFileName.c_str());
 		if (child.isValid())
 		{
 			b = child;
@@ -1351,41 +1331,6 @@ namespace cxxclean
 
 		m_uses[a].insert(b);
 		UseName(a, b, name, line);
-	}
-
-	// 文件a使用指定名称的目标文件
-	void ParsingFile::UseByFileName(FileID a, const char* filename)
-	{
-		auto &itr = m_uses.find(a);
-		if (itr == m_uses.end())
-		{
-			llvm::errs() << "[error][ParsingFile::UseByFileName] if (itr == m_uses.end())";
-			return;
-		}
-
-		FileID child = GetDirectChildByName(a, filename);
-		if (child.isInvalid())
-		{
-			child = GetChildByName(a, filename);
-
-			if (child.isInvalid())
-			{
-				// 这种情况很正常，直接返回
-				return;
-			}
-		}
-
-		std::set<FileID> &useList = itr->second;
-		if (useList.find(child) == useList.end())
-		{
-			useList.insert(child);
-
-			if (Project::instance.m_verboseLvl >= VerboseLvl_3)
-			{
-				m_newUse[a].insert(child);
-				return;
-			}
-		}
 	}
 
 	// 当前位置使用指定的宏
@@ -1564,7 +1509,7 @@ namespace cxxclean
 	}
 
 	// 获取文件a的指定名称的直接后代文件
-	FileID ParsingFile::GetDirectChildByName(FileID a, const char* childFileName)
+	FileID ParsingFile::GetDirectChildByName(FileID a, const char* childFileName) const
 	{
 		auto & itr = m_includes.find(a);
 		if (itr == m_includes.end())
@@ -1585,8 +1530,16 @@ namespace cxxclean
 	}
 
 	// 获取文件a的指定名称的后代文件
-	FileID ParsingFile::GetChildByName(FileID a, const char* childFileName)
+	FileID ParsingFile::GetChildByName(FileID a, const char* childFileName) const
 	{
+		// 1. 优先返回直接孩子文件
+		FileID directChild = GetDirectChildByName(a, childFileName);
+		if (directChild.isInvalid())
+		{
+			return directChild;
+		}
+
+		// 2. 否则，搜索后代文件
 		auto & itr = m_children.find(a);
 		if (itr == m_children.end())
 		{
@@ -1878,6 +1831,15 @@ namespace cxxclean
 	{
 		// 该类所在的文件
 		FileID recordAtFile	= GetFileID(cxxRecord.getLocStart());
+
+		std::string recordAtFileName	= GetAbsoluteFileName(recordAtFile);
+
+		// 优先以孩子文件来取代
+		FileID childRecordAtFile		= GetChildByName(at, recordAtFileName.c_str());
+		if (childRecordAtFile.isValid())
+		{
+			recordAtFile = childRecordAtFile;
+		}
 
 		/*
 			计算出应在哪个文件哪个行生成前置声明：
@@ -3601,7 +3563,7 @@ namespace cxxclean
 		TakeUnusedLine(out);
 
 		// 2. 将新增的前置声明按文件进行存放
-		TakeNewForwarddeclByFile(out);
+		TakeForwardClass(out);
 
 		// 3. 将可替换的#include按文件进行存放
 		TakeReplace(out);
@@ -3658,7 +3620,7 @@ namespace cxxclean
 	}
 
 	// 将新增的前置声明按文件进行存放
-	void ParsingFile::TakeNewForwarddeclByFile(FileHistoryMap &out) const
+	void ParsingFile::TakeForwardClass(FileHistoryMap &out) const
 	{
 		if (m_forwardDecls.empty())
 		{
@@ -3682,13 +3644,14 @@ namespace cxxclean
 				SourceLocation insertLoc = GetInsertForwardLine(file, *cxxRecord);
 				if (insertLoc.isInvalid())
 				{
+					llvm::errs() << "------->error: insertLoc.isInvalid()\n";
 					continue;
 				}
 
 				PresumedLoc insertPresumedLoc = m_srcMgr->getPresumedLoc(insertLoc);
 				if (insertPresumedLoc.isInvalid())
 				{
-					cxx::log() << "------->error: take_new_forwarddecl_by_file getPresumedLoc failed\n";
+					llvm::errs() << "------->error: take_new_forwarddecl_by_file getPresumedLoc failed\n";
 					continue;
 				}
 
@@ -3700,23 +3663,19 @@ namespace cxxclean
 				}
 
 				// 开始取出数据
+				int line					= insertPresumedLoc.getLine();
+				const string cxxRecordName	= GetRecordName(*cxxRecord);
+				FileHistory &eachFile		= out[insertFileName];
+				ForwardLine &forwardLine	= eachFile.m_forwards[line];
+
+				forwardLine.offset		= m_srcMgr->getFileOffset(insertLoc);
+				forwardLine.oldText		= GetSourceOfLine(insertLoc);
+				forwardLine.classes.insert(cxxRecordName);
+
+				SourceLocation fileStart = m_srcMgr->getLocForStartOfFile(GetFileID(insertLoc));
+				if (fileStart.getLocWithOffset(forwardLine.offset) != insertLoc)
 				{
-					int line					= insertPresumedLoc.getLine();
-					const string cxxRecordName	= GetRecordName(*cxxRecord);
-					FileHistory &eachFile		= out[insertFileName];
-					ForwardLine &forwardLine	= eachFile.m_forwards[line];
-
-					forwardLine.offset		= m_srcMgr->getFileOffset(insertLoc);
-					forwardLine.oldText		= GetSourceOfLine(insertLoc);
-					forwardLine.classes.insert(cxxRecordName);
-
-					{
-						SourceLocation fileStart = m_srcMgr->getLocForStartOfFile(GetFileID(insertLoc));
-						if (fileStart.getLocWithOffset(forwardLine.offset) != insertLoc)
-						{
-							cxx::log() << "error: fileStart.getLocWithOffset(forwardLine.m_offsetAtFile) != insertLoc \n";
-						}
-					}
+					llvm::errs() << "error: fileStart.getLocWithOffset(forwardLine.m_offsetAtFile) != insertLoc \n";
 				}
 			}
 		}

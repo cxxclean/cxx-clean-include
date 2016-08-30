@@ -5,16 +5,14 @@ cxx-clean-include是一个用于清理c++文件中多余#include的工具，可�
 
 ## 使用方法
 
-使用前，请确保已安装visual studio 2013的32位运行时组件，可到官网：https://www.microsoft.com/zh-cn/download/details.aspx?id=40784 ，下载其中的vcredist_x86.exe并运行安装
-
-然后：
-
 * 1. 下载本项目
 * 2. 双击运行hello文件夹下的run.bat
 * 3. 如果成功的话，hello项目将被清理，且将在hello文件夹下生成清理日志（可使用浏览器查看）
 * 4. 将run.bat里面的./hello.vcxproj改成你自己的vs工程文件，就可以清理你的工程了
 
 注意：使用前请备份你的代码
+
+（如果无法正常使用，请试着安装visual studio 2013的32位运行时组件，可到官网：https://www.microsoft.com/zh-cn/download/details.aspx?id=40784 中下载vcredist_x86.exe并安装)
 
 ## cxx-clean-include的一些测试结果
 

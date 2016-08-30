@@ -684,6 +684,10 @@ namespace cxxclean
 			cxx::log() << "<pre>------------ HandleTranslationUnit-End ------------:</pre>\n";
 		}
 
+		// 1. 生成每个文件的后代文件集（分析过程中需要用到）
+		m_root->GenerateChildren();
+
+		// 2. 遍历语法树
 		m_visitor.TraverseDecl(context.getTranslationUnitDecl());
 	}
 
@@ -728,22 +732,6 @@ namespace cxxclean
 			// error: expected '(' for function-style cast or type construction
 			return true;
 		}
-
-		// 然后这里还有一个编译错误要注意的：
-		// 若试图引用函数返回的临时对象，clang会直接报编译错误
-		// 比如假设有：
-		//     struct B{};
-		//     B f(){ return B() }
-		// 现在我们用下面语句调用
-		//     B &b = f();
-		// 则这条语句会被clang报diag::err_lvalue_reference_bind_to_temporary错误
-		//     non-const lvalue reference to type 'B' cannot bind to a temporary of type 'B'
-		//         B &b = f();
-		//            ^   ~~~
-		// 于是clang会跳过f()函数，导致清理工具识别不到f函数的调用了
-		// 这里我们想办法绕过去，通过直接改clang的源码，在llvm\tools\clang\lib\Sema\SemaInit.cpp删掉第4296行起的if判断函数
-		//     if (isLValueRef && !(T1Quals.hasConst() && !T1Quals.hasVolatile())) {
-		// 屏蔽该类报错
 
 		return false;
 	}

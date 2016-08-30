@@ -124,8 +124,8 @@ namespace cxxclean
 
 		inline clang::SourceManager& GetSrcMgr() const { return *m_srcMgr; }
 
-		// 生成结果前的准备
-		void PrepareResult();
+		// 生成每个文件的后代文件集
+		void GenerateChildren();
 
 		// 生成各文件的待清理记录
 		void GenerateResult();
@@ -135,9 +135,6 @@ namespace cxxclean
 
 		// a文件使用b文件
 		inline void UseInclude(FileID a, FileID b, const char* name = nullptr, int line = 0);
-
-		// 文件a使用指定名称的目标文件
-		void UseByFileName(FileID a, const char* filename);
 
 		// 当前位置使用指定的宏
 		void UseMacro(SourceLocation loc, const MacroDefinition &macro, const Token &macroName, const MacroArgs *args = nullptr);
@@ -203,10 +200,10 @@ namespace cxxclean
 		bool IsIncludedBy(FileID a, FileID b);
 
 		// 获取文件a的指定名称的直接后代文件
-		FileID GetDirectChildByName(FileID a, const char* childFileName);
+		FileID GetDirectChildByName(FileID a, const char* childFileName) const;
 
 		// 获取文件a的指定名称的后代文件
-		FileID GetChildByName(FileID a, const char* childFileName);
+		FileID GetChildByName(FileID a, const char* childFileName) const;
 
 		// 开始清理文件（将改动c++源文件）
 		void Clean();
@@ -323,7 +320,7 @@ namespace cxxclean
 		bool IsMoved(FileID a) const;
 
 		// 获取文件a将被转移哪些文件中
-		std::set<FileID> GetMoveToList(FileID a) const;
+		bool GetMoveToList(FileID a, std::set<FileID> &moveToList) const;
 
 		// 当前文件是否应新增class、struct、union的前置声明
 		bool IsNeedClass(FileID cur, const CXXRecordDecl &cxxRecord) const;
@@ -547,7 +544,7 @@ namespace cxxclean
 		void TakeUnusedLine(FileHistoryMap &out) const;
 
 		// 将新增的前置声明按文件进行存放
-		void TakeNewForwarddeclByFile(FileHistoryMap &out) const;
+		void TakeForwardClass(FileHistoryMap &out) const;
 
 		// 该文件是否是预编译头文件
 		bool IsPrecompileHeader(FileID file) const;
