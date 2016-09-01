@@ -586,6 +586,17 @@ namespace cxxclean
 			m_root->UseVarDecl(var->getLocStart(), prevVar);
 		}
 
+		if (var->hasExternalStorage())
+		{
+			for (const VarDecl *next : var->redecls())
+			{
+				if (!next->hasExternalStorage())
+				{
+					m_root->UseVarDecl(next->getLocStart(), var);
+				}
+			}
+		}
+
 		return true;
 	}
 

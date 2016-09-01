@@ -1920,6 +1920,22 @@ namespace cxxclean
 			return;
 		}
 
+		// 遍历该类的所有在loc位置之前的声明，如果发现已有前置声明则直接引用并返回，尽量避免生成额外的前置声明
+		const TagDecl *first = cxxRecordDecl->getFirstDecl();
+		for (const TagDecl *next : first->redecls())
+		{
+			if (loc < next->getLocation())
+			{
+				break;
+			}
+
+			if (!next->isThisDeclarationADefinition())
+			{
+				UseNameDecl(loc, next);
+				return;
+			}
+		}
+
 		// 添加文件所使用的前置声明记录（对于不必要添加的前置声明将在之后进行清理）
 		m_forwardDecls[file].insert(cxxRecordDecl);
 	}
@@ -1932,25 +1948,15 @@ namespace cxxclean
 			return false;
 		}
 
-		if (isa<TypedefType>(var))
-		{
-			return false;
-		}
-
 		QualType pointeeType = var->getPointeeType();
 
 		// 如果是指针类型就获取其指向类型(PointeeType)
-		while (pointeeType->isPointerType() || pointeeType->isReferenceType())
+		while (isa<PointerType>(pointeeType) || isa<ReferenceType>(pointeeType))
 		{
 			pointeeType = pointeeType->getPointeeType();
 		}
 
 		if (!isa<RecordType>(pointeeType))
-		{
-			return false;
-		}
-
-		if (!pointeeType->isRecordType())
 		{
 			return false;
 		}

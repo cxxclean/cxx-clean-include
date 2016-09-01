@@ -58,8 +58,12 @@ using namespace std;
 
 ///////////////////// 1. 测试a_func.h：某个文件内的函数如果被使用到，则对应的#include应该被保留 /////////////////////
 
-void A_Func_Test()
+int a = 99999;
+
+void A_Func_Test(A_Derived *derived)
 {
+	derived->test();
+
 	int n = 0;
 
 	n = A_TopFunc(100);
@@ -93,6 +97,7 @@ B_Ctor::B_Ctor()
 B_Class		b_Class;
 B_Struct	b_Struct;
 B_Union		b_Union;
+BBBB*		bbbbb;
 
 class B_DerivedClass : public B_BaseClass
 {

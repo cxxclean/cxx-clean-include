@@ -18,6 +18,8 @@ A A_Func(int a, const char* b)
 
 class IBase
 {
+public:
+	void test(){}
 };
 
 class A_Derived : public IBase

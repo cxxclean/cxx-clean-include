@@ -53,3 +53,5 @@ class B_1{
 public:
 	void test(){}
 };
+
+typedef B* BBBB;
