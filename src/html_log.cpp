@@ -157,7 +157,7 @@ const char* g_beginHtml = R"--(
 				background: #DDD;
 			}
 
-			.chart .row .grid {
+			.chart .row div {
 				float: left;
 				height: 100%;
 			}
@@ -170,6 +170,15 @@ const char* g_beginHtml = R"--(
 			.chart a:hover,.chart a:active {
 				cursor: pointer;
 				text-decoration: underline
+			}
+
+			h1:before{
+			  content:"\2714";
+			  color: #00FF00;
+			  right: 5px;
+			  top: 3px;
+			  position: relative;
+			  font-size: 60px;
 			}
 		</style>
 	</head>
@@ -207,14 +216,10 @@ const char* g_errorRowHtml = R"--(
 						</dd>)--";
 
 const char* g_gridHtml = R"--(
-							<div class="grid" style="#{width}text-indent:#{indent}px;">
-								#{text}
-							</div>)--";
+							<div style="#{width}text-indent:#{indent}px;">#{text}</div>)--";
 
 const char* g_errorGridHtml = R"--(
-							<div class="grid">
-								<pre style="padding:0 #{indent}px;">#{text}</pre>
-							</div>)--";
+							<div><pre style="padding:0 #{indent}px;">#{text}</pre></div>)--";
 
 namespace cxxclean
 {

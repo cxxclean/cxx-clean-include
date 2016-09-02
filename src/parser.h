@@ -45,6 +45,7 @@ namespace clang
 	class TemplateArgument;
 	class TemplateArgumentList;
 	class TemplateDecl;
+	class CXXConstructorDecl;
 }
 
 namespace cxxclean
@@ -141,6 +142,9 @@ namespace cxxclean
 
 		// 新增使用变量记录
 		void UseVarType(SourceLocation loc, const QualType &var);
+
+		// 引用构造函数
+		void UseConstructor(SourceLocation loc, const CXXConstructorDecl *constructor);
 
 		// 引用变量声明
 		void UseVarDecl(SourceLocation loc, const VarDecl *var);

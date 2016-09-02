@@ -304,7 +304,7 @@ namespace cxxclean
 		else if (isa<CXXConstructExpr>(s))
 		{
 			CXXConstructExpr *cxxConstructExpr = cast<CXXConstructExpr>(s);
-			m_root->UseValueDecl(loc, cxxConstructExpr->getConstructor());
+			m_root->UseConstructor(loc, cxxConstructExpr->getConstructor());
 		}
 		// new语句
 		else if (isa<CXXNewExpr>(s))
@@ -638,32 +638,16 @@ namespace cxxclean
 	}
 
 	// 构造声明
-	bool CxxCleanASTVisitor::VisitCXXConstructorDecl(CXXConstructorDecl *decl)
+	bool CxxCleanASTVisitor::VisitCXXConstructorDecl(CXXConstructorDecl *constructor)
 	{
-		for (auto itr = decl->init_begin(), end = decl->init_end(); itr != end; ++itr)
-		{
-			CXXCtorInitializer *initializer = *itr;
-			if (initializer->isAnyMemberInitializer())
-			{
-				m_root->UseValueDecl(initializer->getSourceLocation(), initializer->getAnyMember());
-			}
-			else if (initializer->isBaseInitializer())
-			{
-				m_root->UseType(initializer->getSourceLocation(), initializer->getBaseClass());
-			}
-			else if (initializer->isDelegatingInitializer())
-			{
-				if (initializer->getTypeSourceInfo())
-				{
-					m_root->UseQualType(initializer->getSourceLocation(), initializer->getTypeSourceInfo()->getType());
-				}
-			}
-			else
-			{
-				// decl->dump();
-			}
-		}
+		m_root->UseConstructor(constructor->getLocStart(), constructor);
+		return true;
+	}
 
+	// 构造语句
+	bool CxxCleanASTVisitor::VisitCXXConstructExpr(CXXConstructExpr *expr)
+	{
+		m_root->UseConstructor(expr->getLocStart(), expr->getConstructor());
 		return true;
 	}
 

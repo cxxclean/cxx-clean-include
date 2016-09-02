@@ -123,6 +123,9 @@ namespace cxxclean
 		// 构造声明
 		bool VisitCXXConstructorDecl(CXXConstructorDecl *decl);
 
+		// 构造语句
+		bool VisitCXXConstructExpr(CXXConstructExpr *expr);
+
 	private:
 		// 当前正在解析的cpp文件信息
 		ParsingFile*	m_root;

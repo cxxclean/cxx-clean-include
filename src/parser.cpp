@@ -1995,6 +1995,35 @@ namespace cxxclean
 		UseForward(loc, cxxRecordDecl);
 	}
 
+	// 引用构造函数
+	void ParsingFile::UseConstructor(SourceLocation loc, const CXXConstructorDecl *constructor)
+	{
+		for (const CXXCtorInitializer *initializer : constructor->inits())
+		{
+			if (initializer->isAnyMemberInitializer())
+			{
+				UseValueDecl(initializer->getSourceLocation(), initializer->getAnyMember());
+			}
+			else if (initializer->isBaseInitializer())
+			{
+				UseType(initializer->getSourceLocation(), initializer->getBaseClass());
+			}
+			else if (initializer->isDelegatingInitializer())
+			{
+				if (initializer->getTypeSourceInfo())
+				{
+					UseQualType(initializer->getSourceLocation(), initializer->getTypeSourceInfo()->getType());
+				}
+			}
+			else
+			{
+				// decl->dump();
+			}
+		}
+
+		UseValueDecl(loc, constructor);
+	}
+
 	// 引用变量声明
 	void ParsingFile::UseVarDecl(SourceLocation loc, const VarDecl *var)
 	{
