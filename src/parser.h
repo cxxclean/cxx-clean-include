@@ -125,8 +125,8 @@ namespace cxxclean
 
 		inline clang::SourceManager& GetSrcMgr() const { return *m_srcMgr; }
 
-		// 生成每个文件的后代文件集
-		void GenerateChildren();
+		// 为当前cpp文件的清理作前期准备
+		void InitCpp();
 
 		// 生成各文件的待清理记录
 		void GenerateResult();
@@ -258,6 +258,9 @@ namespace cxxclean
 
 		// 指定位置的对应的#include是否被用到
 		inline bool IsLocBeUsed(SourceLocation loc) const;
+
+		// 该文件是否被包含多次
+		inline bool HasSameFile(const char *file) const;
 
 		// 根据主文件的依赖关系，生成相关文件的依赖文件集
 		void GenerateRely();
@@ -612,6 +615,9 @@ namespace cxxclean
 
 		// 打印可被移动到cpp的文件列表
 		void PrintMove() const;
+		
+		// 打印被包含多次的文件
+		void PrintSameFile() const;
 
 	public:
 		// 当前正在解析的文件
@@ -677,6 +683,9 @@ namespace cxxclean
 		
 		// 21. 可被移动到其他cpp中的文件列表，map<文件a，将被转移到a中的文件>
 		std::map<FileID, std::map<FileID, FileID>>	m_moves;
+
+		// 22. 同一个文件名对应的不同文件id，map<文件名，该文件名对应的不同文件id>
+		std::map<std::string, std::set<FileID>>		m_sameFiles;
 
 	private:
 		clang::Rewriter*							m_rewriter;

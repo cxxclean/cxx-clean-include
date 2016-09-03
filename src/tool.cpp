@@ -407,6 +407,11 @@ namespace pathtool
 	*/
 	string get_absolute_path(const char *path)
 	{
+		if (nullptr == path)
+		{
+			return "";
+		}
+
 		llvm::SmallString<512> filepath(path);
 		std::error_code error = llvm::sys::fs::make_absolute(filepath);
 		if (error)
@@ -425,6 +430,11 @@ namespace pathtool
 	*/
 	string get_absolute_path(const char *base_path, const char* relative_path)
 	{
+		if (nullptr == base_path || nullptr == relative_path)
+		{
+			return "";
+		}
+
 		if (llvm::sys::path::is_absolute(relative_path))
 		{
 			return get_absolute_path(relative_path);

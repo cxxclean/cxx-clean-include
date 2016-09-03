@@ -82,21 +82,43 @@ namespace cxxclean
 	static const char* cn_file_debug_text				= "[%s](文件ID = %d) {该文件来自于 [%s] 文件中的第%s行 = [%s]}";
 	static const char* cn_main_file_debug_text			= "[%s](文件ID = %d)";
 
+	// 行类型
+	enum RowType
+	{
+		Row_None	= 0,	// 正常
+		Row_Error	= 1,	// 错误
+	};
+
+	// 格子类型
+	enum GridType
+	{
+		Grid_None	= 0,	// 正常
+		Grid_Ok		= 1,	// 正确
+		Grid_Error	= 2,	// 错误
+	};
+
 	struct DivGrid
 	{
+		DivGrid()
+			: width(0)
+			, gridType(Grid_None)
+		{
+		}
+
 		std::string text;
-		int width;
+		int			width;
+		GridType	gridType;	// 本格子的类型
 	};
 
 	struct DivRow
 	{
 		DivRow()
 			: tabCount(0)
-			, isErrTip(false)
+			, rowType(Row_None)
 		{
 		}
 
-		bool					isErrTip;	// 是否是错误提示
+		RowType					rowType;	// 本行的类型
 		int						tabCount;
 		std::vector<DivGrid>	grids;
 	};
@@ -123,18 +145,18 @@ namespace cxxclean
 			AddTitle(title.c_str(), width);
 		}
 
-		void AddRow(const char* text, int tabCount = 1, int width = 100, bool needEscape = false, bool isErrorTip = false);
+		void AddRow(const char* text, int tabCount = 1, int width = 100, bool needEscape = false, RowType rowType = Row_None, GridType gridType = Grid_None);
 
-		void AddRow(const std::string &text, int tabCount = 1 /* 缩进tab数 */, int width = 100, bool needEscape = false, bool isErrorTip = false)
+		void AddRow(const std::string &text, int tabCount = 1 /* 缩进tab数 */, int width = 100, bool needEscape = false, RowType rowType = Row_None, GridType gridType = Grid_None)
 		{
-			AddRow(text.c_str(), tabCount, width, needEscape, isErrorTip);
+			AddRow(text.c_str(), tabCount, width, needEscape, rowType, gridType);
 		}
 
-		void AddGrid(const char* text, int width = 0, bool needEscape = false);
+		void AddGrid(const char* text, int width = 0, bool needEscape = false, GridType gridType = Grid_None);
 
-		void AddGrid(const std::string &text, int width = 0, bool needEscape = false)
+		void AddGrid(const std::string &text, int width = 0, bool needEscape = false, GridType gridType = Grid_None)
 		{
-			AddGrid(text.c_str(), width, needEscape);
+			AddGrid(text.c_str(), width, needEscape, gridType);
 		}
 
 		std::vector<DivGrid>	titles;

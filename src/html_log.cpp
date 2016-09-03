@@ -180,6 +180,23 @@ const char* g_beginHtml = R"--(
 			  position: relative;
 			  font-size: 60px;
 			}
+
+			.chart .ok:before{
+			  content:"\2714";
+			  color: #00FF00;
+			  right: 5px;
+			  top: 2px;
+			  position: relative;
+			  font-size: 2.1em;	
+			}
+
+			.chart .err:before{
+			  content:"\2718";
+			  color: #FF0000;
+			  right: 5px;
+			  position: relative;
+			  font-size: 2.1em;			  
+			}
 		</style>
 	</head>
 	<body>
@@ -216,7 +233,7 @@ const char* g_errorRowHtml = R"--(
 						</dd>)--";
 
 const char* g_gridHtml = R"--(
-							<div style="#{width}text-indent:#{indent}px;">#{text}</div>)--";
+							<div #{class}style="#{width}text-indent:#{indent}px;">#{text}</div>)--";
 
 const char* g_errorGridHtml = R"--(
 							<div><pre style="padding:0 #{indent}px;">#{text}</pre></div>)--";
@@ -234,17 +251,17 @@ namespace cxxclean
 		grid.width		= width;
 	}
 
-	void HtmlDiv::AddRow(const char* text, int tabCount /* = 1 */, int width /* = 100 */, bool needEscape /* = false */, bool isErrorTip /* = false */)
+	void HtmlDiv::AddRow(const char* text, int tabCount /* = 1 */, int width /* = 100 */, bool needEscape /* = false */, RowType rowType /*= Row_None */, GridType gridType /* = Grid_None */)
 	{
 		rows.resize(rows.size() + 1);
 		DivRow &row		= rows.back();
 		row.tabCount	= tabCount;
-		row.isErrTip	= isErrorTip;
+		row.rowType		= rowType;
 
-		AddGrid(text, width, needEscape);
+		AddGrid(text, width, needEscape, gridType);
 	}
 
-	void HtmlDiv::AddGrid(const char* text, int width, bool needEscape /* = false */)
+	void HtmlDiv::AddGrid(const char* text, int width, bool needEscape /* = false */, GridType gridType /* = Grid_None */)
 	{
 		DivRow &row		= rows.back();
 		row.grids.resize(row.grids.size() + 1);
@@ -252,6 +269,7 @@ namespace cxxclean
 		DivGrid &grid	= row.grids.back();
 		grid.text		= text;
 		grid.width		= width;
+		grid.gridType	= gridType;
 
 		if (needEscape)
 		{
@@ -303,6 +321,7 @@ namespace cxxclean
 	void HtmlLog::EndLog()
 	{
 		cxx::log() << g_endHtml;
+		cxx::log().flush();
 	}
 
 	void HtmlLog::AddDiv(const HtmlDiv &div)
@@ -323,7 +342,7 @@ namespace cxxclean
 
 		for (DivRow row : div.rows)
 		{
-			std::string rowHtml = (row.isErrTip ? g_errorRowHtml : g_rowHtml);
+			std::string rowHtml = (row.rowType == Row_Error ? g_errorRowHtml : g_rowHtml);
 
 			std::string gridsHtml;
 
@@ -331,8 +350,18 @@ namespace cxxclean
 
 			for (DivGrid grid : row.grids)
 			{
-				std::string gridHtml  = (row.isErrTip ? g_errorGridHtml : g_gridHtml);
-				std::string widthHtml = (grid.width == 100 || grid.width == 0) ? "" : strtool::get_text("width:%d%%;", grid.width);
+				std::string gridHtml	= (row.rowType == Row_Error ? g_errorGridHtml : g_gridHtml);
+				std::string widthHtml	= (grid.width == 100 || grid.width == 0) ? "" : strtool::get_text("width:%d%%;", grid.width);
+				std::string classHtml;
+
+				if (grid.gridType == Grid_Ok)
+				{
+					classHtml = "class=\"ok\" ";
+				}
+				else if (grid.gridType == Grid_Error)
+				{
+					classHtml = "class=\"err\" ";
+				}
 
 				int indent = ((i == 0) ? row.tabCount * 35 : 0);
 				++i;
@@ -348,6 +377,7 @@ namespace cxxclean
 
 				strtool::replace(gridHtml, "#{text}",		grid.text.c_str());
 				strtool::replace(gridHtml, "#{width}",		widthHtml.c_str());
+				strtool::replace(gridHtml, "#{class}",		classHtml.c_str());
 				strtool::replace(gridHtml, " style=\"\"",	"");
 
 				gridsHtml += gridHtml;
@@ -370,6 +400,7 @@ namespace cxxclean
 		strtool::replace(divHtml, "#{div_rows}",	divRowsHtml.c_str());
 
 		cxx::log() << divHtml;
+		cxx::log().flush();
 	}
 
 	// 添加大标题

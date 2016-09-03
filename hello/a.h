@@ -1,3 +1,5 @@
+#include <ctype.h>
+
 extern int a;
 
 int A_TopFunc(int n)
@@ -83,6 +85,7 @@ class AAAAAA
 public:
 	void fffffff(int)
 	{
+		int a = isspace('a');
 	}
 };
 

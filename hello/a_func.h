@@ -1,5 +1,8 @@
 // #include <stdio.h>
 
+// 这条#include是用来测试#pragma once的
+#include <ctype.h>
+
 #include "a.h"
 
 void A::A_ClassMemberDelayImplementFunc3()

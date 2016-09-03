@@ -679,8 +679,8 @@ namespace cxxclean
 			cxx::log() << "<pre>------------ HandleTranslationUnit-End ------------:</pre>\n";
 		}
 
-		// 1. 生成每个文件的后代文件集（分析过程中需要用到）
-		m_root->GenerateChildren();
+		// 1. 为当前cpp文件的清理作前期准备
+		m_root->InitCpp();
 
 		// 2. 遍历语法树
 		m_visitor.TraverseDecl(context.getTranslationUnitDecl());

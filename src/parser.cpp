@@ -64,6 +64,7 @@ namespace cxxclean
 		if (file.isValid())
 		{
 			m_files.insert(file);
+			m_sameFiles[GetAbsoluteFileName(file)].insert(file);
 		}
 	}
 
@@ -154,15 +155,35 @@ namespace cxxclean
 		return m_usedLocs.find(loc) != m_usedLocs.end();
 	}
 
-	// 生成每个文件的后代文件集
-	void ParsingFile::GenerateChildren()
+	// 该文件是否被包含多次
+	inline bool ParsingFile::HasSameFile(const char *file) const
 	{
-		// 生成每个文件的后代文件
+		return m_sameFiles.find(file) != m_sameFiles.end();
+	}
+
+	// 为当前cpp文件的清理作前期准备
+	void ParsingFile::InitCpp()
+	{
+		// 1. 生成每个文件的后代文件集（分析过程中需要用到）
 		for (FileID file : m_files)
 		{
 			for (FileID child = file, parent; (parent = GetParent(child)).isValid(); child = parent)
 			{
 				m_children[parent].insert(file);
+			}
+		}
+
+		// 2. 保留被反复包含的文件
+		for (auto itr = m_sameFiles.begin(); itr != m_sameFiles.end();)
+		{
+			const std::set<FileID> &sameFiles = itr->second;
+			if (sameFiles.size() <= 1)
+			{
+				m_sameFiles.erase(itr++);
+			}
+			else
+			{
+				++itr;
 			}
 		}
 	}
@@ -486,7 +507,21 @@ namespace cxxclean
 			return;
 		}
 
-		for (auto & locItr : m_includeLocs)
+		// 1. 先生成有效#include列表
+		std::map<SourceLocation, SourceRange> validIncludeLocs;
+		for (FileID file : m_files)
+		{
+			SourceLocation beIncludeLoc = m_srcMgr->getIncludeLoc(file);
+
+			auto itr = m_includeLocs.find(beIncludeLoc);
+			if (itr != m_includeLocs.end())
+			{
+				validIncludeLocs.insert(std::make_pair(beIncludeLoc, itr->second));
+			}
+		}
+
+		// 2. 判断每个#include是否被使用到
+		for (auto & locItr : validIncludeLocs)
 		{
 			SourceLocation loc = locItr.first;
 			FileID file = GetFileID(loc);
@@ -502,6 +537,7 @@ namespace cxxclean
 			}
 		}
 
+		// 3. 有些#include不应被删除或无法被删除，如强制包含、预编译头文件
 		for (FileID beusedFile : m_files)
 		{
 			if (IsSkip(beusedFile))
@@ -1322,11 +1358,15 @@ namespace cxxclean
 			return;
 		}
 
-		// 这里注意：每个文件优先保留自己及后代文件中的#include语句
-		FileID child = GetChildByName(a, bFileName.c_str());
-		if (child.isValid())
+		// 如果b文件被包含多次，则在其中选择一个较合适的
+		if (HasSameFile(bFileName.c_str()))
 		{
-			b = child;
+			// 注意：每个文件优先保留自己及后代文件中的#include语句
+			FileID child = GetChildByName(a, bFileName.c_str());
+			if (child.isValid())
+			{
+				b = child;
+			}
 		}
 
 		m_uses[a].insert(b);
@@ -1534,7 +1574,7 @@ namespace cxxclean
 	{
 		// 1. 优先返回直接孩子文件
 		FileID directChild = GetDirectChildByName(a, childFileName);
-		if (directChild.isInvalid())
+		if (directChild.isValid())
 		{
 			return directChild;
 		}
@@ -3197,6 +3237,7 @@ namespace cxxclean
 		if (verbose >= VerboseLvl_3)
 		{
 			PrintUsedNames();
+			PrintSameFile();
 		}
 
 		if (verbose >= VerboseLvl_4)
@@ -4167,7 +4208,7 @@ namespace cxxclean
 				continue;
 			}
 
-			div.AddRow("file = " + htmltool::get_file_html(GetFileName(file)), 2);
+			div.AddRow("file = " + DebugBeIncludeText(file), 2);
 		}
 
 		div.AddRow("");
@@ -4202,7 +4243,7 @@ namespace cxxclean
 				div.AddRow("<--------- new add rely file --------->", 2, 100, true);
 			}
 
-			div.AddRow("file = " + htmltool::get_file_html(GetFileName(file)), 2);
+			div.AddRow("file = " + DebugBeIncludeText(file), 2);
 		}
 
 		div.AddRow("");
@@ -4437,5 +4478,32 @@ namespace cxxclean
 		}
 
 		div.AddRow("");
+	}
+
+	// 打印被包含多次的文件
+	void ParsingFile::PrintSameFile() const
+	{
+		if (m_sameFiles.empty())
+		{
+			return;
+		}
+
+		HtmlDiv &div = HtmlLog::instance.m_newDiv;
+		div.AddRow(AddPrintIdx() + ". same file list: file count = " + htmltool::get_number_html(m_moves.size()), 1);
+
+		for (auto &itr : m_sameFiles)
+		{
+			const std::string &fileName			= itr.first;
+			const std::set<FileID> sameFiles	= itr.second;
+
+			div.AddRow("fileName = " + fileName, 2);
+
+			for (FileID sameFile : sameFiles)
+			{
+				div.AddRow("file = " + DebugBeIncludeText(sameFile), 3);
+			}
+
+			div.AddRow("");
+		}
 	}
 }

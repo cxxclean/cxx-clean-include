@@ -25,14 +25,14 @@ namespace cxxclean
 		}
 
 		HtmlDiv &div = HtmlLog::instance.m_newDiv;
-		div.AddRow(" ", 1, 100, false, true);
+		div.AddRow(" ", 1, 100, false, Row_Error);
 
-		div.AddRow(cn_error, 1, 100, false, true);
+		div.AddRow(cn_error, 1, 100, false, Row_Error, Grid_Error);
 
 		for (const std::string& errTip : errTips)
 		{
-			div.AddRow(errTip, 2, 100, true, true);
-			div.AddRow(" ", 1, 100, false, true);
+			div.AddRow(errTip, 2, 100, true, Row_Error);
+			div.AddRow(" ", 1, 100, false, Row_Error);
 		}
 
 		// div.AddRow(" ", 1, 100, false, true);
@@ -55,20 +55,20 @@ namespace cxxclean
 			}
 
 			std::string tip = get_text(cn_error_fatal, errTexts.c_str());
-			div.AddRow(tip, 1, 100, true, true);
+			div.AddRow(tip, 1, 100, true, Row_Error);
 		}
 
 		if (hasTooManyError)
 		{
 			std::string tip = get_text(cn_error_too_many, htmltool::get_number_html(errNum).c_str());
-			div.AddRow(tip, 1, 100, true, true);
+			div.AddRow(tip, 1, 100, true, Row_Error);
 		}
 		else if (fatalErrors.empty())
 		{
 			if (errNum > 0)
 			{
 				std::string tip = get_text(cn_error_ignore, htmltool::get_number_html(errNum).c_str());
-				div.AddRow(tip, 1, 100, true, true);
+				div.AddRow(tip, 1, 100, true, Row_Error);
 			}
 		}
 
@@ -85,9 +85,11 @@ namespace cxxclean
 
 		HtmlDiv &div = HtmlLog::instance.m_newDiv;
 
-		const char *tip = (m_compileErrorHistory.HaveFatalError() ? cn_file_history_compile_error : cn_file_history);
+		bool isError	= m_compileErrorHistory.HaveFatalError();
+		const char *tip = (isError ? cn_file_history_compile_error : cn_file_history);
 
-		div.AddRow(strtool::get_text(tip, htmltool::get_number_html(id).c_str(), htmltool::get_file_html(m_filename).c_str()), 1);
+		div.AddRow(strtool::get_text(tip, htmltool::get_number_html(id).c_str(), htmltool::get_file_html(m_filename).c_str()), 
+			1, 100, false, Row_None, isError ? Grid_Error : Grid_Ok);
 
 		if (print_err)
 		{
