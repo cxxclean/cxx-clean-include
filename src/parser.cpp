@@ -3781,8 +3781,11 @@ namespace cxxclean
 			unusedLine.end	= m_srcMgr->getFileOffset(nextLine.getBegin());
 			unusedLine.text	= GetSourceOfRange(lineRange);
 
-			llvm::errs() << "------->TakeUnusedLine [" << fileName << "]: [" << unusedLine.beg << "," << m_srcMgr->getFileOffset(lineRange.getEnd()) << "," 
-				<< unusedLine.end  << "," << m_srcMgr->getFileOffset(nextLine.getEnd()) << "], text = [" << unusedLine.text << "]\n";
+			if (Project::instance.m_verboseLvl >= VerboseLvl_2)
+			{
+				llvm::errs() << "------->TakeUnusedLine [" << fileName << "]: [" << unusedLine.beg << "," << m_srcMgr->getFileOffset(lineRange.getEnd()) << ","
+					<< unusedLine.end << "," << m_srcMgr->getFileOffset(nextLine.getEnd()) << "], text = [" << unusedLine.text << "]\n";
+			}
 		}
 	}
 

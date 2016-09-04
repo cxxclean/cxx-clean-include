@@ -100,12 +100,12 @@ const char* g_beginHtml = R"--(
 				background: #f7f7f7;
 				border-radius: 2px;
 				border: 2px solid #d2d2d2;
-				color: #FF4C00;
 				height: 41px;
 				line-height: 41px;
 				font-weight: bold;
-				font-size: 1.7em;
+				font-size: 1.5em;
 				border-radius: 10px;
+				font-family: Microsoft YaHei;
 			}
 
 			.title .col {
