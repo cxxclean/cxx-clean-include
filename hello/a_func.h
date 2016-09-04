@@ -1,16 +1,11 @@
-// #include <stdio.h>
+#include <stdio.h>
 
 // 这条#include是用来测试#pragma once的
 #include <ctype.h>
 
 #include "a.h"
 
-void A::A_ClassMemberDelayImplementFunc3()
-{
-
-}
-
-A A_Func(int a, const char* b)
+static A A_Func(int a, const char* b)
 {
 	return A();
 }
@@ -40,10 +35,8 @@ public:
 	static A_OverloadBug* m_a;
 };
 
-A_OverloadBug* A_OverloadBug::m_a = new A_OverloadBug;
-
 template<>
-void convert(const A1& a1, A2& a2)
+inline void convert(const A1& a1, A2& a2)
 {
 	a2.bbbbbbb = a1.aaaaaaa;
 }

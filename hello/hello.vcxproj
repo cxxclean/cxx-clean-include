@@ -95,12 +95,26 @@
     <ClInclude Include="j_enumeration.h" />
     <ClInclude Include="k.h" />
     <ClInclude Include="k_namespace.h" />
+    <ClInclude Include="l.h" />
+    <ClInclude Include="l_use_template.h" />
     <ClInclude Include="nil.h" />
     <ClInclude Include="test.h" />
     <ClInclude Include="type.h" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="a_func.cpp" />
+    <ClCompile Include="b_class.cpp" />
+    <ClCompile Include="c_macro.cpp" />
+    <ClCompile Include="d_template.cpp" />
+    <ClCompile Include="e_typedef.cpp" />
+    <ClCompile Include="f_forwarddecl.cpp" />
+    <ClCompile Include="g_default_arg.cpp" />
     <ClCompile Include="hello.cpp" />
+    <ClCompile Include="h_use_forwarddecl.cpp" />
+    <ClCompile Include="i_deeply_include.cpp" />
+    <ClCompile Include="j_enumeration.cpp" />
+    <ClCompile Include="k_namespace.cpp" />
+    <ClCompile Include="l_use_template.cpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

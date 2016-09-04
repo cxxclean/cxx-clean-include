@@ -209,6 +209,9 @@ namespace cxxclean
 		// 获取文件a的指定名称的后代文件
 		FileID GetChildByName(FileID a, const char* childFileName) const;
 
+		// 当a使用b时，如果b对应的文件被包含多次，从b的同名文件中选取一个最好的文件
+		FileID GetBestSameFile(FileID a, FileID b) const;
+
 		// 开始清理文件（将改动c++源文件）
 		void Clean();
 
@@ -260,7 +263,10 @@ namespace cxxclean
 		inline bool IsLocBeUsed(SourceLocation loc) const;
 
 		// 该文件是否被包含多次
-		inline bool HasSameFile(const char *file) const;
+		inline bool HasSameFileByName(const char *file) const;
+
+		// 该文件名是否被包含多次
+		inline bool HasSameFile(FileID file) const;
 
 		// 根据主文件的依赖关系，生成相关文件的依赖文件集
 		void GenerateRely();
@@ -402,6 +408,9 @@ namespace cxxclean
 					#include "./a.h"
 		*/
 		std::string GetIncludeText(FileID file) const;
+
+		// 获取文件对应的#include所在的整行
+		std::string GetIncludeLine(FileID file) const;
 
 		inline void UseName(FileID file, FileID beusedFile, const char* name = nullptr, int line = 0);
 
@@ -575,7 +584,10 @@ namespace cxxclean
 		bool IsSkip(FileID file) const;
 
 		// 该文件是否被依赖
-		bool IsBeRely(FileID file) const;
+		inline bool IsRely(FileID file) const;
+
+		// 该文件的所有同名文件是否被依赖（同一文件可被包含多次）
+		bool IsRelyBySameName(FileID file) const;
 
 		// 该文件是否被主文件循环引用到
 		bool IsRelyByTop(FileID file) const;
@@ -600,6 +612,9 @@ namespace cxxclean
 
 		// 打印各文件对应的有用孩子文件记录
 		void PrintRelyChildren() const;
+
+		// 打印可转为前置声明的类指针或引用记录
+		void PrintForwardDecl() const;
 
 		// 打印允许被清理的所有文件列表
 		void PrintAllFile() const;

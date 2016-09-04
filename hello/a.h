@@ -2,7 +2,7 @@
 
 extern int a;
 
-int A_TopFunc(int n)
+inline int A_TopFunc(int n)
 {
 	int s = 0;
 
@@ -93,13 +93,13 @@ typedef void (AAAAAA::*func)(int);
 
 #define FFF(a, b) test(&a##::##b);
 
-void test(func f)
+inline void test(func f)
 {
 	AAAAAA a;
 	(a.*f)(1);
 }
 
-void test_compile_error()
+inline void test_compile_error()
 {
 	FFF(AAAAAA, fffffff)
 }

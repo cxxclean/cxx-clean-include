@@ -6,7 +6,7 @@ class B
 {
 };
 
-void B_test_operator_new()
+static void B_test_operator_new()
 {
 	B* c = new ((void*)0) B();
 }
@@ -15,7 +15,7 @@ void B_test_operator_new()
 
 class B_ClassPointer;
 
-B_ClassPointer *b_ClassPointer;
+static B_ClassPointer *b_ClassPointer;
 
 #include "b.h"
 
@@ -41,7 +41,7 @@ class B_TempClass
 	int num;
 };
 
-B_TempClass GetB_TempClass()
+static B_TempClass GetB_TempClass()
 {
 	return B_TempClass();
 }
@@ -66,24 +66,24 @@ private:
 //------------------- 测试多个类链式引用 -------------------//
 
 class B_2
-{ 
+{
 public:
 	B_1 *m_b1;
 };
 class B_3
-	{ 
+{
 public:
 	B_2 *m_b2;
 };
 class B_4
-	{ 
+{
 public:
 	B_3 *m_b3;
 };
 class B_5
-{ 
+{
 public:
-	B_5(){}
+	B_5() {}
 
 public:
 	B_4 *m_b4;

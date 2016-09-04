@@ -156,9 +156,15 @@ namespace cxxclean
 	}
 
 	// 该文件是否被包含多次
-	inline bool ParsingFile::HasSameFile(const char *file) const
+	inline bool ParsingFile::HasSameFileByName(const char *file) const
 	{
 		return m_sameFiles.find(file) != m_sameFiles.end();
+	}
+
+	// 该文件名是否被包含多次
+	inline bool ParsingFile::HasSameFile(FileID file) const
+	{
+		return m_sameFiles.find(GetAbsoluteFileName(file)) != m_sameFiles.end();
 	}
 
 	// 为当前cpp文件的清理作前期准备
@@ -219,7 +225,7 @@ namespace cxxclean
 	FileID ParsingFile::GetCanReplaceTo(FileID top) const
 	{
 		// 若文件本身也被使用到，则无法被替换
-		if (IsBeRely(top))
+		if (IsRely(top))
 		{
 			return FileID();
 		}
@@ -280,7 +286,7 @@ namespace cxxclean
 					break;
 				}
 
-				if (IsBeRely(lv2Top))
+				if (IsRely(lv2Top))
 				{
 					continue;
 				}
@@ -341,13 +347,7 @@ namespace cxxclean
 	// 将文件b转移到文件a中
 	void ParsingFile::AddMove(FileID a, FileID b)
 	{
-		const std::string bName = GetAbsoluteFileName(b);
-
-		FileID sameFile = GetDirectChildByName(a, bName.c_str());
-		if (sameFile.isValid())
-		{
-			//return;
-		}
+		b = GetBestSameFile(a, b);
 
 		FileID replaceTo = b;
 
@@ -414,9 +414,40 @@ namespace cxxclean
 	}
 
 	// 该文件是否被依赖
-	bool ParsingFile::IsBeRely(FileID file) const
+	bool ParsingFile::IsRely(FileID file) const
 	{
 		return m_relys.find(file) != m_relys.end();
+	}
+
+	// 该文件的所有同名文件是否被依赖（同一文件可被包含多次）
+	bool ParsingFile::IsRelyBySameName(FileID file) const
+	{
+		if (IsRely(file))
+		{
+			return true;
+		}
+
+		auto itr = m_sameFiles.find(GetAbsoluteFileName(file));
+		if (itr == m_sameFiles.end())
+		{
+			return false;
+		}
+
+		const std::set<FileID> &sames = itr->second;
+		for (FileID same : sames)
+		{
+			if (file == same)
+			{
+				continue;
+			}
+
+			if (IsRely(same))
+			{
+				return true;
+			}
+		}
+
+		return false;
 	}
 
 	// 该文件是否被主文件循环引用到
@@ -461,7 +492,7 @@ namespace cxxclean
 				{
 					FileID useby	= useItr.first;
 
-					if (!IsBeRely(useby))
+					if (!IsRely(useby))
 					{
 						continue;
 					}
@@ -526,7 +557,7 @@ namespace cxxclean
 			SourceLocation loc = locItr.first;
 			FileID file = GetFileID(loc);
 
-			if (!IsBeRely(file))
+			if (!IsRely(file))
 			{
 				continue;
 			}
@@ -752,7 +783,7 @@ namespace cxxclean
 		FileID recordAtFile = GetFileID(cxxRecord.getLocStart());
 
 		// 若类所在的文件被引用，则不需要再加前置声明
-		if (IsBeRely(recordAtFile))
+		if (IsRely(recordAtFile))
 		{
 			return true;
 		}
@@ -762,7 +793,7 @@ namespace cxxclean
 		for (const CXXRecordDecl *prev = cxxRecord.getPreviousDecl(); prev; prev = prev->getPreviousDecl())
 		{
 			FileID prevFileId = GetFileID(prev->getLocation());
-			if (!IsBeRely(prevFileId))
+			if (!IsRely(prevFileId))
 			{
 				continue;
 			}
@@ -782,7 +813,7 @@ namespace cxxclean
 			const TagDecl *redecl = *redeclItr;
 
 			FileID redeclFileID = GetFileID(redecl->getLocation());
-			if (!IsBeRely(redeclFileID))
+			if (!IsRely(redeclFileID))
 			{
 				continue;
 			}
@@ -839,13 +870,16 @@ namespace cxxclean
 	// 当前文件是否应新增class、struct、union的前置声明
 	bool ParsingFile::IsNeedClass(FileID cur, const CXXRecordDecl &cxxRecord) const
 	{
-		FileID recordAtFile = GetFileID(cxxRecord.getLocStart());
+		FileID recordAtFile = GetBestSameFile(cur, GetFileID(cxxRecord.getLocStart()));
 
 		// 分3种情况，令类所在的文件为A
 		// 1. 若A未被引用，则肯定要加前置声明
-		if (!IsBeRely(recordAtFile))
+		if (!IsRely(recordAtFile))
 		{
-			return true;
+			if (!IsRelyBySameName(recordAtFile))
+			{
+				return true;
+			}
 		}
 
 		std::set<FileID> moveToList;
@@ -887,13 +921,11 @@ namespace cxxclean
 			FileID file										= itr->first;
 			std::set<const CXXRecordDecl*> &old_forwards	= itr->second;
 
-			if (!IsBeRely(file))
+			if (!IsRely(file))
 			{
 				m_forwardDecls.erase(itr++);
 				continue;
 			}
-
-			++itr;
 
 			std::set<const CXXRecordDecl*> can_forwards;
 
@@ -905,10 +937,18 @@ namespace cxxclean
 				}
 			}
 
+			if (can_forwards.empty())
+			{
+				m_forwardDecls.erase(itr++);
+				continue;
+			}
+
 			if (can_forwards.size() < old_forwards.size())
 			{
 				old_forwards = can_forwards;
 			}
+
+			++itr;
 		}
 
 		// 2. 不同文件可能添加了同一个前置声明，这里删掉重复的
@@ -1060,15 +1100,25 @@ namespace cxxclean
 	// 根据传入的代码位置返回下一行的范围
 	SourceRange ParsingFile::GetNextLine(SourceLocation loc) const
 	{
-		SourceRange curLine		= GetCurLine(loc);
-		SourceLocation lineEnd	= curLine.getEnd();
+		SourceRange curLine			= GetCurLine(loc);
+		SourceLocation lineEnd		= curLine.getEnd();
+		SourceLocation fileEndLoc	= m_srcMgr->getLocForEndOfFile(GetFileID(loc));
+
+		if (fileEndLoc < lineEnd || fileEndLoc == lineEnd)
+		{
+			return SourceRange(fileEndLoc, fileEndLoc);
+		}
 
 		const char* c1			= GetSourceAtLoc(lineEnd);
 		const char* c2			= GetSourceAtLoc(lineEnd.getLocWithOffset(1));
 
 		if (nullptr == c1 || nullptr == c2)
 		{
-			SourceLocation fileEndLoc	= m_srcMgr->getLocForEndOfFile(GetFileID(loc));
+			if (Project::instance.m_verboseLvl >= VerboseLvl_2)
+			{
+				llvm::errs() << "====> ParsingFile::GetNextLine = null" << "\n";
+			}
+
 			return SourceRange(fileEndLoc, fileEndLoc);
 		}
 
@@ -1176,6 +1226,20 @@ namespace cxxclean
 		}
 
 		return text;
+	}
+
+	// 获取文件对应的#include所在的整行
+	std::string ParsingFile::GetIncludeLine(FileID file) const
+	{
+		SourceLocation loc = m_srcMgr->getIncludeLoc(file);
+
+		auto & itr = m_includeLocs.find(loc);
+		if (itr == m_includeLocs.end())
+		{
+			return "";
+		}
+
+		return GetSourceOfLine(loc);
 	}
 
 	// cur位置的代码使用src位置的代码
@@ -1358,16 +1422,7 @@ namespace cxxclean
 			return;
 		}
 
-		// 如果b文件被包含多次，则在其中选择一个较合适的
-		if (HasSameFile(bFileName.c_str()))
-		{
-			// 注意：每个文件优先保留自己及后代文件中的#include语句
-			FileID child = GetChildByName(a, bFileName.c_str());
-			if (child.isValid())
-			{
-				b = child;
-			}
-		}
+		b = GetBestSameFile(a, b);
 
 		m_uses[a].insert(b);
 		UseName(a, b, name, line);
@@ -1417,21 +1472,6 @@ namespace cxxclean
 	void ParsingFile::UseNamespaceDecl(SourceLocation loc, const NamespaceDecl *ns)
 	{
 		UseNameDecl(loc, ns);
-
-		std::string nsName		= GetNestedNamespace(ns);
-		SourceLocation nsLoc	= ns->getLocStart();
-
-		for (auto &itr : m_usingNamespaces)
-		{
-			SourceLocation using_loc	= itr.first;
-			const NamespaceInfo &ns		= itr.second;
-
-			if (nsName == ns.decl)
-			{
-				std::string usingNs		= "using namespace " + ns.ns->getQualifiedNameAsString() + ";";
-				Use(loc, using_loc, usingNs.c_str());
-			}
-		}
 	}
 
 	// 引用命名空间别名
@@ -1463,22 +1503,38 @@ namespace cxxclean
 	// using了命名空间，比如：using namespace std;
 	void ParsingFile::UsingNamespace(const UsingDirectiveDecl *d)
 	{
-		SourceLocation loc = GetSpellingLoc(d->getLocation());
-
-		FileID file = GetFileID(loc);
-		if (file.isInvalid())
+		const NamespaceDecl *nominatedNs = d->getNominatedNamespace();
+		if (nullptr == nominatedNs)
 		{
 			return;
 		}
 
-		const NamespaceDecl *ns	= d->getNominatedNamespace();
+		const NamespaceDecl *firstNs = nominatedNs->getOriginalNamespace();
+		if (nullptr == firstNs)
+		{
+			return;
+		}
 
-		NamespaceInfo &nsInfo = m_usingNamespaces[loc];
-		nsInfo.decl	= GetNestedNamespace(ns);
-		nsInfo.ns	= ns;
+		SourceLocation usingLoc = GetSpellingLoc(d->getUsingLoc());
 
-		// 引用命名空间所在的文件（注意：using namespace时必须能找到对应的namespace声明，比如，using namespace A前一定要有namespace A{}否则编译会报错）
-		Use(loc, ns->getLocation(), nsInfo.decl.c_str());
+		for (const NamespaceDecl *ns : firstNs->redecls())
+		{
+			SourceLocation nsLoc	= ns->getLocStart();
+			std::string usingText	= "using namespace " + ns->getQualifiedNameAsString() + ";";
+			std::string nsText		= GetNestedNamespace(ns);
+
+			// 引用命名空间所在的文件（注意：using namespace时必须能找到对应的namespace声明，比如，using namespace A前一定要有namespace A{}否则编译会报错）
+			Use(nsLoc, usingLoc, usingText.c_str());
+
+			if (nsLoc < usingLoc)
+			{
+				Use(usingLoc, nsLoc, nsText.c_str());
+			}
+
+			NamespaceInfo &nsInfo = m_usingNamespaces[usingLoc];
+			nsInfo.decl	= nsText;
+			nsInfo.ns	= ns;
+		}
 	}
 
 	// using了命名空间下的某类，比如：using std::string;
@@ -1552,17 +1608,14 @@ namespace cxxclean
 	FileID ParsingFile::GetDirectChildByName(FileID a, const char* childFileName) const
 	{
 		auto & itr = m_includes.find(a);
-		if (itr == m_includes.end())
+		if (itr != m_includes.end())
 		{
-			return FileID();
-		}
-
-		const std::set<FileID> &includes = itr->second;
-		for (FileID child : includes)
-		{
-			if (GetAbsoluteFileName(child) == childFileName)
+			for (FileID child : itr->second)
 			{
-				return child;
+				if (GetAbsoluteFileName(child) == childFileName)
+				{
+					return child;
+				}
 			}
 		}
 
@@ -1583,21 +1636,62 @@ namespace cxxclean
 		auto & itr = m_children.find(a);
 		if (itr == m_children.end())
 		{
-			return FileID();
-		}
-
-		const std::set<FileID> &children = itr->second;
-		for (FileID child : children)
-		{
-			if (GetAbsoluteFileName(child) == childFileName)
+			for (FileID child : itr->second)
 			{
-				return child;
+				if (GetAbsoluteFileName(child) == childFileName)
+				{
+					return child;
+				}
 			}
 		}
 
 		return FileID();
 	}
 
+	// 当a使用b时，如果b对应的文件被包含多次，从b的同名文件中选取一个最好的文件
+	FileID ParsingFile::GetBestSameFile(FileID a, FileID b) const
+	{
+		std::string bFileName = GetAbsoluteFileName(b);
+
+		// 如果b文件被包含多次，则在其中选择一个较合适的（注意：每个文件优先保留自己及后代文件中的#include语句）
+		if (HasSameFileByName(bFileName.c_str()))
+		{
+			// 先找到同名文件列表
+			 const std::set<FileID> &sames = m_sameFiles.find(bFileName)->second;
+
+			// 1. 优先返回直接孩子文件
+			auto &includeItr = m_includes.find(a);
+			if (includeItr != m_includes.end())
+			{
+				const std::set<FileID> &includes = includeItr->second;
+
+				for (FileID same :sames)
+				{
+					if (includes.find(same) != includes.end())
+					{
+						return same;
+					}
+				}
+			}
+
+			// 2. 否则，搜索后代文件
+			auto &childrenItr = m_children.find(a);
+			if (childrenItr != m_children.end())
+			{
+				const std::set<FileID> &children = childrenItr->second;
+
+				for (FileID same :sames)
+				{
+					if (children.find(same) != children.end())
+					{
+						return same;
+					}
+				}
+			}
+		}
+
+		return b;
+	}
 
 	// 当前位置使用目标类型（注：Type代表某个类型，但不含const、volatile、static等的修饰）
 	void ParsingFile::UseType(SourceLocation loc, const Type *t)
@@ -1872,14 +1966,8 @@ namespace cxxclean
 		// 该类所在的文件
 		FileID recordAtFile	= GetFileID(cxxRecord.getLocStart());
 
-		std::string recordAtFileName	= GetAbsoluteFileName(recordAtFile);
-
-		// 优先以孩子文件来取代
-		FileID childRecordAtFile		= GetChildByName(at, recordAtFileName.c_str());
-		if (childRecordAtFile.isValid())
-		{
-			recordAtFile = childRecordAtFile;
-		}
+		// 优先以更好的同名文件来取代
+		recordAtFile = GetBestSameFile(at, recordAtFile);
 
 		/*
 			计算出应在哪个文件哪个行生成前置声明：
@@ -2417,7 +2505,6 @@ namespace cxxclean
 	// 获取该文件的被直接包含信息，返回内容包括：该文件名、被父文件#include的行号、被父文件#include的原始文本串
 	string ParsingFile::DebugBeDirectIncludeText(FileID file) const
 	{
-		SourceLocation loc		= m_srcMgr->getIncludeLoc(file);
 		string fileName			= GetFileName(file);
 		string includeToken		= GetIncludeText(file);
 
@@ -2427,7 +2514,7 @@ namespace cxxclean
 		}
 
 		std::stringstream text;
-		text << "{line = " << htmltool::get_number_html(GetLineNo(loc)) << " [" << htmltool::get_include_html(includeToken) << "]";
+		text << "{line = " << htmltool::get_number_html(GetIncludeLineNo(file)) << " [" << htmltool::get_include_html(includeToken) << "]";
 		text << "} -> ";
 		text << "[" << htmltool::get_file_html(fileName) << "]";
 
@@ -3166,7 +3253,7 @@ namespace cxxclean
 
 			for (FileID be_used_file : be_uses)
 			{
-				div.AddRow("old include = " + htmltool::get_include_html(GetIncludeText(be_used_file)), 3, 45);
+				div.AddRow("old include = " + htmltool::get_include_html(GetIncludeLine(be_used_file)), 3, 45);
 				div.AddGrid("-> relative include = " + htmltool::get_include_html(GetRelativeIncludeStr(file, be_used_file)));
 			}
 
@@ -3238,6 +3325,7 @@ namespace cxxclean
 		{
 			PrintUsedNames();
 			PrintSameFile();
+			PrintForwardDecl();
 		}
 
 		if (verbose >= VerboseLvl_4)
@@ -3692,6 +3780,9 @@ namespace cxxclean
 			unusedLine.beg	= m_srcMgr->getFileOffset(lineRange.getBegin());
 			unusedLine.end	= m_srcMgr->getFileOffset(nextLine.getBegin());
 			unusedLine.text	= GetSourceOfRange(lineRange);
+
+			llvm::errs() << "------->TakeUnusedLine [" << fileName << "]: [" << unusedLine.beg << "," << m_srcMgr->getFileOffset(lineRange.getEnd()) << "," 
+				<< unusedLine.end  << "," << m_srcMgr->getFileOffset(nextLine.getEnd()) << "], text = [" << unusedLine.text << "]\n";
 		}
 	}
 
@@ -3720,7 +3811,11 @@ namespace cxxclean
 				SourceLocation insertLoc = GetInsertForwardLine(file, *cxxRecord);
 				if (insertLoc.isInvalid())
 				{
-					llvm::errs() << "------->error: insertLoc.isInvalid()\n";
+					if (Project::instance.m_verboseLvl >= VerboseLvl_2)
+					{
+						llvm::errs() << "------->error: insertLoc.isInvalid(), " << GetAbsoluteFileName(file) << ", record = " << GetRecordName(*cxxRecord)<< "\n";
+					}
+
 					continue;
 				}
 
@@ -3809,7 +3904,7 @@ namespace cxxclean
 
 			ReplaceLine &replaceLine	= history.m_replaces[line];
 			replaceLine.oldFile			= GetAbsoluteFileName(oldFile);
-			replaceLine.oldText			= GetIncludeText(oldFile);
+			replaceLine.oldText			= GetIncludeLine(oldFile);
 			replaceLine.beg				= m_srcMgr->getFileOffset(lineRange.getBegin());
 			replaceLine.end				= m_srcMgr->getFileOffset(lineRange.getEnd());
 			replaceLine.isSkip			= isBeForceIncluded || IsPrecompileHeader(oldFile);	// 记载是否是强制包含
@@ -3820,7 +3915,7 @@ namespace cxxclean
 			SourceLocation deep_include_loc	= m_srcMgr->getIncludeLoc(replaceFile);
 
 			// 记录[旧#include、新#include]
-			replaceTo.oldText		= GetIncludeText(replaceFile);
+			replaceTo.oldText		= GetIncludeLine(replaceFile);
 			replaceTo.newText		= GetRelativeIncludeStr(GetParent(oldFile), replaceFile);
 
 			// 记录[所处的文件、所处行号]
@@ -3945,7 +4040,7 @@ namespace cxxclean
 				}
 
 				int toLineNo			= GetIncludeLineNo(lv2);
-				string toOldText		= GetIncludeText(lv2);
+				string toOldText		= GetIncludeLine(lv2);
 				string toNewText		= GetRelativeIncludeStr(to, replaceTo);
 				string newTextFile		= GetAbsoluteFileName(GetParent(replaceTo));
 				int newTextLine			= GetIncludeLineNo(replaceTo);
@@ -3976,7 +4071,7 @@ namespace cxxclean
 						SourceRange lineRange	= GetIncludeRange(move);
 						fromLine.line_beg		= m_srcMgr->getFileOffset(lineRange.getBegin());
 						fromLine.line_end		= m_srcMgr->getFileOffset(lineRange.getEnd());
-						fromLine.oldText		= GetIncludeText(move);
+						fromLine.oldText		= GetIncludeLine(move);
 					}
 				}
 
@@ -4282,6 +4377,27 @@ namespace cxxclean
 			for (auto & usedChild : usedItr.second)
 			{
 				div.AddRow("use children " + DebugBeIncludeText(usedChild), 3);
+			}
+
+			div.AddRow("");
+		}
+	}
+
+	// 打印可转为前置声明的类指针或引用记录
+	void ParsingFile::PrintForwardDecl() const
+	{
+		HtmlDiv &div = HtmlLog::instance.m_newDiv;
+		div.AddRow(AddPrintIdx() + ". maybe can forward decl list: file count = " + htmltool::get_number_html(m_forwardDecls.size()), 1);
+
+		for (auto &itr : m_forwardDecls)
+		{
+			FileID file	= itr.first;
+
+			div.AddRow("fileName = " + GetAbsoluteFileName(file), 2);
+
+			for (const CXXRecordDecl *record : itr.second)
+			{
+				div.AddRow("use record = " + GetRecordName(*record), 3);
 			}
 
 			div.AddRow("");

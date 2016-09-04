@@ -17,6 +17,6 @@ class H;
 class H;
 class H;
 
-H* g_h;
+static H* g_h;
 
 #endif // _h_use_forwarddecl_h_
