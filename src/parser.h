@@ -62,6 +62,12 @@ namespace cxxclean
 		// [文件] -> [该文件中哪些文件可被替换]
 		typedef std::map<FileID, ChildrenReplaceMap> ReplaceFileMap;
 
+		// [位置] -> [使用的class、struct引用或指针]
+		typedef std::map<SourceLocation, std::set<const CXXRecordDecl*>> ForwardDeclMap;
+
+		// [文件] -> [该文件所使用的class、struct、union指针或引用]
+		typedef std::map<FileID, ForwardDeclMap> ForwardDeclByFileMap;
+
 		// 用于调试：引用的名称
 		struct UseNameInfo
 		{
@@ -335,8 +341,8 @@ namespace cxxclean
 		// 获取文件a将被转移哪些文件中
 		bool GetMoveToList(FileID a, std::set<FileID> &moveToList) const;
 
-		// 当前文件是否应新增class、struct、union的前置声明
-		bool IsNeedClass(FileID cur, const CXXRecordDecl &cxxRecord) const;
+		// 是否应保留当前位置引用的class、struct、union的前置声明
+		bool IsNeedClass(SourceLocation, const CXXRecordDecl &cxxRecord) const;
 
 		// 生成文件替换列表
 		void GenerateReplace();
@@ -564,9 +570,12 @@ namespace cxxclean
 
 		// 该文件是否是预编译头文件
 		bool IsPrecompileHeader(FileID file) const;
-				
+
 		// 将文件替换记录按父文件进行归类
 		void SplitReplaceByFile();
+
+		// 将文件前置声明记录按文件进行归类
+		void SplitForwardByFile(ForwardDeclByFileMap&) const;
 
 		// 取出指定文件的#include替换信息
 		void TakeBeReplaceOfFile(FileHistory &history, FileID top, const ChildrenReplaceMap &childernReplaces) const;
@@ -594,6 +603,9 @@ namespace cxxclean
 
 		// 该文件是否可被替换
 		bool IsReplaced(FileID file) const;
+
+		// a文件是否在b位置之前
+		bool IsFileBeforeLoc(FileID a, SourceLocation b) const;
 
 		// 打印引用记录
 		void PrintUse() const;
@@ -630,7 +642,7 @@ namespace cxxclean
 
 		// 打印可被移动到cpp的文件列表
 		void PrintMove() const;
-		
+
 		// 打印被包含多次的文件
 		void PrintSameFile() const;
 
@@ -678,8 +690,11 @@ namespace cxxclean
 		// 13. 头文件搜索路径列表
 		std::vector<HeaderSearchDir>				m_headerSearchPaths;
 
+		// 14. 每个代码位置所使用的class、struct、union指针或引用的记录：[位置] -> [所使用的class、struct、union指针或引用]
+		ForwardDeclMap								m_forwardDecls;
+
 		// 14. 各文件所使用的class、struct、union指针或引用的记录：[文件] -> [该文件所使用的class、struct、union指针或引用]
-		std::map<FileID, set<const CXXRecordDecl*>>	m_forwardDecls;
+		ForwardDeclByFileMap						m_forwardDeclsByFile;
 
 		// 15. 各文件所使用的类名、函数名、宏名等的名称记录：[文件] -> [该文件所使用的类名、函数名、宏名等]
 		std::map<FileID, std::vector<UseNameInfo>>	m_useNames;
@@ -695,7 +710,7 @@ namespace cxxclean
 
 		// 20. 用于调试：新增的文件引用关系：[文件] -> [新增的引用记录]
 		std::map<FileID, std::set<FileID>>			m_newUse;
-		
+
 		// 21. 可被移动到其他cpp中的文件列表，map<文件a，将被转移到a中的文件>
 		std::map<FileID, std::map<FileID, FileID>>	m_moves;
 

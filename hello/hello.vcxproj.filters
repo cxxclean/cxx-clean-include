@@ -33,6 +33,9 @@
     <ClInclude Include="nil.h" />
     <ClInclude Include="l_use_template.h" />
     <ClInclude Include="l.h" />
+    <ClInclude Include="m_using_namespace.h" />
+    <ClInclude Include="n_same_forward.h" />
+    <ClInclude Include="n.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="hello.cpp" />
@@ -48,5 +51,7 @@
     <ClCompile Include="k_namespace.cpp" />
     <ClCompile Include="g_default_arg.cpp" />
     <ClCompile Include="h_use_forwarddecl.cpp" />
+    <ClCompile Include="m_using_namespace.cpp" />
+    <ClCompile Include="n_same_forward.cpp" />
   </ItemGroup>
 </Project>

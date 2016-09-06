@@ -367,7 +367,7 @@ namespace cxxclean
 			下面这段代码是本工具的主要处理思路
 		*/
 
-		// 1. 获取主文件的循环引用文件集
+		// 1. 获取主文件的依赖文件集
 		FileID top = m_srcMgr->getMainFileID();
 		GetTopRelys(top, m_topRelys);
 
@@ -460,6 +460,14 @@ namespace cxxclean
 	bool ParsingFile::IsReplaced(FileID file) const
 	{
 		return m_replaces.find(file) != m_replaces.end();
+	}
+
+	// a文件是否在b文件之前
+	bool ParsingFile::IsFileBeforeLoc(FileID a, SourceLocation b) const
+	{
+		SourceLocation aBeg = m_srcMgr->getLocForStartOfFile(a);
+
+		return m_srcMgr->isBeforeInTranslationUnit(aBeg, b);
 	}
 
 	// 生成可被移动的文件记录
@@ -867,40 +875,81 @@ namespace cxxclean
 		return !moveToList.empty();
 	}
 
-	// 当前文件是否应新增class、struct、union的前置声明
-	bool ParsingFile::IsNeedClass(FileID cur, const CXXRecordDecl &cxxRecord) const
+	// 是否应保留当前位置引用的class、struct、union的前置声明
+	bool ParsingFile::IsNeedClass(SourceLocation loc, const CXXRecordDecl &cxxRecord) const
 	{
-		FileID recordAtFile = GetBestSameFile(cur, GetFileID(cxxRecord.getLocStart()));
+		// 使用前置声明的文件
+		FileID a = GetFileID(loc);
 
-		// 分3种情况，令类所在的文件为A
-		// 1. 若A未被引用，则肯定要加前置声明
-		if (!IsRely(recordAtFile))
+		// 类所在的文件
+		FileID b = GetFileID(cxxRecord.getLocStart());
+
+		// 1. 若b未被引用，则肯定要加前置声明
+		if (!IsRelyBySameName(b))
 		{
-			if (!IsRelyBySameName(recordAtFile))
+			return true;
+		}
+
+		// 2. 如果该位置之前已有前置声明则不再加前置声明，尽量避免生成额外的前置声明
+		const TagDecl *first = cxxRecord.getFirstDecl();
+		for (const TagDecl *next : first->redecls())
+		{
+			if (m_srcMgr->isBeforeInTranslationUnit(loc, next->getLocation()))
+			{
+				break;
+			}
+
+			if (!next->isThisDeclarationADefinition())
+			{
+				return false;
+			}
+		}
+
+		// 3. 若该位置前不存在b的被依赖的同名文件，则需要保留前置声明
+		if (HasSameFile(b))
+		{
+			b = GetBestSameFile(a, b);
+
+			bool findSameFileBefore = false;
+
+			const std::set<FileID> &sames = m_sameFiles.find(GetAbsoluteFileName(b))->second;
+			for (FileID same : sames)
+			{
+				if (IsFileBeforeLoc(same, loc))
+				{
+					if (IsRely(same))
+					{
+						findSameFileBefore = true;
+						break;
+					}
+				}
+			}
+
+			if (!findSameFileBefore)
 			{
 				return true;
 			}
 		}
 
 		std::set<FileID> moveToList;
-		GetMoveToList(recordAtFile, moveToList);
+		GetMoveToList(b, moveToList);
 
-		// 2. 若A被引用，但A未被转移过
+		// 2. 若b被引用，但b未被转移过
 		if (moveToList.empty())
 		{
 			return false;
 		}
-		// 3. 若A被引用，但A将被转移
+		// 3. 若b被引用，但b将被转移
 		else
 		{
 			for (FileID moveTo : moveToList)
 			{
-				if (moveTo == cur)
+				if (moveTo == a)
 				{
 					return false;
 				}
 
-				if (IsAncestor(moveTo, cur))
+				if (IsAncestor(moveTo, a))
 				{
 					return false;
 				}
@@ -916,10 +965,12 @@ namespace cxxclean
 	void ParsingFile::GenerateForwardClass()
 	{
 		// 1. 清除一些不必要保留的前置声明
-		for (auto & itr = m_forwardDecls.begin(), end = m_forwardDecls.end(); itr != end;)
+		for (auto & itr = m_forwardDecls.begin(); itr != m_forwardDecls.end();)
 		{
-			FileID file										= itr->first;
+			SourceLocation loc								= itr->first;
 			std::set<const CXXRecordDecl*> &old_forwards	= itr->second;
+
+			FileID file = GetFileID(loc);
 
 			if (!IsRely(file))
 			{
@@ -931,7 +982,7 @@ namespace cxxclean
 
 			for (const CXXRecordDecl* cxxRecordDecl : old_forwards)
 			{
-				if (IsNeedClass(file, *cxxRecordDecl))
+				if (IsNeedClass(loc, *cxxRecordDecl))
 				{
 					can_forwards.insert(cxxRecordDecl);
 				}
@@ -1104,7 +1155,7 @@ namespace cxxclean
 		SourceLocation lineEnd		= curLine.getEnd();
 		SourceLocation fileEndLoc	= m_srcMgr->getLocForEndOfFile(GetFileID(loc));
 
-		if (fileEndLoc < lineEnd || fileEndLoc == lineEnd)
+		if (m_srcMgr->isBeforeInTranslationUnit(fileEndLoc, lineEnd) || fileEndLoc == lineEnd)
 		{
 			return SourceRange(fileEndLoc, fileEndLoc);
 		}
@@ -1519,14 +1570,14 @@ namespace cxxclean
 
 		for (const NamespaceDecl *ns : firstNs->redecls())
 		{
-			SourceLocation nsLoc	= ns->getLocStart();
+			SourceLocation nsLoc	= GetSpellingLoc(ns->getLocStart());
 			std::string usingText	= "using namespace " + ns->getQualifiedNameAsString() + ";";
 			std::string nsText		= GetNestedNamespace(ns);
 
 			// 引用命名空间所在的文件（注意：using namespace时必须能找到对应的namespace声明，比如，using namespace A前一定要有namespace A{}否则编译会报错）
 			Use(nsLoc, usingLoc, usingText.c_str());
 
-			if (nsLoc < usingLoc)
+			if (m_srcMgr->isBeforeInTranslationUnit(nsLoc, usingLoc))
 			{
 				Use(usingLoc, nsLoc, nsText.c_str());
 			}
@@ -1657,7 +1708,7 @@ namespace cxxclean
 		if (HasSameFileByName(bFileName.c_str()))
 		{
 			// 先找到同名文件列表
-			 const std::set<FileID> &sames = m_sameFiles.find(bFileName)->second;
+			const std::set<FileID> &sames = m_sameFiles.find(bFileName)->second;
 
 			// 1. 优先返回直接孩子文件
 			auto &includeItr = m_includes.find(a);
@@ -2048,24 +2099,8 @@ namespace cxxclean
 			return;
 		}
 
-		// 遍历该类的所有在loc位置之前的声明，如果发现已有前置声明则直接引用并返回，尽量避免生成额外的前置声明
-		const TagDecl *first = cxxRecordDecl->getFirstDecl();
-		for (const TagDecl *next : first->redecls())
-		{
-			if (loc < next->getLocation())
-			{
-				break;
-			}
-
-			if (!next->isThisDeclarationADefinition())
-			{
-				UseNameDecl(loc, next);
-				return;
-			}
-		}
-
 		// 添加文件所使用的前置声明记录（对于不必要添加的前置声明将在之后进行清理）
-		m_forwardDecls[file].insert(cxxRecordDecl);
+		m_forwardDecls[loc].insert(cxxRecordDecl);
 	}
 
 	// 是否为可前置声明的类型
@@ -2528,7 +2563,7 @@ namespace cxxclean
 		std::stringstream text;
 		text << "[" << htmltool::get_include_html(lineText) << "] in [";
 		text << htmltool::get_file_html(GetAbsoluteFileName(GetFileID(loc)));
-		text << "] line = " << htmltool::get_number_html(GetLineNo(loc));
+		text << "] line = " << htmltool::get_number_html(GetLineNo(loc)) << " col = " << htmltool::get_number_html(m_srcMgr->getSpellingColumnNumber(loc));
 		return text.str();
 	}
 
@@ -3784,7 +3819,7 @@ namespace cxxclean
 			if (Project::instance.m_verboseLvl >= VerboseLvl_2)
 			{
 				llvm::errs() << "------->TakeUnusedLine [" << fileName << "]: [" << unusedLine.beg << "," << m_srcMgr->getFileOffset(lineRange.getEnd()) << ","
-					<< unusedLine.end << "," << m_srcMgr->getFileOffset(nextLine.getEnd()) << "], text = [" << unusedLine.text << "]\n";
+				             << unusedLine.end << "," << m_srcMgr->getFileOffset(nextLine.getEnd()) << "], text = [" << unusedLine.text << "]\n";
 			}
 		}
 	}
@@ -3797,10 +3832,13 @@ namespace cxxclean
 			return;
 		}
 
-		for (auto & itr : m_forwardDecls)
+		ForwardDeclByFileMap forwards;
+		SplitForwardByFile(forwards);
+
+		for (auto & itr : forwards)
 		{
-			FileID file			= itr.first;
-			auto &cxxRecords	= itr.second;
+			FileID file							= itr.first;
+			const ForwardDeclMap &locToRecords	= itr.second;
 
 			string fileName		= GetAbsoluteFileName(file);
 
@@ -3809,47 +3847,53 @@ namespace cxxclean
 				continue;
 			}
 
-			for (const CXXRecordDecl *cxxRecord : cxxRecords)
+			for (auto &recordItr : locToRecords)
 			{
-				SourceLocation insertLoc = GetInsertForwardLine(file, *cxxRecord);
-				if (insertLoc.isInvalid())
+				SourceLocation loc									= recordItr.first;
+				const std::set<const CXXRecordDecl*> &cxxRecords	= recordItr.second;
+
+				for (const CXXRecordDecl *cxxRecord : cxxRecords)
 				{
-					if (Project::instance.m_verboseLvl >= VerboseLvl_2)
+					SourceLocation insertLoc = GetInsertForwardLine(file, *cxxRecord);
+					if (insertLoc.isInvalid())
 					{
-						llvm::errs() << "------->error: insertLoc.isInvalid(), " << GetAbsoluteFileName(file) << ", record = " << GetRecordName(*cxxRecord)<< "\n";
+						if (Project::instance.m_verboseLvl >= VerboseLvl_2)
+						{
+							llvm::errs() << "------->error: insertLoc.isInvalid(), " << GetAbsoluteFileName(file) << ", record = " << GetRecordName(*cxxRecord)<< "\n";
+						}
+
+						continue;
 					}
 
-					continue;
-				}
+					PresumedLoc insertPresumedLoc = m_srcMgr->getPresumedLoc(insertLoc);
+					if (insertPresumedLoc.isInvalid())
+					{
+						llvm::errs() << "------->error: take_new_forwarddecl_by_file getPresumedLoc failed\n";
+						continue;
+					}
 
-				PresumedLoc insertPresumedLoc = m_srcMgr->getPresumedLoc(insertLoc);
-				if (insertPresumedLoc.isInvalid())
-				{
-					llvm::errs() << "------->error: take_new_forwarddecl_by_file getPresumedLoc failed\n";
-					continue;
-				}
+					string insertFileName			= pathtool::get_absolute_path(insertPresumedLoc.getFilename());
 
-				string insertFileName			= pathtool::get_absolute_path(insertPresumedLoc.getFilename());
+					if (!Project::instance.CanClean(insertFileName))
+					{
+						continue;
+					}
 
-				if (!Project::instance.CanClean(insertFileName))
-				{
-					continue;
-				}
+					// 开始取出数据
+					int line					= insertPresumedLoc.getLine();
+					const string cxxRecordName	= GetRecordName(*cxxRecord);
+					FileHistory &eachFile		= out[insertFileName];
+					ForwardLine &forwardLine	= eachFile.m_forwards[line];
 
-				// 开始取出数据
-				int line					= insertPresumedLoc.getLine();
-				const string cxxRecordName	= GetRecordName(*cxxRecord);
-				FileHistory &eachFile		= out[insertFileName];
-				ForwardLine &forwardLine	= eachFile.m_forwards[line];
+					forwardLine.offset		= m_srcMgr->getFileOffset(insertLoc);
+					forwardLine.oldText		= GetSourceOfLine(insertLoc);
+					forwardLine.classes.insert(cxxRecordName);
 
-				forwardLine.offset		= m_srcMgr->getFileOffset(insertLoc);
-				forwardLine.oldText		= GetSourceOfLine(insertLoc);
-				forwardLine.classes.insert(cxxRecordName);
-
-				SourceLocation fileStart = m_srcMgr->getLocForStartOfFile(GetFileID(insertLoc));
-				if (fileStart.getLocWithOffset(forwardLine.offset) != insertLoc)
-				{
-					llvm::errs() << "error: fileStart.getLocWithOffset(forwardLine.m_offsetAtFile) != insertLoc \n";
+					SourceLocation fileStart = m_srcMgr->getLocForStartOfFile(GetFileID(insertLoc));
+					if (fileStart.getLocWithOffset(forwardLine.offset) != insertLoc)
+					{
+						llvm::errs() << "error: fileStart.getLocWithOffset(forwardLine.m_offsetAtFile) != insertLoc \n";
+					}
 				}
 			}
 		}
@@ -3866,6 +3910,21 @@ namespace cxxclean
 			if (parent.isValid())
 			{
 				m_splitReplaces[parent].insert(itr);
+			}
+		}
+	}
+
+	// 将文件前置声明记录按文件进行归类
+	void ParsingFile::SplitForwardByFile(ForwardDeclByFileMap &forwards) const
+	{
+		for (auto &itr : m_forwardDecls)
+		{
+			SourceLocation loc		= itr.first;
+			FileID file				= GetFileID(loc);
+
+			if (file.isValid())
+			{
+				forwards[file].insert(itr);
 			}
 		}
 	}
@@ -4216,7 +4275,7 @@ namespace cxxclean
 	void ParsingFile::DebugUsedNames(FileID file, const std::vector<UseNameInfo> &useNames) const
 	{
 		HtmlDiv &div = HtmlLog::instance.m_newDiv;
-		div.AddRow("file = " + htmltool::get_file_html(GetAbsoluteFileName(file)), 2);
+		div.AddRow("file = " + DebugBeIncludeText(file), 2);
 
 		for (const UseNameInfo &beuse : useNames)
 		{
@@ -4389,21 +4448,33 @@ namespace cxxclean
 	// 打印可转为前置声明的类指针或引用记录
 	void ParsingFile::PrintForwardDecl() const
 	{
-		HtmlDiv &div = HtmlLog::instance.m_newDiv;
-		div.AddRow(AddPrintIdx() + ". maybe can forward decl list: file count = " + htmltool::get_number_html(m_forwardDecls.size()), 1);
+		ForwardDeclByFileMap forwards;
+		SplitForwardByFile(forwards);
 
-		for (auto &itr : m_forwardDecls)
+		HtmlDiv &div = HtmlLog::instance.m_newDiv;
+		div.AddRow(AddPrintIdx() + ". maybe can forward decl list: file count = " + htmltool::get_number_html(forwards.size()), 1);
+
+		for (auto & itr : forwards)
 		{
-			FileID file	= itr.first;
+			FileID file = itr.first;
+			const ForwardDeclMap &locToRecords = itr.second;
 
 			div.AddRow("fileName = " + GetAbsoluteFileName(file), 2);
 
-			for (const CXXRecordDecl *record : itr.second)
+			for (auto &recordItr : locToRecords)
 			{
-				div.AddRow("use record = " + GetRecordName(*record), 3);
-			}
+				SourceLocation loc = recordItr.first;
+				const std::set<const CXXRecordDecl*> &cxxRecords = recordItr.second;
 
-			div.AddRow("");
+				div.AddRow("at loc = " + DebugLocText(loc), 3);
+
+				for (const CXXRecordDecl *record : cxxRecords)
+				{
+					div.AddRow("use record = " + GetRecordName(*record), 4);
+				}
+
+				div.AddRow("");
+			}
 		}
 	}
 

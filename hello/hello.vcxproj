@@ -97,7 +97,10 @@
     <ClInclude Include="k_namespace.h" />
     <ClInclude Include="l.h" />
     <ClInclude Include="l_use_template.h" />
+    <ClInclude Include="m_using_namespace.h" />
+    <ClInclude Include="n.h" />
     <ClInclude Include="nil.h" />
+    <ClInclude Include="n_same_forward.h" />
     <ClInclude Include="test.h" />
     <ClInclude Include="type.h" />
   </ItemGroup>
@@ -115,6 +118,8 @@
     <ClCompile Include="j_enumeration.cpp" />
     <ClCompile Include="k_namespace.cpp" />
     <ClCompile Include="l_use_template.cpp" />
+    <ClCompile Include="m_using_namespace.cpp" />
+    <ClCompile Include="n_same_forward.cpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

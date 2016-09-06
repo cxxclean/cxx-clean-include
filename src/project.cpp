@@ -75,12 +75,10 @@ namespace cxxclean
 		}
 
 		// 将待清理的.cpp文件存入可清理列表
+		for (const string &cpp : m_cpps)
 		{
-			for (const string &cpp : m_cpps)
-			{
-				string absolutePath = pathtool::get_absolute_path(cpp.c_str());
-				m_allowCleanList.insert(absolutePath);
-			}
+			string absolutePath = pathtool::get_absolute_path(cpp.c_str());
+			m_allowCleanList.insert(tolower(absolutePath.c_str()));
 		}
 	}
 
@@ -104,7 +102,7 @@ namespace cxxclean
 		}
 		else
 		{
-			return m_allowCleanList.find(filename) != m_allowCleanList.end();
+			return m_allowCleanList.find(tolower(filename)) != m_allowCleanList.end();
 		}
 
 		return false;

@@ -73,7 +73,7 @@ namespace cxxclean
 		std::string						m_project_dir;			// 工程文件所在路径
 		std::string						m_project_full_path;	// 工程文件全部路径，如:../../hello.vcproj
 
-		std::vector<VsConfig>	m_configs;
+		std::vector<VsConfig>			m_configs;
 		std::vector<std::string>		m_headers;				// 工程内的h、hpp、hh、hxx等头文件列表
 		std::vector<std::string>		m_cpps;					// 工程内的cpp、cc、cxx源文件列表
 

@@ -42,6 +42,15 @@ namespace strtool
 		return n;
 	}
 
+	// 变小写
+	std::string tolower(const char* str)
+	{
+		std::string s(str);
+		std::transform(s.begin(), s.end(), s.begin(), ::tolower);
+
+		return s;
+	}
+
 	// 替换字符串，传入的字符串将被修改
 	// 例如：replace("this is an expmple", "is", "") = "th  an expmple"
 	// 又如: replace("acac", "ac", "ca") = "caca"
@@ -507,7 +516,7 @@ namespace pathtool
 	// 文件是否在指定文件夹下（含子文件夹）
 	bool is_at_folder(const char* folder, const char *file)
 	{
-		return start_with(string(file), folder);
+		return start_with(tolower(folder), tolower(file).c_str());
 	}
 
 	// 列出指定文件夹下的文件名列表（含子文件夹下的文件）
@@ -540,7 +549,7 @@ namespace pathtool
 			//判断是否有子目录
 			if (fileinfo.attrib & _A_SUBDIR)
 			{
-				//这个语句很重要
+				//这个语句很重要：忽略当前目录和上层目录
 				if( (strcmp(fileinfo.name,".") != 0) &&(strcmp(fileinfo.name,"..") != 0))
 				{
 					string subdir = folder + "/" + fileinfo.name + "/" + pattern;

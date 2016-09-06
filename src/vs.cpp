@@ -220,10 +220,13 @@ namespace cxxclean
 			m_all.insert(absolutePath);
 		}
 
-		for (int i = 0, size = m_cpps.size(); i < size; ++i)
+		std::set<std::string> all;
+		all.insert(m_headers.begin(), m_headers.end());
+		all.insert(m_cpps.begin(), m_cpps.end());
+		
+		for (const string &file : all)
 		{
-			string &file = m_cpps[i];
-			string absolutePath = pathtool::get_absolute_path(m_project_dir.c_str(), file.c_str());
+			string absolutePath = tolower(pathtool::get_absolute_path(m_project_dir.c_str(), file.c_str()));
 			m_all.insert(absolutePath);
 		}
 	}

@@ -33,8 +33,14 @@ namespace strtool
 	}
 
 	std::string itoa(int n);
-	
+
 	int atoi(const char*);
+
+	// 变小写
+	std::string tolower(const char*);
+
+	// 变小写
+	inline std::string tolower(const std::string &s) { return tolower(s.c_str()); }
 
 	// 替换字符串，传入的字符串将被修改
 	// 例如：replace("this is an expmple", "is", "") = "th  an expmple"
