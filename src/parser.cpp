@@ -2095,6 +2095,7 @@ namespace cxxclean
 
 			if (!next->isThisDeclarationADefinition())
 			{
+				UseNameDecl(loc, next);
 				return;
 			}
 		}
