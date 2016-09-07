@@ -890,22 +890,7 @@ namespace cxxclean
 			return true;
 		}
 
-		// 2. 如果该位置之前已有前置声明则不再加前置声明，尽量避免生成额外的前置声明
-		const TagDecl *first = cxxRecord.getFirstDecl();
-		for (const TagDecl *next : first->redecls())
-		{
-			if (m_srcMgr->isBeforeInTranslationUnit(loc, next->getLocation()))
-			{
-				break;
-			}
-
-			if (!next->isThisDeclarationADefinition())
-			{
-				return false;
-			}
-		}
-
-		// 3. 若该位置前不存在b的被依赖的同名文件，则需要保留前置声明
+		// 2. 若该位置前不存在b的被依赖的同名文件，则需要保留前置声明
 		if (HasSameFile(b))
 		{
 			b = GetBestSameFile(a, b);
@@ -2086,9 +2071,9 @@ namespace cxxclean
 	}
 
 	// 新增使用前置声明记录
-	void ParsingFile::UseForward(SourceLocation loc, const CXXRecordDecl *cxxRecordDecl)
+	void ParsingFile::UseForward(SourceLocation loc, const CXXRecordDecl *cxxRecord)
 	{
-		if (nullptr == cxxRecordDecl)
+		if (nullptr == cxxRecord)
 		{
 			return;
 		}
@@ -2099,8 +2084,23 @@ namespace cxxclean
 			return;
 		}
 
+		// 如果该位置之前已有前置声明则不再加前置声明，尽量避免生成额外的前置声明
+		const TagDecl *first = cxxRecord->getFirstDecl();
+		for (const TagDecl *next : first->redecls())
+		{
+			if (m_srcMgr->isBeforeInTranslationUnit(loc, next->getLocation()))
+			{
+				break;
+			}
+
+			if (!next->isThisDeclarationADefinition())
+			{
+				return;
+			}
+		}
+
 		// 添加文件所使用的前置声明记录（对于不必要添加的前置声明将在之后进行清理）
-		m_forwardDecls[loc].insert(cxxRecordDecl);
+		m_forwardDecls[loc].insert(cxxRecord);
 	}
 
 	// 是否为可前置声明的类型
