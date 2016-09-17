@@ -660,6 +660,12 @@ namespace cxxclean
 		// a文件是否在b位置之前
 		bool IsFileBeforeLoc(FileID a, SourceLocation b) const;
 
+		// 祖先文件是否被强制包含
+		bool IsAncestorForceInclude(FileID file);
+
+		// 获取被强制包含祖先文件
+		FileID GetAncestorForceInclude(FileID file);
+
 		// 打印引用记录
 		void PrintUse() const;
 

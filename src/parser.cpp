@@ -271,6 +271,14 @@ namespace cxxclean
 			FileID top		= itr.first;
 			FileSet &kids	= itr.second;
 
+			if (IsAncestorForceInclude(top))
+			{
+				llvm::errs() << "====>[ExpandMin]IsAncestorForceInclude(" << GetAbsoluteFileName(top) << ")\n";
+
+				m_min.erase(top);
+				return true;
+			}
+
 			if (!IsRootMinKid(top))
 			{
 				continue;
@@ -284,13 +292,24 @@ namespace cxxclean
 					return true;
 				}
 
+				FileID ancestorForceInclude = GetAncestorForceInclude(kid);
+				if (ancestorForceInclude.isValid() && ancestorForceInclude != kid)
+				{
+					llvm::errs() << "====>[ExpandMin]GetAncestorForceInclude(" << GetAbsoluteFileName(kid) << ") = " << GetAbsoluteFileName(ancestorForceInclude) << ")\n";
+
+					kids.erase(kid);
+					kids.insert(ancestorForceInclude);
+
+					return true;
+				}
+
 				if (IsAncestor(kid, top))
 				{
 					continue;
 				}
 				else if (IsAncestor(top, kid))
 				{
-					llvm::errs() << "====>[ExpandMin.1]IsAncestor(" << GetAbsoluteFileName(top) << ", " << GetAbsoluteFileName(kid) << ")\n";
+					llvm::errs() << "====>[ExpandMin]IsAncestor(" << GetAbsoluteFileName(top) << ", " << GetAbsoluteFileName(kid) << ")\n";
 					m_min[kid].insert(top);
 					kids.erase(kid);
 
@@ -303,7 +322,7 @@ namespace cxxclean
 					kids.erase(kid);
 					kids.insert(ancestor);
 
-					llvm::errs() << "====>[ExpandMin.1]GetCommonAncestor(" << GetAbsoluteFileName(top) << ", " << GetAbsoluteFileName(kid) << ") = "
+					llvm::errs() << "====>[ExpandMin]GetCommonAncestor(" << GetAbsoluteFileName(top) << ", " << GetAbsoluteFileName(kid) << ") = "
 					             << GetAbsoluteFileName(ancestor) << "\n";
 
 					m_min[ancestor].insert(kid);
@@ -971,8 +990,27 @@ namespace cxxclean
 	bool ParsingFile::IsFileBeforeLoc(FileID a, SourceLocation b) const
 	{
 		SourceLocation aBeg = m_srcMgr->getLocForStartOfFile(a);
-
 		return m_srcMgr->isBeforeInTranslationUnit(aBeg, b);
+	}
+
+	// 祖先文件是否被强制包含
+	bool ParsingFile::IsAncestorForceInclude(FileID file)
+	{
+		return GetAncestorForceInclude(file).isValid();
+	}
+
+	// 获取被强制包含祖先文件
+	FileID ParsingFile::GetAncestorForceInclude(FileID file)
+	{
+		for (FileID parent = file; parent.isValid(); parent = GetParent(parent))
+		{
+			if (IsForceIncluded(parent))
+			{
+				return parent;
+			}
+		}
+
+		return FileID();
 	}
 
 	// 生成可被移动的文件记录
@@ -4829,6 +4867,11 @@ namespace cxxclean
 	// 该文件是否是被-include强制包含
 	bool ParsingFile::IsForceIncluded(FileID file) const
 	{
+		if (file == m_srcMgr->getMainFileID())
+		{
+			return false;
+		}
+
 		FileID parent = GetFileID(m_srcMgr->getIncludeLoc(file));
 		return (m_srcMgr->getFileEntryForID(parent) == nullptr);
 	}
