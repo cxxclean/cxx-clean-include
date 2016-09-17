@@ -22,10 +22,10 @@ namespace cxxclean
 	// 各文件中应保留的行，[文件] -> [该文件中哪些行禁止被删]
 	typedef std::map<string, std::set<int>> FileSkipLineMap;
 
-	// 无用的#include行
-	struct UnUsedLine
+	// 应删除的行（无用的#include行）
+	struct DelLine
 	{
-		UnUsedLine()
+		DelLine()
 			: beg(0)
 			, end(0)
 		{
@@ -47,6 +47,25 @@ namespace cxxclean
 		int							offset;				// 本行首在文件内的偏移量
 		string						oldText;			// 本行原来的文本
 		std::set<string>			classes;			// 新增前置声明列表
+	};
+
+	struct BeAdd
+	{
+		string						fileName;			// 文件名
+		string						text;				// 文本内容
+	};
+
+	// 新增行
+	struct AddLine
+	{
+		AddLine()
+			: offset(0)
+		{
+		}
+
+		int							offset;				// 本行首在文件内的偏移量
+		string						oldText;			// 本行原来的文本
+		std::vector<BeAdd>			adds;				// 新增的内容
 	};
 
 	// 可替换的#include信息
@@ -188,6 +207,8 @@ namespace cxxclean
 		// 打印单个文件内的#include被移动到其他文件的记录
 		void PrintMove() const;
 
+		void PrintAdd() const;
+
 		const char* GetNewLineWord() const
 		{
 			return (m_isWindowFormat ? "\r\n" : "\n");
@@ -195,12 +216,12 @@ namespace cxxclean
 
 		bool IsNeedClean() const
 		{
-			return !m_unusedLines.empty() || !m_replaces.empty() || !m_forwards.empty() || !m_moves.empty();
+			return !(m_delLines.empty() && m_replaces.empty() && m_forwards.empty() && m_moves.empty() && m_adds.empty());
 		}
 
 		bool IsLineUnused(int line) const
 		{
-			return m_unusedLines.find(line) != m_unusedLines.end();
+			return m_delLines.find(line) != m_delLines.end();
 		}
 
 		bool IsLineBeReplaced(int line) const
@@ -233,10 +254,11 @@ namespace cxxclean
 		// 修复本文件中一些互相冲突的修改
 		void Fix();
 
-		typedef std::map<int, UnUsedLine> UnusedLineMap;
+		typedef std::map<int, DelLine> DelLineMap;
 		typedef std::map<int, ForwardLine> ForwardLineMap;
 		typedef std::map<int, ReplaceLine> ReplaceLineMap;
 		typedef std::map<int, MoveLine> MoveLineMap;
+		typedef std::map<int, AddLine> AddLineMap;
 
 		std::string			m_filename;
 		bool				m_isSkip;				// 记录本文件是否禁止改动，比如有些文件名就是stdafx.h和stdafx.cpp，这种就不要动了
@@ -246,10 +268,11 @@ namespace cxxclean
 		int					m_beUseCount;
 
 		CompileErrorHistory m_compileErrorHistory;	// 本文件产生的编译错误
-		UnusedLineMap		m_unusedLines;
+		DelLineMap			m_delLines;
 		ForwardLineMap		m_forwards;
 		ReplaceLineMap		m_replaces;
 		MoveLineMap			m_moves;
+		AddLineMap			m_adds;
 	};
 
 	// 各文件的清理结果，[文件] -> [该文件的清理结果]

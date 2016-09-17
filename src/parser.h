@@ -46,6 +46,7 @@ namespace clang
 	class TemplateArgumentList;
 	class TemplateDecl;
 	class CXXConstructorDecl;
+	class DeclContext;
 }
 
 namespace cxxclean
@@ -67,6 +68,9 @@ namespace cxxclean
 
 		// [文件] -> [该文件所使用的class、struct、union指针或引用]
 		typedef std::map<FileID, ForwardDeclMap> ForwardDeclByFileMap;
+
+		// 文件集
+		typedef std::set<FileID> FileSet;
 
 		// 用于调试：引用的名称
 		struct UseNameInfo
@@ -137,6 +141,38 @@ namespace cxxclean
 		// 生成各文件的待清理记录
 		void GenerateResult();
 
+		bool ReplaceMin(FileID a, FileID b);
+
+		bool ExpandMin();
+
+		bool MergeMin();
+
+		inline bool IsMinUse(FileID a, FileID b) const;
+
+		inline bool HasAnyInclude(FileID a) const;
+
+		inline bool IsSystemHeader(FileID file) const;
+
+		inline FileID GetTopSysAncestor(FileID file) const;
+
+		inline FileID SearchTopSysAncestor(FileID file) const;
+
+		void GenerateSysAncestor();
+
+		void GenerateUserUse();
+
+		void GenerateMinUse();
+
+		void GetUseKids(FileID by, std::set<FileID> &out) const;
+
+		void GetMin(FileID by, std::set<FileID> &out) const;
+
+		bool IsMinKidOf(FileID kid, FileID old) const;
+
+		bool IsRootMinKid(FileID kid) const;
+
+		int GetDeepth(FileID file) const;
+
 		// 是否为可前置声明的类型
 		bool IsForwardType(const QualType &var);
 
@@ -184,6 +220,8 @@ namespace cxxclean
 
 		// 当前位置使用目标类型（注：Type代表某个类型，但不含const、volatile、static等的修饰）
 		void UseType(SourceLocation loc, const Type *t);
+
+		void UseContext(SourceLocation loc, const DeclContext*);
 
 		// 引用嵌套名字修饰符
 		void UseQualifier(SourceLocation loc, const NestedNameSpecifier*);
@@ -344,17 +382,23 @@ namespace cxxclean
 		// 是否应保留当前位置引用的class、struct、union的前置声明
 		bool IsNeedClass(SourceLocation, const CXXRecordDecl &cxxRecord) const;
 
+		// 是否应保留当前位置引用的class、struct、union的前置声明
+		bool IsNeedMinClass(SourceLocation, const CXXRecordDecl &cxxRecord) const;
+
 		// 生成文件替换列表
 		void GenerateReplace();
 
 		// 生成新增前置声明列表
 		void GenerateForwardClass();
 
+		// 生成新增前置声明列表
+		void GenerateMinForwardClass();
+
 		// 获取指定位置所在行的文本
 		std::string GetSourceOfLine(SourceLocation loc) const;
 
 		/*
-			根据传入的代码位置返回该行的正文范围（不含换行符）：[该行开头，该行末（不含换行符） + 1]
+			根据传入的代码位置返回该行的正文范围（不含换行符）：[该行开头，该行末]
 			例如：
 				windows格式：
 					int			a		=	100;\r\nint b = 0;
@@ -381,7 +425,7 @@ namespace cxxclean
 					^			^				  ^
 					行首			传入的位置		  行末
 		*/
-		SourceRange GetCurLineWithLinefeed(SourceLocation loc) const;
+		SourceRange GetCurFullLine(SourceLocation loc) const;
 
 		// 根据传入的代码位置返回下一行的范围
 		SourceRange GetNextLine(SourceLocation loc) const;
@@ -413,10 +457,10 @@ namespace cxxclean
 				现传入第一行a.h的FileID，则结果将返回
 					#include "./a.h"
 		*/
-		std::string GetIncludeText(FileID file) const;
+		std::string GetIncludeLine(FileID file) const;
 
 		// 获取文件对应的#include所在的整行
-		std::string GetIncludeLine(FileID file) const;
+		std::string GetIncludeFullLine(FileID file) const;
 
 		inline void UseName(FileID file, FileID beusedFile, const char* name = nullptr, int line = 0);
 
@@ -508,8 +552,8 @@ namespace cxxclean
 		// 移除指定范围文本，若移除文本后该行变为空行，则将该空行一并移除
 		void RemoveText(FileID file, int beg, int end);
 
-		// 移除指定文件内的无用#include
-		void CleanByUnusedLine(const FileHistory &history, FileID file);
+		// 移除指定文件内的无用行
+		void CleanByDelLine(const FileHistory &history, FileID file);
 
 		// 在指定文件内添加前置声明
 		void CleanByForward(const FileHistory &history, FileID file);
@@ -519,6 +563,9 @@ namespace cxxclean
 
 		// 在指定文件内移动#include
 		void CleanByMove(const FileHistory &history, FileID file);
+
+		// 在指定文件内新增行
+		void CleanByAdd(const FileHistory &history, FileID file);
 
 		// 根据历史清理指定文件
 		void CleanByHistory(const FileHistoryMap &historys);
@@ -560,6 +607,9 @@ namespace cxxclean
 		void SkipRelyLines(const FileSkipLineMap&) const;
 
 		// 取出当前cpp文件产生的待清理记录
+		void TakeNeed(FileID top, FileHistory &out) const;
+
+		// 取出当前cpp文件产生的待清理记录
 		void TakeHistorys(FileHistoryMap &out) const;
 
 		// 将可清除的行按文件进行存放
@@ -597,6 +647,9 @@ namespace cxxclean
 
 		// 该文件的所有同名文件是否被依赖（同一文件可被包含多次）
 		bool IsRelyBySameName(FileID file) const;
+
+		// 该文件的所有同名文件是否被依赖（同一文件可被包含多次）
+		bool IsMinKidBySameName(FileID useFile, FileID recordAtfile) const;
 
 		// 该文件是否被主文件循环引用到
 		bool IsRelyByTop(FileID file) const;
@@ -645,6 +698,18 @@ namespace cxxclean
 
 		// 打印被包含多次的文件
 		void PrintSameFile() const;
+
+		// 打印
+		void PrintMinInclude() const;
+
+		// 打印
+		void PrintMinKid() const;
+
+		// 打印
+		void PrintSysAncestor() const;
+
+		// 打印
+		void PrintUserUse() const;
 
 	public:
 		// 当前正在解析的文件
@@ -716,6 +781,15 @@ namespace cxxclean
 
 		// 22. 同一个文件名对应的不同文件id，map<文件名，该文件名对应的不同文件id>
 		std::map<std::string, std::set<FileID>>		m_sameFiles;
+
+		// 23.
+		std::map<FileID, std::set<FileID>>			m_min;
+		std::map<FileID, std::set<FileID>>			m_kids;
+		std::map<FileID, std::set<FileID>>			m_minKids;
+		std::set<FileID>							m_rootKids;
+		std::map<FileID, std::set<SourceLocation>>	m_skipIncludeLocs;
+		std::map<FileID, FileID>					m_sysAncestor;
+		std::map<FileID, std::set<FileID>>			m_userUses;
 
 	private:
 		clang::Rewriter*							m_rewriter;

@@ -62,6 +62,9 @@ namespace cxxclean
 	static const char* cn_file_add_forward_line			= "可在第%s行新增前置声明，该行原来的内容 = %s";
 	static const char* cn_file_add_forward_old_text		= "该行原来的内容 = %s";
 	static const char* cn_file_add_forward_new_text		= "新增前置声明 = %s";
+	static const char* cn_file_add_line_num				= "该文件中可以新增%s行";
+	static const char* cn_file_add_line					= "可在第%s行新增行，该行原来的内容 = %s";
+	static const char* cn_file_add_line_new				= "新增行 = %s(对应文件 = %s)";
 
 	static const char* cn_file_move_num					= "该文件中有%s个#include可被转移";
 	static const char* cn_file_move_to_line				= "第%s行可以转移到其他文件，该行原来的内容 = %s";
@@ -75,12 +78,17 @@ namespace cxxclean
 	static const char* cn_file_move_from_new			= "转移之后的文本 = %s";
 	static const char* cn_file_move_skip				= "注意：检测到本文件为预编译文件，将忽略该改动";
 
+	static const char* cn_file_min_use					= "%s. 各文件的最小引用文件集，文件数 = %s";
+	static const char* cn_file_min_kid					= "%s. 各文件的最小引用后代文件集，文件数 = %s";
+	static const char* cn_file_sys_ancestor				= "%s. 各系统文件的祖先文件，文件数 = %s";
+	static const char* cn_file_user_use					= "%s. 各用户文件的引用记录，文件数 = %s";
+
 	static const char* cn_project_history_title			= "统计结果";
 	static const char* cn_project_history_clean_count	= "清理结果：共有%s个c++文件可被清理";
 	static const char* cn_project_history_src_count		= "本次共分析了%s个cpp（或cxx、cc）源文件";
 
-	static const char* cn_file_debug_text				= "[%s](文件ID = %d) {该文件来自于 [%s] 文件中的第%s行 = [%s]}";
-	static const char* cn_main_file_debug_text			= "[%s](文件ID = %d)";
+	static const char* cn_file_debug_text				= "[%s](文件ID = %d)(层数 = %s){该文件来自于 [%s] 文件中的第%s行 = [%s]}(%s)";
+	static const char* cn_main_file_debug_text			= "[%s](文件ID = %d)(层数 = %s)";
 
 	// 行类型
 	enum RowType

@@ -106,28 +106,29 @@ namespace cxxclean
 		PrintForwardClass();
 		PrintReplace();
 		PrintMove();
+		PrintAdd();
 	}
 
 	// 打印单个文件内的可被删#include记录
 	void FileHistory::PrintUnusedInclude() const
 	{
-		if (m_unusedLines.empty())
+		if (m_delLines.empty())
 		{
 			return;
 		}
 
 		HtmlDiv &div = HtmlLog::instance.m_newDiv;
 
-		div.AddRow(strtool::get_text(cn_file_unused_count, htmltool::get_number_html(m_unusedLines.size()).c_str()), 2);
+		div.AddRow(strtool::get_text(cn_file_unused_count, htmltool::get_number_html(m_delLines.size()).c_str()), 2);
 
-		for (auto &unusedLineItr : m_unusedLines)
+		for (auto &delLineItr : m_delLines)
 		{
-			int line = unusedLineItr.first;
+			int line = delLineItr.first;
 
-			const UnUsedLine &unusedLine = unusedLineItr.second;
+			const DelLine &delLine = delLineItr.second;
 
 			div.AddRow(strtool::get_text(cn_file_unused_line, htmltool::get_number_html(line).c_str()), 3, 25);
-			div.AddGrid(strtool::get_text(cn_file_unused_include, htmltool::get_include_html(unusedLine.text).c_str()), 0, true);
+			div.AddGrid(strtool::get_text(cn_file_unused_include, htmltool::get_include_html(delLine.text).c_str()), 0, true);
 		}
 
 		div.AddRow("");
@@ -281,6 +282,34 @@ namespace cxxclean
 		}
 	}
 
+	void FileHistory::PrintAdd() const
+	{
+		if (m_adds.empty())
+		{
+			return;
+		}
+
+		HtmlDiv &div = HtmlLog::instance.m_newDiv;
+
+		div.AddRow(strtool::get_text(cn_file_add_line_num, htmltool::get_number_html(m_adds.size()).c_str()), 2);
+
+		for (auto &addItr : m_adds)
+		{
+			int line = addItr.first;
+
+			const AddLine &addLine = addItr.second;
+
+			div.AddRow(strtool::get_text(cn_file_add_line, htmltool::get_number_html(line).c_str(), htmltool::get_include_html(addLine.oldText).c_str()), 3);
+
+			for (const BeAdd &beAdd : addLine.adds)
+			{
+				div.AddRow(strtool::get_text(cn_file_add_line_new, htmltool::get_include_html(beAdd.text).c_str(), htmltool::get_file_html(beAdd.fileName).c_str()), 4);
+			}
+
+			div.AddRow("");
+		}
+	}
+
 	// 修复本文件中一些互相冲突的修改
 	void FileHistory::Fix()
 	{
@@ -296,7 +325,7 @@ namespace cxxclean
 		// 1. 先收集每行的信息
 		LineMap lines;
 
-		for (auto & itr : m_unusedLines)
+		for (auto & itr : m_delLines)
 		{
 			int line = itr.first;
 			lines[line].push_back(LineType_Del);
@@ -334,7 +363,7 @@ namespace cxxclean
 				case LineType_Del:
 					llvm::errs() << "LineType_Del\n";
 
-					m_unusedLines.erase(line);
+					m_delLines.erase(line);
 					break;
 
 				case LineType_Replace:
@@ -355,7 +384,7 @@ namespace cxxclean
 			const std::set<int> &skipLines = ProjectHistory::instance.m_skips[m_filename];
 			for (int line : skipLines)
 			{
-				m_unusedLines.erase(line);
+				m_delLines.erase(line);
 				m_replaces.erase(line);
 
 				auto & moveItr = m_moves.find(line);

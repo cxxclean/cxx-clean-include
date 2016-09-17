@@ -32,6 +32,7 @@ namespace cxxclean
 		CleanMode_Unused = 1,	// 清除多余的#include
 		CleanMode_Replace,		// 替换一些#include
 		CleanMode_Move,			// 将一些#include转移到直接使用该#include的文件中
+		CleanMode_Need,			// 每个文件只保留自己所需的其他文件
 		CleanMode_Max
 	};
 
