@@ -2533,24 +2533,32 @@ namespace cxxclean
 			return;
 		}
 
-		// 如果该位置之前已有前置声明则不再加前置声明，尽量避免生成额外的前置声明
-		const TagDecl *first = cxxRecord->getFirstDecl();
-		for (const TagDecl *next : first->redecls())
+		if (Project::instance.IsCleanModeOpen(CleanMode_Need))
 		{
-			if (m_srcMgr->isBeforeInTranslationUnit(loc, next->getLocation()))
-			{
-				break;
-			}
-
-			if (!next->isThisDeclarationADefinition())
-			{
-				UseNameDecl(loc, next);
-				return;
-			}
+			// 添加文件所使用的前置声明记录（对于不必要添加的前置声明将在之后进行清理）
+			m_forwardDecls[loc].insert(cxxRecord);
+			return;
 		}
+		else
+		{
+			// 如果该位置之前已有前置声明则不再加前置声明，尽量避免生成额外的前置声明
+			const TagDecl *first = cxxRecord->getFirstDecl();
+			for (const TagDecl *next : first->redecls())
+			{
+				if (m_srcMgr->isBeforeInTranslationUnit(loc, next->getLocation()))
+				{
+					break;
+				}
 
-		// 添加文件所使用的前置声明记录（对于不必要添加的前置声明将在之后进行清理）
-		m_forwardDecls[loc].insert(cxxRecord);
+				if (!next->isThisDeclarationADefinition())
+				{
+					UseNameDecl(loc, next);
+					return;
+				}
+			}
+
+			UseRecord(loc, cxxRecord);
+		}
 	}
 
 	// 是否为可前置声明的类型
@@ -2592,12 +2600,6 @@ namespace cxxclean
 	// 新增使用变量记录
 	void ParsingFile::UseVarType(SourceLocation loc, const QualType &var)
 	{
-		if (!Project::instance.IsCleanModeOpen(CleanMode_Need))
-		{
-			UseQualType(loc, var);
-			return;
-		}
-
 		if (!IsForwardType(var))
 		{
 			UseQualType(loc, var);
