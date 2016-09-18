@@ -429,7 +429,7 @@ namespace pathtool
 		}
 
 		filepath = simplify_path(filepath.c_str());
-		return filepath.str();
+		return tolower(filepath.str());
 	}
 
 	/*

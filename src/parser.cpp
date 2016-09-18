@@ -208,7 +208,6 @@ namespace cxxclean
 		{
 			GenerateRely();
 
-			GenerateMove();
 			GenerateUnusedInclude();
 			GenerateForwardClass();
 			GenerateReplace();
@@ -216,7 +215,8 @@ namespace cxxclean
 			Fix();
 		}
 
-		ProjectHistory::instance.AddFile(this);
+		TakeHistorys(m_historys);
+		MergeTo(ProjectHistory::instance.m_files);
 	}
 
 	bool ParsingFile::ReplaceMin(FileID a, FileID b)
@@ -837,22 +837,6 @@ namespace cxxclean
 		return false;
 	}
 
-	// 将文件b转移到文件a中
-	void ParsingFile::AddMove(FileID a, FileID b)
-	{
-		b = GetBestSameFile(a, b);
-
-		FileID replaceTo = b;
-
-		auto & itr = m_replaces.find(b);
-		if (itr != m_replaces.end())
-		{
-			replaceTo = itr->second;
-		}
-
-		m_moves[a].insert(std::make_pair(b, replaceTo));
-	}
-
 	// 根据主文件的依赖关系，生成相关文件的依赖文件集
 	void ParsingFile::GenerateRely()
 	{
@@ -1011,73 +995,6 @@ namespace cxxclean
 		}
 
 		return FileID();
-	}
-
-	// 生成可被移动的文件记录
-	void ParsingFile::GenerateMove()
-	{
-		// 仅[移动#include]清理选项开启时，才尝试移动
-		if (!Project::instance.IsCleanModeOpen(CleanMode_Move))
-		{
-			return;
-		}
-
-		for (auto & itr : m_includes)
-		{
-			FileID includeBy	= itr.first;
-			auto &includeList	= itr.second;
-
-			if (IsSkip(includeBy))
-			{
-				continue;
-			}
-
-			for (FileID beInclude : includeList)
-			{
-				if (IsUse(includeBy, beInclude))
-				{
-					continue;
-				}
-
-				for (auto & useItr : m_uses)
-				{
-					FileID useby	= useItr.first;
-
-					if (!IsRely(useby))
-					{
-						continue;
-					}
-
-					if (!Project::instance.CanClean(GetAbsoluteFileName(useby)))
-					{
-						continue;
-					}
-
-					if (!IsAncestor(beInclude, useby))
-					{
-						continue;
-					}
-
-					auto &useList	= useItr.second;
-
-					if (useList.find(beInclude) != useList.end())
-					{
-						AddMove(useby, beInclude);
-					}
-					else
-					{
-						for (FileID beuse : useList)
-						{
-							if (IsAncestor(beuse, beInclude))
-							{
-								AddMove(useby, beInclude);
-								break;
-							}
-						}
-					}
-				}
-			}
-		}
 	}
 
 	// 生成无用#include的记录
@@ -1311,21 +1228,16 @@ namespace cxxclean
 	// 生成文件替换列表
 	void ParsingFile::GenerateReplace()
 	{
-		// 1. 删除一些不必要的替换
-		std::map<FileID, FileID> copy = m_replaces;
-		for (auto & itr : copy)
+		for (auto & itr : m_replaces)
 		{
-			FileID from	= itr.first;
-			FileID to	= itr.second;
+			FileID from		= itr.first;
+			FileID parent	= GetParent(from);
 
-			if (IsMoved(from))
+			if (parent.isValid())
 			{
-				m_replaces.erase(from);
+				m_splitReplaces[parent].insert(itr);
 			}
 		}
-
-		// 2. 将文件替换记录按父文件进行归类
-		SplitReplaceByFile();
 	}
 
 	// 当前文件之前是否已有文件声明了该class、struct、union
@@ -1381,43 +1293,6 @@ namespace cxxclean
 		return false;
 	}
 
-	// 文件a是否被转移
-	bool ParsingFile::IsMoved(FileID a) const
-	{
-		for (auto & itr : m_moves)
-		{
-			auto &beMoveList = itr.second;
-			if (beMoveList.find(a) != beMoveList.end())
-			{
-				return true;
-			}
-		}
-
-		return false;
-	}
-
-	// 获取文件a将被转移哪些文件中
-	bool ParsingFile::GetMoveToList(FileID a, std::set<FileID> &moveToList) const
-	{
-		for (auto & itr : m_moves)
-		{
-			FileID moveTo		= itr.first;
-			auto &beMoveList	= itr.second;
-
-			for (auto & moveItr : beMoveList)
-			{
-				FileID beMove = moveItr.first;
-
-				if (IsAncestor(a, beMove))
-				{
-					moveToList.insert(moveTo);
-				}
-			}
-		}
-
-		return !moveToList.empty();
-	}
-
 	// 是否应保留当前位置引用的class、struct、union的前置声明
 	bool ParsingFile::IsNeedClass(SourceLocation loc, const CXXRecordDecl &cxxRecord) const
 	{
@@ -1457,33 +1332,6 @@ namespace cxxclean
 			{
 				return true;
 			}
-		}
-
-		std::set<FileID> moveToList;
-		GetMoveToList(b, moveToList);
-
-		// 2. 若b被引用，但b未被转移过
-		if (moveToList.empty())
-		{
-			return false;
-		}
-		// 3. 若b被引用，但b将被转移
-		else
-		{
-			for (FileID moveTo : moveToList)
-			{
-				if (moveTo == a)
-				{
-					return false;
-				}
-
-				if (IsAncestor(moveTo, a))
-				{
-					return false;
-				}
-			}
-
-			return true;
 		}
 
 		return false;
@@ -2686,7 +2534,7 @@ namespace cxxclean
 		}
 
 		// 如果该位置之前已有前置声明则不再加前置声明，尽量避免生成额外的前置声明
-		/*const TagDecl *first = cxxRecord->getFirstDecl();
+		const TagDecl *first = cxxRecord->getFirstDecl();
 		for (const TagDecl *next : first->redecls())
 		{
 			if (m_srcMgr->isBeforeInTranslationUnit(loc, next->getLocation()))
@@ -2699,7 +2547,7 @@ namespace cxxclean
 				UseNameDecl(loc, next);
 				return;
 			}
-		}*/
+		}
 
 		// 添加文件所使用的前置声明记录（对于不必要添加的前置声明将在之后进行清理）
 		m_forwardDecls[loc].insert(cxxRecord);
@@ -3628,46 +3476,6 @@ namespace cxxclean
 		}
 	}
 
-	// 在指定文件内移动#include
-	void ParsingFile::CleanByMove(const FileHistory &history, FileID file)
-	{
-		if (history.m_moves.empty())
-		{
-			return;
-		}
-
-		const char* newLineWord = history.GetNewLineWord();
-
-		for (auto & itr : history.m_moves)
-		{
-			const MoveLine &moveLine	= itr.second;
-
-			for (auto & itr : moveLine.moveFrom)
-			{
-				const std::map<int, MoveFrom> &froms = itr.second;
-
-				for (auto & innerItr : froms)
-				{
-					const MoveFrom &from = innerItr.second;
-
-					if (!from.isSkip)
-					{
-						std::stringstream text;
-						text << from.newText;
-						text << newLineWord;
-
-						InsertText(file, moveLine.line_end, text.str());
-					}
-				}
-			}
-
-			if (!moveLine.moveTo.empty())
-			{
-				RemoveText(file, moveLine.line_beg, moveLine.line_end);
-			}
-		}
-	}
-
 	// 在指定文件内新增行
 	void ParsingFile::CleanByAdd(const FileHistory &history, FileID file)
 	{
@@ -3759,7 +3567,6 @@ namespace cxxclean
 			CleanByReplace(history, file);
 			CleanByForward(history, file);
 			CleanByDelLine(history, file);
-			CleanByMove(history, file);
 			CleanByAdd(history, file);
 
 			ProjectHistory::instance.OnCleaned(fileName);
@@ -4046,7 +3853,6 @@ namespace cxxclean
 			PrintRely();
 
 			PrintRelyChildren();
-			PrintMove();
 
 			PrintAllFile();
 			PrintInclude();
@@ -4072,10 +3878,10 @@ namespace cxxclean
 	{
 		FileHistory::DelLineMap &oldLines = oldFile.m_delLines;
 
-		for (FileHistory::DelLineMap::iterator oldLineItr = oldLines.begin(), end = oldLines.end(); oldLineItr != end; )
+		for (FileHistory::DelLineMap::iterator oldLineItr = oldLines.begin(); oldLineItr != oldLines.end(); )
 		{
-			int line = oldLineItr->first;
-			DelLine &oldLine = oldLineItr->second;
+			int line			= oldLineItr->first;
+			DelLine &oldLine	= oldLineItr->second;
 
 			if (newFile.IsLineUnused(line))
 			{
@@ -4287,44 +4093,6 @@ namespace cxxclean
 		}
 	}
 
-	// 合并可转移的#include
-	void ParsingFile::MergeMoveLine(const FileHistory &newFile, FileHistory &oldFile) const
-	{
-		for (auto & itr : newFile.m_moves)
-		{
-			int line = itr.first;
-			const MoveLine &newLine = itr.second;
-
-			auto & lineItr = oldFile.m_moves.find(line);
-			if (lineItr == oldFile.m_moves.end())
-			{
-				oldFile.m_moves.insert(std::make_pair(line, newLine));
-				continue;
-			}
-
-			MoveLine &oldLine = lineItr->second;
-
-			oldLine.moveTo.insert(newLine.moveTo.begin(), newLine.moveTo.end());
-
-			for (auto & fromItr : newLine.moveFrom)
-			{
-				const std::string &fromFileName = fromItr.first;
-				auto &newFroms = fromItr.second;
-
-				auto & sameItr = oldLine.moveFrom.find(fromFileName);
-				if (sameItr == oldLine.moveFrom.end())
-				{
-					oldLine.moveFrom.insert(fromItr);
-				}
-				else
-				{
-					auto &oldFroms = sameItr->second;
-					oldFroms.insert(newFroms.begin(), newFroms.end());
-				}
-			}
-		}
-	}
-
 	// 将某些文件中的一些行标记为不可修改
 	void ParsingFile::SkipRelyLines(const FileSkipLineMap &skips) const
 	{
@@ -4337,14 +4105,19 @@ namespace cxxclean
 	// 将当前cpp文件产生的待清理记录与之前其他cpp文件产生的待清理记录合并
 	void ParsingFile::MergeTo(FileHistoryMap &oldFiles) const
 	{
-		FileHistoryMap newFiles;
-		TakeHistorys(newFiles);
+		const FileHistoryMap &newFiles = m_historys;
 
 		// 若本文件有严重编译错误或编译错误数过多，则仅合并编译错误历史，用于打印
 		if (m_compileErrorHistory.HaveFatalError())
 		{
-			std::string rootFile	= GetAbsoluteFileName(m_srcMgr->getMainFileID());
-			oldFiles[rootFile]		= newFiles[rootFile];
+			std::string rootFile = GetAbsoluteFileName(m_srcMgr->getMainFileID());
+			auto itr = newFiles.find(rootFile);
+			if (itr == newFiles.end())
+			{
+				return;
+			}
+
+			oldFiles[rootFile] = itr->second;
 			return;
 		}
 
@@ -4356,11 +4129,7 @@ namespace cxxclean
 			auto & findItr = oldFiles.find(fileName);
 
 			bool found = (findItr != oldFiles.end());
-			if (!found)
-			{
-				oldFiles[fileName] = newFile;
-			}
-			else
+			if (found)
 			{
 				if (Project::instance.IsCleanModeOpen(CleanMode_Need))
 				{
@@ -4372,9 +4141,12 @@ namespace cxxclean
 				MergeUnusedLine(newFile, oldFile);
 				MergeForwardLine(newFile, oldFile);
 				MergeReplaceLine(newFile, oldFile);
-				MergeMoveLine(newFile, oldFile);
 
 				oldFile.Fix();
+			}
+			else
+			{
+				oldFiles[fileName] = newFile;
 			}
 		}
 	}
@@ -4417,11 +4189,17 @@ namespace cxxclean
 		return false;
 	}
 
+	void ParsingFile::InitHistory(FileID file, FileHistory &history) const
+	{
+		history.m_isWindowFormat	= IsWindowsFormat(file);
+		history.m_filename			= GetAbsoluteFileName(file);
+		history.m_isSkip			= IsPrecompileHeader(file);
+	}
+
 	// 取出当前cpp文件产生的待清理记录
 	void ParsingFile::TakeNeed(FileID top, FileHistory &history) const
 	{
-		history.m_isWindowFormat	= IsWindowsFormat(top);
-		history.m_filename			= GetAbsoluteFileName(top);
+		InitHistory(top, history);
 		history.m_isSkip			= false;
 
 		auto includeItr = m_includes.find(top);
@@ -4669,50 +4447,45 @@ namespace cxxclean
 				}
 
 				// 生成对应于该文件的的记录
-				FileHistory &eachFile = out[fileName];
-				TakeNeed(top, eachFile);
+				TakeNeed(top, out[fileName]);
 			}
 
 			return;
 		}
-
-		// 先将当前cpp文件使用到的文件全存入map中
-		for (FileID file : m_relys)
+		else
 		{
-			string fileName		= GetAbsoluteFileName(file);
-
-			if (!Project::instance.CanClean(fileName))
+			// 先将当前cpp文件使用到的文件全存入map中
+			for (FileID file : m_relys)
 			{
-				continue;
+				string fileName		= GetAbsoluteFileName(file);
+
+				if (!Project::instance.CanClean(fileName))
+				{
+					continue;
+				}
+
+				// 生成对应于该文件的的记录
+				InitHistory(file, out[fileName]);
 			}
 
-			// 生成对应于该文件的的记录
-			FileHistory &eachFile		= out[fileName];
-			eachFile.m_isWindowFormat	= IsWindowsFormat(file);
-			eachFile.m_filename			= fileName;
-			eachFile.m_isSkip			= IsPrecompileHeader(file);
-		}
+			// 1. 将可清除的行按文件进行存放
+			TakeUnusedLine(out);
 
-		// 1. 将可清除的行按文件进行存放
-		TakeUnusedLine(out);
+			// 2. 将新增的前置声明按文件进行存放
+			TakeForwardClass(out);
 
-		// 2. 将新增的前置声明按文件进行存放
-		TakeForwardClass(out);
+			// 3. 将可替换的#include按文件进行存放
+			TakeReplace(out);
 
-		// 3. 将可替换的#include按文件进行存放
-		TakeReplace(out);
+			// 4. 取出本文件的编译错误历史
+			TakeCompileErrorHistory(out);
 
-		// 4. 将可转移的#include按文件进行存放
-		TakeMove(out);
-
-		// 5. 取出本文件的编译错误历史
-		TakeCompileErrorHistory(out);
-
-		// 6. 修复每个文件的历史，防止对同一行修改多次导致崩溃
-		for (auto & itr : out)
-		{
-			FileHistory &history = itr.second;
-			history.Fix();
+			// 5. 修复每个文件的历史，防止对同一行修改多次导致崩溃
+			for (auto & itr : out)
+			{
+				FileHistory &history = itr.second;
+				history.Fix();
+			}
 		}
 	}
 
@@ -4747,8 +4520,8 @@ namespace cxxclean
 			FileHistory &eachFile	= out[fileName];
 			DelLine &delLine		= eachFile.m_delLines[line];
 
-			delLine.beg	= m_srcMgr->getFileOffset(lineRange.getBegin());
-			delLine.end	= m_srcMgr->getFileOffset(nextLine.getBegin());
+			delLine.beg		= m_srcMgr->getFileOffset(lineRange.getBegin());
+			delLine.end		= m_srcMgr->getFileOffset(nextLine.getBegin());
 			delLine.text	= GetSourceOfRange(lineRange);
 
 			if (Project::instance.m_verboseLvl >= VerboseLvl_2)
@@ -4830,21 +4603,6 @@ namespace cxxclean
 						llvm::errs() << "error: fileStart.getLocWithOffset(forwardLine.m_offsetAtFile) != insertLoc \n";
 					}
 				}
-			}
-		}
-	}
-
-	// 将文件替换记录按父文件进行归类
-	void ParsingFile::SplitReplaceByFile()
-	{
-		for (auto & itr : m_replaces)
-		{
-			FileID from		= itr.first;
-			FileID parent	= GetParent(from);
-
-			if (parent.isValid())
-			{
-				m_splitReplaces[parent].insert(itr);
 			}
 		}
 	}
@@ -4987,117 +4745,6 @@ namespace cxxclean
 		std::string rootFile			= GetAbsoluteFileName(m_srcMgr->getMainFileID());
 		FileHistory &history			= out[rootFile];
 		history.m_compileErrorHistory	= m_compileErrorHistory;
-	}
-
-	// 取出本文件的可转移信息
-	void ParsingFile::TakeMove(FileHistoryMap &out) const
-	{
-		if (m_moves.empty())
-		{
-			return;
-		}
-
-		for (auto & itr : m_moves)
-		{
-			FileID to	= itr.first;
-			auto &moves	= itr.second;
-
-			string toFileName = GetAbsoluteFileName(to);
-
-			if (out.find(toFileName) == out.end())
-			{
-				continue;
-			}
-
-			if (moves.empty())
-			{
-				continue;
-			}
-
-			FileHistory &toHistory = out[toFileName];
-
-			for (auto & moveItr : moves)
-			{
-				FileID move			= moveItr.first;
-				FileID replaceTo	= moveItr.second;
-
-				FileID from = GetParent(move);
-				if (from.isInvalid())
-				{
-					continue;
-				}
-
-				// 找出第2层祖先
-				FileID lv2 = GetLvl2Ancestor(move, to);
-				if (lv2.isInvalid())
-				{
-					continue;
-				}
-
-				int fromLineNo			= GetIncludeLineNo(move);
-				if (IsSkip(lv2))
-				{
-					ProjectHistory::instance.AddSkipLine(GetAbsoluteFileName(from), fromLineNo);
-					continue;
-				}
-
-				int toLineNo			= GetIncludeLineNo(lv2);
-				string toOldText		= GetIncludeFullLine(lv2);
-				string toNewText		= GetRelativeIncludeStr(to, replaceTo);
-				string newTextFile		= GetAbsoluteFileName(GetParent(replaceTo));
-				int newTextLine			= GetIncludeLineNo(replaceTo);
-
-				// 1. from中记载应转移到to文件
-				string fromFileName = GetAbsoluteFileName(from);
-				if (out.find(fromFileName) != out.end())
-				{
-					FileHistory &fromHistory = out[fromFileName];
-
-					MoveLine &fromLine	= fromHistory.m_moves[fromLineNo];
-
-					if (fromLine.moveTo.find(toFileName) != fromLine.moveTo.end())
-					{
-						continue;
-					}
-
-					MoveTo &moveTo			= fromLine.moveTo[toFileName];
-					moveTo.toLine			= toLineNo;
-					moveTo.toFile			= toFileName;
-					moveTo.oldText			= toOldText;
-					moveTo.newText			= toNewText;
-					moveTo.newTextFile		= newTextFile;
-					moveTo.newTextLine		= newTextLine;
-
-					if (fromLine.line_beg == 0)
-					{
-						SourceRange lineRange	= GetIncludeRange(move);
-						fromLine.line_beg		= m_srcMgr->getFileOffset(lineRange.getBegin());
-						fromLine.line_end		= m_srcMgr->getFileOffset(lineRange.getEnd());
-						fromLine.oldText		= GetIncludeFullLine(move);
-					}
-				}
-
-				// 2. to中记载应转移自from文件
-				MoveLine &toLine		= toHistory.m_moves[toLineNo];
-				auto &moveFroms			= toLine.moveFrom[fromFileName];
-				MoveFrom &moveFrom		= moveFroms[fromLineNo];
-				moveFrom.fromFile		= fromFileName;
-				moveFrom.fromLine		= fromLineNo;
-				moveFrom.oldText		= toOldText;
-				moveFrom.newText		= toNewText;
-				moveFrom.isSkip			= IsSkip(from);
-				moveFrom.newTextFile	= newTextFile;
-				moveFrom.newTextLine	= newTextLine;
-
-				if (toLine.line_beg == 0)
-				{
-					SourceRange lineRange	= GetIncludeRange(lv2);
-					toLine.line_beg			= m_srcMgr->getFileOffset(lineRange.getBegin());
-					toLine.line_end			= m_srcMgr->getFileOffset(lineRange.getEnd());
-					toLine.oldText			= toOldText;
-				}
-			}
-		}
 	}
 
 	// 打印引用记录
@@ -5458,12 +5105,9 @@ namespace cxxclean
 
 		m_compileErrorHistory.Print();
 
-		FileHistoryMap files;
-		TakeHistorys(files);
-
 		int i = 0;
 
-		for (auto & itr : files)
+		for (auto &itr : m_historys)
 		{
 			const FileHistory &history = itr.second;
 			if (!history.IsNeedClean())
@@ -5575,41 +5219,6 @@ namespace cxxclean
 		}
 	}
 
-	// 打印可被移动到cpp的文件列表
-	void ParsingFile::PrintMove() const
-	{
-		HtmlDiv &div = HtmlLog::instance.m_newDiv;
-		div.AddRow(AddPrintIdx() + ". can moved to cpp file list: file count = " + htmltool::get_number_html(m_moves.size()), 1);
-
-		for (auto & itr : m_moves)
-		{
-			FileID at	= itr.first;
-			auto &moves	= itr.second;
-
-			if (!IsNeedPrintFile(at))
-			{
-				continue;
-			}
-
-			div.AddRow("file = " + DebugBeIncludeText(at), 2);
-
-			for (auto & moveItr : moves)
-			{
-				FileID beMove		= moveItr.first;
-				FileID replaceTo	= moveItr.second;
-
-				div.AddRow("move = " + DebugBeIncludeText(beMove), 3);
-
-				if (beMove != replaceTo)
-				{
-					div.AddRow("replaceTo = " + DebugBeIncludeText(replaceTo), 3);
-				}
-			}
-		}
-
-		div.AddRow("");
-	}
-
 	// 打印被包含多次的文件
 	void ParsingFile::PrintSameFile() const
 	{
@@ -5619,7 +5228,7 @@ namespace cxxclean
 		}
 
 		HtmlDiv &div = HtmlLog::instance.m_newDiv;
-		div.AddRow(AddPrintIdx() + ". same file list: file count = " + htmltool::get_number_html(m_moves.size()), 1);
+		div.AddRow(AddPrintIdx() + ". same file list: file count = " + htmltool::get_number_html(m_sameFiles.size()), 1);
 
 		for (auto &itr : m_sameFiles)
 		{

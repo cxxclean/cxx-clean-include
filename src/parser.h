@@ -318,9 +318,6 @@ namespace cxxclean
 		// 尝试添加各个被依赖文件的祖先文件，返回值：true表示依赖文件集被扩张、false表示依赖文件夹不变
 		bool TryAddAncestor();
 
-		// 将文件b转移到文件a中
-		void AddMove(FileID a, FileID b);
-
 		// 记录各文件的被依赖后代文件
 		void GenerateRelyChildren();
 
@@ -329,9 +326,6 @@ namespace cxxclean
 
 		// 获取该文件可被替换到的文件，若无法被替换，则返回空文件id
 		FileID GetCanReplaceTo(FileID top) const;
-
-		// 生成可被移动的文件记录
-		void GenerateMove();
 
 		// 生成无用#include的记录
 		void GenerateUnusedInclude();
@@ -372,12 +366,6 @@ namespace cxxclean
 
 		// 当前文件之前是否已有文件声明了该class、struct、union
 		bool HasRecordBefore(FileID cur, const CXXRecordDecl &cxxRecord) const;
-
-		// 文件a是否被转移
-		bool IsMoved(FileID a) const;
-
-		// 获取文件a将被转移哪些文件中
-		bool GetMoveToList(FileID a, std::set<FileID> &moveToList) const;
 
 		// 是否应保留当前位置引用的class、struct、union的前置声明
 		bool IsNeedClass(SourceLocation, const CXXRecordDecl &cxxRecord) const;
@@ -561,9 +549,6 @@ namespace cxxclean
 		// 在指定文件内替换#include
 		void CleanByReplace(const FileHistory &history, FileID file);
 
-		// 在指定文件内移动#include
-		void CleanByMove(const FileHistory &history, FileID file);
-
 		// 在指定文件内新增行
 		void CleanByAdd(const FileHistory &history, FileID file);
 
@@ -600,11 +585,10 @@ namespace cxxclean
 		// 合并可替换的#include
 		void MergeReplaceLine(const FileHistory &newFile, FileHistory &oldFile) const;
 
-		// 合并可转移的#include
-		void MergeMoveLine(const FileHistory &newFile, FileHistory &oldFile) const;
-
 		// 将某些文件中的一些行标记为不可修改
 		void SkipRelyLines(const FileSkipLineMap&) const;
+
+		void InitHistory(FileID file, FileHistory &history) const;
 
 		// 取出当前cpp文件产生的待清理记录
 		void TakeNeed(FileID top, FileHistory &out) const;
@@ -621,9 +605,6 @@ namespace cxxclean
 		// 该文件是否是预编译头文件
 		bool IsPrecompileHeader(FileID file) const;
 
-		// 将文件替换记录按父文件进行归类
-		void SplitReplaceByFile();
-
 		// 将文件前置声明记录按文件进行归类
 		void SplitForwardByFile(ForwardDeclByFileMap&) const;
 
@@ -635,9 +616,6 @@ namespace cxxclean
 
 		// 取出本文件的编译错误历史
 		void TakeCompileErrorHistory(FileHistoryMap &out) const;
-
-		// 取出本文件的可转移信息
-		void TakeMove(FileHistoryMap &out) const;
 
 		// 是否禁止改动某文件
 		bool IsSkip(FileID file) const;
@@ -698,9 +676,6 @@ namespace cxxclean
 
 		// 打印各文件内的using namespace
 		void PrintUsingNamespace() const;
-
-		// 打印可被移动到cpp的文件列表
-		void PrintMove() const;
 
 		// 打印被包含多次的文件
 		void PrintSameFile() const;
@@ -796,6 +771,7 @@ namespace cxxclean
 		std::map<FileID, std::set<SourceLocation>>	m_skipIncludeLocs;
 		std::map<FileID, FileID>					m_sysAncestor;
 		std::map<FileID, std::set<FileID>>			m_userUses;
+		FileHistoryMap								m_historys;
 
 	private:
 		clang::Rewriter*							m_rewriter;

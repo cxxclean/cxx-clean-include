@@ -105,7 +105,6 @@ namespace cxxclean
 		PrintUnusedInclude();
 		PrintForwardClass();
 		PrintReplace();
-		PrintMove();
 		PrintAdd();
 	}
 
@@ -213,75 +212,6 @@ namespace cxxclean
 		}
 	}
 
-	// 打印单个文件内的#include被移动到其他文件的记录
-	void FileHistory::PrintMove() const
-	{
-		if (m_moves.empty())
-		{
-			return;
-		}
-
-		HtmlDiv &div = HtmlLog::instance.m_newDiv;
-
-		div.AddRow(strtool::get_text(cn_file_move_num, htmltool::get_number_html(m_moves.size()).c_str()), 2);
-
-		for (auto & itr : m_moves)
-		{
-			int line					= itr.first;
-			const MoveLine &moveLine	= itr.second;
-
-			if (!moveLine.moveFrom.empty())
-			{
-				div.AddRow(strtool::get_text(cn_file_move_from_line, htmltool::get_number_html(line).c_str(), htmltool::get_include_html(moveLine.oldText).c_str()), 3);
-
-				for (auto & itr : moveLine.moveFrom)
-				{
-					const std::map<int, MoveFrom> &froms = itr.second;
-
-					for (auto & innerItr : froms)
-					{
-						const MoveFrom &from = innerItr.second;
-
-						if (from.isSkip)
-						{
-							div.AddRow(htmltool::get_warn_html(cn_file_move_skip), 4);
-						}
-
-						div.AddRow(strtool::get_text(cn_file_move_from, htmltool::get_include_html(from.fromFile).c_str(), htmltool::get_number_html(from.fromLine).c_str()), 4);
-						div.AddRow(strtool::get_text(cn_file_move_from_old, htmltool::get_include_html(from.oldText).c_str()), 5);
-						div.AddRow(strtool::get_text(cn_file_move_from_new, htmltool::get_include_html(from.newText).c_str()), 5);
-
-						if (from.newText != moveLine.oldText)
-						{
-							div.AddRow(strtool::get_text(cn_file_move_to_replace, htmltool::get_include_html(from.newTextFile).c_str(), htmltool::get_number_html(from.newTextLine).c_str()), 5);
-						}
-					}
-				}
-			}
-
-			if (!moveLine.moveTo.empty())
-			{
-				div.AddRow(strtool::get_text(cn_file_move_to_line, htmltool::get_number_html(line).c_str(), htmltool::get_include_html(moveLine.oldText).c_str()), 3);
-
-				for (auto & itr : moveLine.moveTo)
-				{
-					const MoveTo &to = itr.second;
-
-					div.AddRow(strtool::get_text(cn_file_move_to, htmltool::get_include_html(to.toFile).c_str(), htmltool::get_number_html(to.toLine).c_str()), 4);
-					div.AddRow(strtool::get_text(cn_file_move_to_old, htmltool::get_include_html(to.oldText).c_str()), 5);
-					div.AddRow(strtool::get_text(cn_file_move_to_new, htmltool::get_include_html(to.newText).c_str()), 5);
-
-					if (to.newText != moveLine.oldText)
-					{
-						div.AddRow(strtool::get_text(cn_file_move_to_replace, htmltool::get_include_html(to.newTextFile).c_str(), htmltool::get_number_html(to.newTextLine).c_str()), 5);
-					}
-				}
-			}
-
-			div.AddRow("");
-		}
-	}
-
 	void FileHistory::PrintAdd() const
 	{
 		if (m_adds.empty())
@@ -337,17 +267,6 @@ namespace cxxclean
 			lines[line].push_back(LineType_Replace);
 		}
 
-		for (auto & itr : m_moves)
-		{
-			int line = itr.first;
-			const MoveLine &moveLine = itr.second;
-
-			if (!moveLine.moveTo.empty())
-			{
-				lines[line].push_back(LineType_Move);
-			}
-		}
-
 		// 2. 修复有冲突的行
 		for (auto & itr : lines)
 		{
@@ -386,13 +305,6 @@ namespace cxxclean
 			{
 				m_delLines.erase(line);
 				m_replaces.erase(line);
-
-				auto & moveItr = m_moves.find(line);
-				if (moveItr != m_moves.end())
-				{
-					MoveLine &moveLine = moveItr->second;
-					moveLine.moveTo.clear();
-				}
 			}
 		}
 	}
@@ -498,10 +410,5 @@ namespace cxxclean
 	bool ProjectHistory::IsAnyLineSkip(const string &file)
 	{
 		return m_skips.find(file) != m_skips.end();
-	}
-
-	void ProjectHistory::AddFile(ParsingFile *newFile)
-	{
-		newFile->MergeTo(m_files);
 	}
 }

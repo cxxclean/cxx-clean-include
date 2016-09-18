@@ -102,59 +102,6 @@ namespace cxxclean
 		ReplaceTo					replaceTo;			// 替换后的#include串列表
 	};
 
-	// 新增的#include的来源
-	struct MoveFrom
-	{
-		MoveFrom()
-			: fromLine(0)
-			, isSkip(false)
-			, newTextLine(0)
-		{
-		}
-
-		string						fromFile;			// 来源文件
-		int							fromLine;			// 该文件的第几行
-		string						oldText;			// 旧的#inlude文本
-		string						newText;			// 新的#inlude文本
-		string						newTextFile;		// 新的#include来自于哪个文件
-		int							newTextLine;		// 新的#include所在的行
-		bool						isSkip;				// 记录本条移动是否应被跳过，因为有些#include不允许被替换，但仍然有打印的必要
-	};
-
-	// 被移过去的#include的信息
-	struct MoveTo
-	{
-		MoveTo()
-			: toLine(0)
-			, newTextLine(0)
-		{
-		}
-
-		string						toFile;				// 移到的文件中
-		int							toLine;				// 被移到第几行
-		string						oldText;			// 旧的#inlude文本
-		string						newText;			// 新的#inlude文本
-		string						newTextFile;		// 新的#include来自于哪个文件
-		int							newTextLine;		// 新的#include所在的行
-	};
-
-	// 可被移动#include的行
-	struct MoveLine
-	{
-		MoveLine()
-			: line_beg(0)
-			, line_end(0)
-		{
-		}
-
-		int							line_beg;			// 本行 - 起始位置
-		int							line_end;			// 本行 - 结束位置
-		string						oldText;			// 本行之前的#include文本，如: #include "../b/../b/../a.h“
-
-		std::map<string, std::map<int, MoveFrom>>	moveFrom;	// 新增的#include来源于哪些文件
-		std::map<string, MoveTo>					moveTo;		// 移除的#include移到哪些文件中
-	};
-
 	// 每个文件的编译错误历史
 	struct CompileErrorHistory
 	{
@@ -204,9 +151,6 @@ namespace cxxclean
 		// 打印单个文件内的可被替换#include记录
 		void PrintReplace() const;
 
-		// 打印单个文件内的#include被移动到其他文件的记录
-		void PrintMove() const;
-
 		void PrintAdd() const;
 
 		const char* GetNewLineWord() const
@@ -216,7 +160,7 @@ namespace cxxclean
 
 		bool IsNeedClean() const
 		{
-			return !(m_delLines.empty() && m_replaces.empty() && m_forwards.empty() && m_moves.empty() && m_adds.empty());
+			return !(m_delLines.empty() && m_replaces.empty() && m_forwards.empty() && m_adds.empty());
 		}
 
 		bool IsLineUnused(int line) const
@@ -234,18 +178,6 @@ namespace cxxclean
 			return m_forwards.find(line) != m_forwards.end();
 		}
 
-		bool IsMoved(int line) const
-		{
-			auto & itr = m_moves.find(line);
-			if (itr == m_moves.end())
-			{
-				return false;
-			}
-
-			const MoveLine &moveLine = itr->second;
-			return !moveLine.moveTo.empty();
-		}
-
 		bool HaveFatalError() const
 		{
 			return m_compileErrorHistory.HaveFatalError();
@@ -257,7 +189,6 @@ namespace cxxclean
 		typedef std::map<int, DelLine> DelLineMap;
 		typedef std::map<int, ForwardLine> ForwardLineMap;
 		typedef std::map<int, ReplaceLine> ReplaceLineMap;
-		typedef std::map<int, MoveLine> MoveLineMap;
 		typedef std::map<int, AddLine> AddLineMap;
 
 		std::string			m_filename;
@@ -271,7 +202,6 @@ namespace cxxclean
 		DelLineMap			m_delLines;
 		ForwardLineMap		m_forwards;
 		ReplaceLineMap		m_replaces;
-		MoveLineMap			m_moves;
 		AddLineMap			m_adds;
 	};
 
@@ -310,8 +240,6 @@ namespace cxxclean
 
 		// 指定文件中是否有一些行禁止被改动
 		bool IsAnyLineSkip(const string &file);
-
-		void AddFile(ParsingFile *file);
 
 		// 打印索引 + 1
 		std::string AddPrintIdx() const;
