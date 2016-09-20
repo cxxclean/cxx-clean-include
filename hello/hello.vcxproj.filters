@@ -36,6 +36,8 @@
     <ClInclude Include="m_using_namespace.h" />
     <ClInclude Include="n_same_forward.h" />
     <ClInclude Include="n.h" />
+    <ClInclude Include="o_nested_class.h" />
+    <ClInclude Include="o.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="hello.cpp" />
@@ -53,5 +55,6 @@
     <ClCompile Include="h_use_forwarddecl.cpp" />
     <ClCompile Include="m_using_namespace.cpp" />
     <ClCompile Include="n_same_forward.cpp" />
+    <ClCompile Include="o_nested_class.cpp" />
   </ItemGroup>
 </Project>

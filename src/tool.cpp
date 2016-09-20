@@ -421,6 +421,11 @@ namespace pathtool
 			return "";
 		}
 
+		if (path[0] == 0x0)
+		{
+			return "";
+		}
+
 		llvm::SmallString<512> filepath(path);
 		std::error_code error = llvm::sys::fs::make_absolute(filepath);
 		if (error)

@@ -1,11 +1,3 @@
-///<------------------------------------------------------------------------------
-//< @file:   i_deeply_include.h
-//< @author: 洪坤安
-//< @date:   2016年2月10日
-//< @brief:	 
-//< Copyright (c) 2015 game. All rights reserved.
-///<------------------------------------------------------------------------------
-
 #ifndef _i_deeply_include_h_
 #define _i_deeply_include_h_
 

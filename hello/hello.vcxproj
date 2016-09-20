@@ -101,6 +101,8 @@
     <ClInclude Include="n.h" />
     <ClInclude Include="nil.h" />
     <ClInclude Include="n_same_forward.h" />
+    <ClInclude Include="o.h" />
+    <ClInclude Include="o_nested_class.h" />
     <ClInclude Include="test.h" />
     <ClInclude Include="type.h" />
   </ItemGroup>
@@ -120,6 +122,7 @@
     <ClCompile Include="l_use_template.cpp" />
     <ClCompile Include="m_using_namespace.cpp" />
     <ClCompile Include="n_same_forward.cpp" />
+    <ClCompile Include="o_nested_class.cpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

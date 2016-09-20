@@ -481,7 +481,7 @@ namespace cxxclean
 		// 返回插入前置声明所在行的开头
 		SourceLocation GetInsertForwardLine(FileID at, const CXXRecordDecl &cxxRecord) const;
 
-		// 新增使用前置声明记录
+		// 新增使用前置声明记录（对于不必要添加的前置声明将在之后进行清理）
 		void UseForward(SourceLocation loc, const CXXRecordDecl *cxxRecordDecl);
 
 		// 打印各文件的父文件
@@ -738,9 +738,6 @@ namespace cxxclean
 
 		// 14. 每个代码位置所使用的class、struct、union指针或引用的记录：[位置] -> [所使用的class、struct、union指针或引用]
 		ForwardDeclMap								m_forwardDecls;
-
-		// 14. 各文件所使用的class、struct、union指针或引用的记录：[文件] -> [该文件所使用的class、struct、union指针或引用]
-		ForwardDeclByFileMap						m_forwardDeclsByFile;
 
 		// 15. 各文件所使用的类名、函数名、宏名等的名称记录：[文件] -> [该文件所使用的类名、函数名、宏名等]
 		std::map<FileID, std::vector<UseNameInfo>>	m_useNames;

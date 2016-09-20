@@ -1360,7 +1360,7 @@ namespace cxxclean
 		}
 
 		FileID insertAtFile	= GetFileID(insertLoc);
-		if (!Project::instance.CanClean(GetAbsoluteFileName(insertAtFile)))
+		if (!CanClean(insertAtFile))
 		{
 			return false;
 		}
@@ -1370,7 +1370,6 @@ namespace cxxclean
 			return false;
 		}
 
-		llvm::errs() << "-----------ParsingFile::IsNeedMinClass: " << GetRecordName(cxxRecord) << "\n";
 		return true;
 	}
 
@@ -1424,30 +1423,27 @@ namespace cxxclean
 		// 1. 清除一些不必要保留的前置声明
 		for (auto & itr = m_forwardDecls.begin(); itr != m_forwardDecls.end();)
 		{
-			SourceLocation loc								= itr->first;
-			std::set<const CXXRecordDecl*> &old_forwards	= itr->second;
+			SourceLocation loc						= itr->first;
+			std::set<const CXXRecordDecl*> &records	= itr->second;
 
-			FileID file = GetFileID(loc);
-
-			std::set<const CXXRecordDecl*> can_forwards;
-
-			for (const CXXRecordDecl* cxxRecordDecl : old_forwards)
+			for (auto &recordItr = records.begin(); recordItr != records.end();)
 			{
-				if (IsNeedMinClass(loc, *cxxRecordDecl))
+				const CXXRecordDecl* cxxRecordDecl = *recordItr;
+
+				if (!IsNeedMinClass(loc, *cxxRecordDecl))
 				{
-					can_forwards.insert(cxxRecordDecl);
+					records.erase(recordItr++);
+				}
+				else
+				{
+					++recordItr;
 				}
 			}
 
-			if (can_forwards.empty())
+			if (records.empty())
 			{
 				m_forwardDecls.erase(itr++);
 				continue;
-			}
-
-			if (can_forwards.size() < old_forwards.size())
-			{
-				old_forwards = can_forwards;
 			}
 
 			++itr;
@@ -2519,7 +2515,7 @@ namespace cxxclean
 		return SourceLocation();
 	}
 
-	// 新增使用前置声明记录
+	// 新增使用前置声明记录（对于不必要添加的前置声明将在之后进行清理）
 	void ParsingFile::UseForward(SourceLocation loc, const CXXRecordDecl *cxxRecord)
 	{
 		if (nullptr == cxxRecord)
@@ -2535,9 +2531,26 @@ namespace cxxclean
 
 		if (Project::instance.IsCleanModeOpen(CleanMode_Need))
 		{
-			// 添加文件所使用的前置声明记录（对于不必要添加的前置声明将在之后进行清理）
+			// 如果本文件内该位置之前已有前置声明则不再处理
+			const TagDecl *first = cxxRecord->getFirstDecl();
+			for (const TagDecl *next : first->redecls())
+			{
+				if (m_srcMgr->isBeforeInTranslationUnit(loc, next->getLocation()))
+				{
+					break;
+				}
+
+				FileID recordAtFile = GetFileID(next->getLocation());
+
+				if (file == recordAtFile && !next->isThisDeclarationADefinition())
+				{
+					llvm::errs() << "skip record at " << GetAbsoluteFileName(file) << "," << GetAbsoluteFileName(recordAtFile) << " record = " <<  GetRecordName(*cxxRecord) << "\n";
+					return;
+				}
+			}
+
+			// 添加文件所使用的前置声明记录
 			m_forwardDecls[loc].insert(cxxRecord);
-			return;
 		}
 		else
 		{
@@ -2601,6 +2614,12 @@ namespace cxxclean
 	void ParsingFile::UseVarType(SourceLocation loc, const QualType &var)
 	{
 		if (!IsForwardType(var))
+		{
+			UseQualType(loc, var);
+			return;
+		}
+
+		if (IsSystemHeader(GetFileID(loc)))
 		{
 			UseQualType(loc, var);
 			return;
@@ -3511,7 +3530,7 @@ namespace cxxclean
 	// 根据历史清理指定文件
 	void ParsingFile::CleanByHistory(const FileHistoryMap &historys)
 	{
-		std::map<std::string, FileID> nowFiles;
+		std::map<std::string, FileID> nameToFileIDMap;
 
 		// 建立当前cpp中文件名到文件FileID的map映射（注意：同一个文件可能被包含多次，FileID是不一样的，这里只存入最小的FileID）
 		{
@@ -3524,9 +3543,9 @@ namespace cxxclean
 					continue;
 				}
 
-				if (nowFiles.find(name) == nowFiles.end())
+				if (nameToFileIDMap.find(name) == nameToFileIDMap.end())
 				{
-					nowFiles.insert(std::make_pair(name, file));
+					nameToFileIDMap.insert(std::make_pair(name, file));
 				}
 			}
 		}
@@ -3557,8 +3576,8 @@ namespace cxxclean
 			}
 
 			// 根据名称在当前cpp各文件中找到对应的文件ID（注意：同一个文件可能被包含多次，FileID是不一样的，这里取出来的是最小的FileID）
-			auto & findItr = nowFiles.find(fileName);
-			if (findItr == nowFiles.end())
+			auto & findItr = nameToFileIDMap.find(fileName);
+			if (findItr == nameToFileIDMap.end())
 			{
 				// llvm::errs() << "[error][ParsingFile::CleanBy] if (findItr == allFiles.end()) filename = " << fileName << "\n";
 				continue;
@@ -3844,11 +3863,11 @@ namespace cxxclean
 			PrintUsedNames();
 			PrintSameFile();
 			PrintForwardDecl();
-			PrintSysAncestor();
 		}
 
 		if (verbose >= VerboseLvl_4)
 		{
+			PrintSysAncestor();
 			PrintNewUse();
 
 			PrintTopRely();
@@ -4431,10 +4450,10 @@ namespace cxxclean
 	{
 		if (Project::instance.IsCleanModeOpen(CleanMode_Need))
 		{
+			//for (FileID top : m_files)
 			for (auto &itr : m_min)
 			{
 				FileID top = itr.first;
-				const FileSet &kids = itr.second;
 
 				string fileName = GetAbsoluteFileName(top);
 
@@ -4451,8 +4470,6 @@ namespace cxxclean
 				// 生成对应于该文件的的记录
 				TakeNeed(top, out[fileName]);
 			}
-
-			return;
 		}
 		else
 		{
