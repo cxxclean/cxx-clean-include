@@ -111,7 +111,7 @@ namespace cxxclean
 	{
 		std::vector<HeaderSearchDir> dirs;
 
-		for (auto & itr : include_dirs_map)
+		for (auto &itr : include_dirs_map)
 		{
 			const string &path					= itr.first;
 			SrcMgr::CharacteristicKind pathType	= itr.second;
@@ -195,11 +195,12 @@ namespace cxxclean
 	}
 
 	// 生成各文件的待清理记录
-	void ParsingFile::GenerateResult()
+	void ParsingFile::Analyze()
 	{
 		if (Project::instance.IsCleanModeOpen(CleanMode_Need))
 		{
-			GenerateSysAncestor();
+			GenerateUserFiles();
+			GenerateOutFileAncestor();
 			GenerateUserUse();
 			GenerateMinUse();
 			GenerateMinForwardClass();
@@ -238,7 +239,7 @@ namespace cxxclean
 
 			if (kids.find(a) != kids.end())
 			{
-				llvm::errs() << "====>ReplaceMin(" << GetAbsoluteFileName(a) << ", " << GetAbsoluteFileName(b) << " at " << GetAbsoluteFileName(top) << ")\n";
+				llvm::errs() << "====>[ReplaceMin]a = " << GetAbsoluteFileName(a) << ", b = " << GetAbsoluteFileName(b) << " at file = " << GetAbsoluteFileName(top) << ")\n";
 				kids.erase(a);
 				kids.insert(b);
 			}
@@ -249,7 +250,7 @@ namespace cxxclean
 
 	inline bool ParsingFile::IsMinUse(FileID a, FileID b) const
 	{
-		auto & itr = m_min.find(a);
+		auto &itr = m_min.find(a);
 		if (itr == m_min.end())
 		{
 			return false;
@@ -281,7 +282,7 @@ namespace cxxclean
 
 			if (!IsRootMinKid(top))
 			{
-				continue;
+				//continue;
 			}
 
 			for (FileID kid : kids)
@@ -309,7 +310,7 @@ namespace cxxclean
 				}
 				else if (IsAncestor(top, kid))
 				{
-					llvm::errs() << "====>[ExpandMin]IsAncestor(" << GetAbsoluteFileName(top) << ", " << GetAbsoluteFileName(kid) << ")\n";
+					llvm::errs() << "====>[ExpandMin]IsAncestor(kid = " << GetAbsoluteFileName(top) << ", ancestor = " << GetAbsoluteFileName(kid) << ")\n";
 					m_min[kid].insert(top);
 					kids.erase(kid);
 
@@ -354,6 +355,16 @@ namespace cxxclean
 			{
 				int deep1 = GetDeepth(kid);
 
+				for (FileID forceInclude : m_forceIncludes)
+				{
+					FileID same = GetBestSameFile(forceInclude, kid);
+					if (same != kid)
+					{
+						minKids.erase(kid);
+						break;
+					}
+				}
+
 				for (FileID other : minKids)
 				{
 					if (kid == other)
@@ -365,15 +376,15 @@ namespace cxxclean
 
 					if (IsAncestor(kid, other) && (m_min.find(other) == m_min.end()))
 					{
-						llvm::errs() << "[MergeMin]IsAncestor:"<< GetAbsoluteFileName(kid) << ", " << GetAbsoluteFileName(other) << "\n";
+						llvm::errs() << "====>[MergeMin]IsAncestor(kid = "<< GetAbsoluteFileName(kid) << ", ancestor = " << GetAbsoluteFileName(other) << ")\n";
 
-						minKids.erase(kid);
-						break;
+						//minKids.erase(kid);
+						//break;
 					}
 
 					if (IsMinKidOf(kid, other))
 					{
-						llvm::errs() << "[MergeMin]IsMinKidOf:"<< GetAbsoluteFileName(kid) << ", " << GetAbsoluteFileName(other) << "\n";
+						llvm::errs() << "====>[MergeMin]IsMinKidOf(kid = "<< GetAbsoluteFileName(kid) << ", old = " << GetAbsoluteFileName(other) << ")\n";
 
 						minKids.erase(kid);
 						break;
@@ -393,14 +404,54 @@ namespace cxxclean
 
 	inline bool ParsingFile::IsSystemHeader(FileID file) const
 	{
-		SourceLocation fileBeginLoc = m_srcMgr->getLocForStartOfFile(file);
-		return m_srcMgr->isInSystemHeader(fileBeginLoc);
+		if (file.isInvalid())
+		{
+			return false;
+		}
+
+		llvm::errs() << "IsSystemHeader" << GetAbsoluteFileName(file) << "\n";
+
+		return !CanClean(file);
+
+		//SourceLocation fileBeginLoc = m_srcMgr->getLocForStartOfFile(file);
+		//return m_srcMgr->isInSystemHeader(fileBeginLoc);
 	}
 
-	inline FileID ParsingFile::GetTopSysAncestor(FileID file) const
+	inline bool ParsingFile::IsUserFileSlowly(FileID file) const
 	{
-		auto itr = m_sysAncestor.find(file);
-		if (itr == m_sysAncestor.end())
+		if (file.isInvalid())
+		{
+			return false;
+		}
+
+		if (IsAncestorForceInclude(file))
+		{
+			return false;
+		}
+
+		// llvm::errs() << "IsUserFileSlow: " << GetAbsoluteFileName(file) << "\n";
+		return CanClean(file);
+	}
+
+	inline bool ParsingFile::IsUserFile(FileID file) const
+	{
+		return m_userFiles.find(file) != m_userFiles.end();
+	}
+
+	inline bool ParsingFile::IsOuterFile(FileID file) const
+	{
+		if (file.isInvalid())
+		{
+			return false;
+		}
+
+		return !IsUserFileSlowly(file);
+	}
+
+	inline FileID ParsingFile::GetTopOuterFileAncestor(FileID file) const
+	{
+		auto itr = m_outFileAncestor.find(file);
+		if (itr == m_outFileAncestor.end())
 		{
 			return file;
 		}
@@ -408,11 +459,11 @@ namespace cxxclean
 		return itr->second;
 	}
 
-	inline FileID ParsingFile::SearchTopSysAncestor(FileID file) const
+	inline FileID ParsingFile::SearchOuterFileAncestor(FileID file) const
 	{
 		FileID topSysAncestor = file;
 
-		for (FileID parent = file; IsSystemHeader(parent); parent = GetParent(parent))
+		for (FileID parent = file; IsOuterFile(parent); parent = GetParent(parent))
 		{
 			topSysAncestor = parent;
 		}
@@ -420,20 +471,36 @@ namespace cxxclean
 		return topSysAncestor;
 	}
 
-	void ParsingFile::GenerateSysAncestor()
+	void ParsingFile::GenerateUserFiles()
 	{
 		for (FileID file : m_files)
 		{
-			FileID topSysAncestor;
-
-			for (FileID parent = file; IsSystemHeader(parent); parent = GetParent(parent))
+			if (IsUserFileSlowly(file))
 			{
-				topSysAncestor = parent;
+				m_userFiles.insert(file);
 			}
 
-			if (topSysAncestor.isValid() && topSysAncestor != file)
+			if (IsForceIncluded(file))
 			{
-				m_sysAncestor[file] = topSysAncestor;
+				m_forceIncludes.insert(file);
+			}
+		}
+	}
+
+	void ParsingFile::GenerateOutFileAncestor()
+	{
+		for (FileID file : m_files)
+		{
+			FileID outerFileAncestor;
+
+			for (FileID parent = file; IsOuterFile(parent); parent = GetParent(parent))
+			{
+				outerFileAncestor = parent;
+			}
+
+			if (outerFileAncestor.isValid() && outerFileAncestor != file)
+			{
+				m_outFileAncestor[file] = outerFileAncestor;
 			}
 		}
 	}
@@ -445,7 +512,7 @@ namespace cxxclean
 			FileID by				= itr.first;
 			const FileSet &useList	= itr.second;
 
-			if (IsSystemHeader(by))
+			if (IsOuterFile(by))
 			{
 				continue;
 			}
@@ -454,7 +521,7 @@ namespace cxxclean
 
 			for (FileID beUse : useList)
 			{
-				userUseList.insert(GetTopSysAncestor(beUse));
+				userUseList.insert(GetTopOuterFileAncestor(beUse));
 			}
 		}
 	}
@@ -723,7 +790,7 @@ namespace cxxclean
 			return FileID();
 		}
 
-		auto & itr = m_relyChildren.find(top);
+		auto &itr = m_relyChildren.find(top);
 		if (itr == m_relyChildren.end())
 		{
 			return FileID();
@@ -766,7 +833,7 @@ namespace cxxclean
 	{
 		FileID mainFile = m_srcMgr->getMainFileID();
 
-		for (auto & itr = m_relys.rbegin(); itr != m_relys.rend(); ++itr)
+		for (auto &itr = m_relys.rbegin(); itr != m_relys.rend(); ++itr)
 		{
 			FileID file = *itr;
 
@@ -928,14 +995,14 @@ namespace cxxclean
 	}
 
 	// 该文件的所有同名文件是否被依赖（同一文件可被包含多次）
-	bool ParsingFile::IsMinKidBySameName(FileID useFile, FileID recordAtfile) const
+	bool ParsingFile::IsMinKidBySameName(FileID top, FileID kid) const
 	{
-		if (IsMinKidOf(recordAtfile, useFile))
+		if (IsMinKidOf(kid, top))
 		{
 			return true;
 		}
 
-		auto itr = m_sameFiles.find(GetAbsoluteFileName(recordAtfile));
+		auto itr = m_sameFiles.find(GetAbsoluteFileName(kid));
 		if (itr == m_sameFiles.end())
 		{
 			return false;
@@ -944,12 +1011,12 @@ namespace cxxclean
 		const std::set<FileID> &sames = itr->second;
 		for (FileID same : sames)
 		{
-			if (recordAtfile == same)
+			if (kid == same)
 			{
 				continue;
 			}
 
-			if (IsMinKidOf(same, useFile))
+			if (IsMinKidOf(same, top))
 			{
 				return true;
 			}
@@ -978,13 +1045,13 @@ namespace cxxclean
 	}
 
 	// 祖先文件是否被强制包含
-	bool ParsingFile::IsAncestorForceInclude(FileID file)
+	bool ParsingFile::IsAncestorForceInclude(FileID file) const
 	{
 		return GetAncestorForceInclude(file).isValid();
 	}
 
 	// 获取被强制包含祖先文件
-	FileID ParsingFile::GetAncestorForceInclude(FileID file)
+	FileID ParsingFile::GetAncestorForceInclude(FileID file) const
 	{
 		for (FileID parent = file; parent.isValid(); parent = GetParent(parent))
 		{
@@ -1049,7 +1116,7 @@ namespace cxxclean
 	// 文件a是否使用到文件b
 	bool ParsingFile::IsUse(FileID a, FileID b) const
 	{
-		auto & itr = m_uses.find(a);
+		auto &itr = m_uses.find(a);
 		if (itr == m_uses.end())
 		{
 			return false;
@@ -1062,7 +1129,7 @@ namespace cxxclean
 	// 文件a是否直接包含文件b
 	bool ParsingFile::IsInclude(FileID a, FileID b) const
 	{
-		auto & itr = m_includes.find(a);
+		auto &itr = m_includes.find(a);
 		if (itr == m_includes.end())
 		{
 			return false;
@@ -1228,7 +1295,7 @@ namespace cxxclean
 	// 生成文件替换列表
 	void ParsingFile::GenerateReplace()
 	{
-		for (auto & itr : m_replaces)
+		for (auto &itr : m_replaces)
 		{
 			FileID from		= itr.first;
 			FileID parent	= GetParent(from);
@@ -1345,7 +1412,7 @@ namespace cxxclean
 
 		// 类所在的文件
 		FileID recordAtFile	= GetFileID(cxxRecord.getLocStart());
-		recordAtFile = GetTopSysAncestor(recordAtFile);
+		recordAtFile = GetTopOuterFileAncestor(recordAtFile);
 
 		// 1. 若b未被引用，则肯定要加前置声明
 		if (IsMinKidBySameName(useFile, recordAtFile))
@@ -1377,7 +1444,7 @@ namespace cxxclean
 	void ParsingFile::GenerateForwardClass()
 	{
 		// 1. 清除一些不必要保留的前置声明
-		for (auto & itr = m_forwardDecls.begin(); itr != m_forwardDecls.end();)
+		for (auto &itr = m_forwardDecls.begin(); itr != m_forwardDecls.end();)
 		{
 			SourceLocation loc								= itr->first;
 			std::set<const CXXRecordDecl*> &old_forwards	= itr->second;
@@ -1421,7 +1488,7 @@ namespace cxxclean
 	void ParsingFile::GenerateMinForwardClass()
 	{
 		// 1. 清除一些不必要保留的前置声明
-		for (auto & itr = m_forwardDecls.begin(); itr != m_forwardDecls.end();)
+		for (auto &itr = m_forwardDecls.begin(); itr != m_forwardDecls.end();)
 		{
 			SourceLocation loc						= itr->first;
 			std::set<const CXXRecordDecl*> &records	= itr->second;
@@ -1688,7 +1755,7 @@ namespace cxxclean
 	{
 		SourceLocation loc = m_srcMgr->getIncludeLoc(file);
 
-		auto & itr = m_includeLocs.find(loc);
+		auto &itr = m_includeLocs.find(loc);
 		if (itr == m_includeLocs.end())
 		{
 			return "";
@@ -1797,7 +1864,7 @@ namespace cxxclean
 	bool ParsingFile::IsAncestor(const char* young, FileID old) const
 	{
 		// 在父子关系表查找与后代文件同名的FileID（若多次#include同一文件，则会为该文件分配多个不同的FileID）
-		for (auto & itr : m_parents)
+		for (auto &itr : m_parents)
 		{
 			FileID child = itr.first;
 
@@ -1840,7 +1907,7 @@ namespace cxxclean
 			return FileID();
 		}
 
-		auto & itr = m_parents.find(child);
+		auto &itr = m_parents.find(child);
 		if (itr == m_parents.end())
 		{
 			return FileID();
@@ -2023,7 +2090,7 @@ namespace cxxclean
 	{
 		SourceLocation usingLoc		= d->getUsingLoc();
 
-		for (auto & itr = d->shadow_begin(); itr != d->shadow_end(); ++itr)
+		for (auto &itr = d->shadow_begin(); itr != d->shadow_end(); ++itr)
 		{
 			UsingShadowDecl *shadowDecl = *itr;
 
@@ -2075,7 +2142,7 @@ namespace cxxclean
 	// 文件b是否直接#include文件a
 	bool ParsingFile::IsIncludedBy(FileID a, FileID b)
 	{
-		auto & itr = m_includes.find(b);
+		auto &itr = m_includes.find(b);
 		if (itr == m_includes.end())
 		{
 			return false;
@@ -2088,7 +2155,7 @@ namespace cxxclean
 	// 获取文件a的指定名称的直接后代文件
 	FileID ParsingFile::GetDirectChildByName(FileID a, const char* childFileName) const
 	{
-		auto & itr = m_includes.find(a);
+		auto &itr = m_includes.find(a);
 		if (itr != m_includes.end())
 		{
 			for (FileID child : itr->second)
@@ -2114,7 +2181,7 @@ namespace cxxclean
 		}
 
 		// 2. 否则，搜索后代文件
-		auto & itr = m_children.find(a);
+		auto &itr = m_children.find(a);
 		if (itr == m_children.end())
 		{
 			for (FileID child : itr->second)
@@ -2544,7 +2611,7 @@ namespace cxxclean
 
 				if (file == recordAtFile && !next->isThisDeclarationADefinition())
 				{
-					llvm::errs() << "skip record at " << GetAbsoluteFileName(file) << "," << GetAbsoluteFileName(recordAtFile) << " record = " <<  GetRecordName(*cxxRecord) << "\n";
+					llvm::errs() << "====>[UseForward]skip record = " <<  GetRecordName(*cxxRecord) << ", record file = " << GetAbsoluteFileName(file) << "\n";
 					return;
 				}
 			}
@@ -2619,7 +2686,7 @@ namespace cxxclean
 			return;
 		}
 
-		if (IsSystemHeader(GetFileID(loc)))
+		if (!IsUserFileSlowly(GetFileID(loc)))
 		{
 			UseQualType(loc, var);
 			return;
@@ -2867,7 +2934,7 @@ namespace cxxclean
 	void ParsingFile::PrintParent()
 	{
 		int num = 0;
-		for (auto & itr : m_parents)
+		for (auto &itr : m_parents)
 		{
 			FileID child	= itr.first;
 			FileID parent	= itr.second;
@@ -2884,7 +2951,7 @@ namespace cxxclean
 		HtmlDiv &div = HtmlLog::instance.m_newDiv;
 		div.AddRow(AddPrintIdx() + ". list of parent id: has parent file count = " + htmltool::get_number_html(num), 1);
 
-		for (auto & itr : m_parents)
+		for (auto &itr : m_parents)
 		{
 			FileID child	= itr.first;
 			FileID parent	= itr.second;
@@ -2907,7 +2974,7 @@ namespace cxxclean
 	void ParsingFile::PrintChildren()
 	{
 		int num = 0;
-		for (auto & itr : m_children)
+		for (auto &itr : m_children)
 		{
 			FileID parent = itr.first;
 
@@ -2923,7 +2990,7 @@ namespace cxxclean
 		HtmlDiv &div = HtmlLog::instance.m_newDiv;
 		div.AddRow(AddPrintIdx() + ". list of children : file count = " + strtool::itoa(num), 1);
 
-		for (auto & itr : m_children)
+		for (auto &itr : m_children)
 		{
 			FileID parent = itr.first;
 
@@ -2952,7 +3019,7 @@ namespace cxxclean
 	void ParsingFile::PrintNewUse()
 	{
 		int num = 0;
-		for (auto & itr : m_newUse)
+		for (auto &itr : m_newUse)
 		{
 			FileID file = itr.first;
 
@@ -2967,7 +3034,7 @@ namespace cxxclean
 		HtmlDiv &div = HtmlLog::instance.m_newDiv;
 		div.AddRow(AddPrintIdx() + ". list of new use : use count = " + strtool::itoa(num), 1);
 
-		for (auto & itr : m_newUse)
+		for (auto &itr : m_newUse)
 		{
 			FileID file = itr.first;
 
@@ -3434,11 +3501,15 @@ namespace cxxclean
 			return;
 		}
 
-		for (auto & delLineItr : history.m_delLines)
+		for (auto &itr : history.m_delLines)
 		{
-			const DelLine &delLine = delLineItr.second;
+			int line = itr.first;
+			const DelLine &delLine = itr.second;
 
-			RemoveText(file, delLine.beg, delLine.end);
+			if (line > 0)
+			{
+				RemoveText(file, delLine.beg, delLine.end);
+			}
 		}
 	}
 
@@ -3450,19 +3521,23 @@ namespace cxxclean
 			return;
 		}
 
-		for (auto & forwardItr : history.m_forwards)
+		for (auto &itr : history.m_forwards)
 		{
-			const ForwardLine &forwardLine	= forwardItr.second;
+			int line = itr.first;
+			const ForwardLine &forwardLine	= itr.second;
 
-			std::stringstream text;
-
-			for (const string &cxxRecord : forwardLine.classes)
+			if (line > 0)
 			{
-				text << cxxRecord;
-				text << history.GetNewLineWord();
-			}
+				std::stringstream text;
 
-			InsertText(file, forwardLine.offset, text.str());
+				for (const string &cxxRecord : forwardLine.classes)
+				{
+					text << cxxRecord;
+					text << history.GetNewLineWord();
+				}
+
+				InsertText(file, forwardLine.offset, text.str());
+			}
 		}
 	}
 
@@ -3476,12 +3551,13 @@ namespace cxxclean
 
 		const std::string newLineWord = history.GetNewLineWord();
 
-		for (auto & replaceItr : history.m_replaces)
+		for (auto &itr : history.m_replaces)
 		{
-			const ReplaceLine &replaceLine	= replaceItr.second;
+			int line = itr.first;
+			const ReplaceLine &replaceLine	= itr.second;
 
 			// 若是被-include参数强制引入，则跳过，因为替换并没有效果
-			if (replaceLine.isSkip)
+			if (replaceLine.isSkip || line <= 0)
 			{
 				continue;
 			}
@@ -3510,20 +3586,18 @@ namespace cxxclean
 			int line				= addItr.first;
 			const AddLine &addLine	= addItr.second;
 
-			if (line <= 0)
+			if (line > 0)
 			{
-				continue;
+				std::stringstream text;
+
+				for (const BeAdd &beAdd : addLine.adds)
+				{
+					text << beAdd.text;
+					text << history.GetNewLineWord();
+				}
+
+				InsertText(file, addLine.offset, text.str());
 			}
-
-			std::stringstream text;
-
-			for (const BeAdd &beAdd : addLine.adds)
-			{
-				text << beAdd.text;
-				text << history.GetNewLineWord();
-			}
-
-			InsertText(file, addLine.offset, text.str());
 		}
 	}
 
@@ -3550,7 +3624,7 @@ namespace cxxclean
 			}
 		}
 
-		for (auto & itr : historys)
+		for (auto &itr : historys)
 		{
 			const string &fileName		= itr.first;
 			const FileHistory &history	= itr.second;
@@ -3756,7 +3830,7 @@ namespace cxxclean
 	void ParsingFile::PrintRelativeInclude() const
 	{
 		int num = 0;
-		for (auto & itr : m_uses)
+		for (auto &itr : m_uses)
 		{
 			FileID file = itr.first;
 
@@ -3771,7 +3845,7 @@ namespace cxxclean
 		HtmlDiv &div = HtmlLog::instance.m_newDiv;
 		div.AddRow(AddPrintIdx() + ". relative include list : use = " + htmltool::get_number_html(num), 1);
 
-		for (auto & itr : m_uses)
+		for (auto &itr : m_uses)
 		{
 			FileID file = itr.first;
 
@@ -3800,7 +3874,7 @@ namespace cxxclean
 		HtmlDiv &div = HtmlLog::instance.m_newDiv;
 		div.AddRow(AddPrintIdx() + ". not found include loc:", 1);
 
-		for (auto & itr : m_uses)
+		for (auto &itr : m_uses)
 		{
 			const std::set<FileID> &beuse_files = itr.second;
 
@@ -3974,7 +4048,7 @@ namespace cxxclean
 		FileID newFileID;
 		auto & newFileItr = m_splitReplaces.begin();
 
-		for (auto & itr = m_splitReplaces.begin(); itr != m_splitReplaces.end(); ++itr)
+		for (auto &itr = m_splitReplaces.begin(); itr != m_splitReplaces.end(); ++itr)
 		{
 			FileID top = itr->first;
 
@@ -4238,7 +4312,7 @@ namespace cxxclean
 		}
 		else
 		{
-			llvm::errs() << "[TakeNeed]" << GetAbsoluteFileName(top) << "\n";
+			llvm::errs() << "[TakeNeed] not in m_min = " << GetAbsoluteFileName(top) << "\n";
 		}
 
 		FileSet includes	= includeItr->second;
@@ -4348,7 +4422,7 @@ namespace cxxclean
 		}
 
 		// 3.
-		for (auto & itr : m_forwardDecls)
+		for (auto &itr : m_forwardDecls)
 		{
 			SourceLocation loc = itr.first;
 			const std::set<const CXXRecordDecl*> &cxxRecords = itr.second;
@@ -4450,14 +4524,14 @@ namespace cxxclean
 	{
 		if (Project::instance.IsCleanModeOpen(CleanMode_Need))
 		{
-			//for (FileID top : m_files)
-			for (auto &itr : m_min)
+			for (FileID top : m_files)
+				//for (auto &itr : m_min)
 			{
-				FileID top = itr.first;
+				//FileID top = itr.first;
 
 				string fileName = GetAbsoluteFileName(top);
 
-				if (!Project::instance.CanClean(fileName))
+				if (!IsUserFileSlowly(top))
 				{
 					continue;
 				}
@@ -4500,7 +4574,7 @@ namespace cxxclean
 			TakeCompileErrorHistory(out);
 
 			// 5. 修复每个文件的历史，防止对同一行修改多次导致崩溃
-			for (auto & itr : out)
+			for (auto &itr : out)
 			{
 				FileHistory &history = itr.second;
 				history.Fix();
@@ -4562,7 +4636,7 @@ namespace cxxclean
 		ForwardDeclByFileMap forwards;
 		SplitForwardByFile(forwards);
 
-		for (auto & itr : forwards)
+		for (auto &itr : forwards)
 		{
 			FileID file							= itr.first;
 			const ForwardDeclMap &locToRecords	= itr.second;
@@ -4669,7 +4743,7 @@ namespace cxxclean
 	void ParsingFile::TakeBeReplaceOfFile(FileHistory &history, FileID top, const ChildrenReplaceMap &childernReplaces) const
 	{
 		// 依次取出每行#include的替换信息[行号 -> 被替换成的#include列表]
-		for (auto & itr : childernReplaces)
+		for (auto &itr : childernReplaces)
 		{
 			FileID oldFile		= itr.first;
 			FileID replaceFile	= itr.second;
@@ -4738,7 +4812,7 @@ namespace cxxclean
 			return;
 		}
 
-		for (auto & itr : m_splitReplaces)
+		for (auto &itr : m_splitReplaces)
 		{
 			FileID top									= itr.first;
 			const ChildrenReplaceMap &childrenReplaces	= itr.second;
@@ -5060,7 +5134,7 @@ namespace cxxclean
 		HtmlDiv &div = HtmlLog::instance.m_newDiv;
 		div.AddRow(AddPrintIdx() + ". maybe can forward decl list: file count = " + htmltool::get_number_html(forwards.size()), 1);
 
-		for (auto & itr : forwards)
+		for (auto &itr : forwards)
 		{
 			FileID file = itr.first;
 			const ForwardDeclMap &locToRecords = itr.second;
@@ -5151,7 +5225,7 @@ namespace cxxclean
 	void ParsingFile::PrintNamespace() const
 	{
 		int num = 0;
-		for (auto & itr : m_namespaces)
+		for (auto &itr : m_namespaces)
 		{
 			FileID file = itr.first;
 
@@ -5166,7 +5240,7 @@ namespace cxxclean
 		HtmlDiv &div = HtmlLog::instance.m_newDiv;
 		div.AddRow(AddPrintIdx() + ". each file's namespace: file count = " + htmltool::get_number_html(num), 1);
 
-		for (auto & itr : m_namespaces)
+		for (auto &itr : m_namespaces)
 		{
 			FileID file = itr.first;
 
@@ -5192,7 +5266,7 @@ namespace cxxclean
 	void ParsingFile::PrintUsingNamespace() const
 	{
 		std::map<FileID, std::set<std::string>>	nsByFile;
-		for (auto & itr : m_usingNamespaces)
+		for (auto &itr : m_usingNamespaces)
 		{
 			SourceLocation loc		= itr.first;
 			const NamespaceInfo &ns	= itr.second;
@@ -5201,7 +5275,7 @@ namespace cxxclean
 		}
 
 		int num = 0;
-		for (auto & itr : nsByFile)
+		for (auto &itr : nsByFile)
 		{
 			FileID file = itr.first;
 
@@ -5216,7 +5290,7 @@ namespace cxxclean
 		HtmlDiv &div = HtmlLog::instance.m_newDiv;
 		div.AddRow(AddPrintIdx() + ". each file's using namespace: file count = " + htmltool::get_number_html(num), 1);
 
-		for (auto & itr : nsByFile)
+		for (auto &itr : nsByFile)
 		{
 			FileID file = itr.first;
 
@@ -5320,12 +5394,12 @@ namespace cxxclean
 	void ParsingFile::PrintSysAncestor() const
 	{
 		HtmlDiv &div = HtmlLog::instance.m_newDiv;
-		div.AddRow(strtool::get_text(cn_file_sys_ancestor, htmltool::get_number_html(++m_printIdx).c_str(), htmltool::get_number_html(m_sysAncestor.size()).c_str()), 1);
+		div.AddRow(strtool::get_text(cn_file_sys_ancestor, htmltool::get_number_html(++m_printIdx).c_str(), htmltool::get_number_html(m_outFileAncestor.size()).c_str()), 1);
 
-		for (auto & kidItr : m_sysAncestor)
+		for (auto &itr : m_outFileAncestor)
 		{
-			FileID kid		= kidItr.first;
-			FileID ancestor	= kidItr.second;
+			FileID kid		= itr.first;
+			FileID ancestor	= itr.second;
 
 			div.AddRow("kid  = " + DebugBeIncludeText(kid), 2);
 			div.AddRow("ancestor = " + DebugBeIncludeText(ancestor), 3);
@@ -5339,7 +5413,7 @@ namespace cxxclean
 		HtmlDiv &div = HtmlLog::instance.m_newDiv;
 		div.AddRow(strtool::get_text(cn_file_user_use, htmltool::get_number_html(++m_printIdx).c_str(), htmltool::get_number_html(m_userUses.size()).c_str()), 1);
 
-		for (auto & itr : m_userUses)
+		for (auto &itr : m_userUses)
 		{
 			FileID file = itr.first;
 

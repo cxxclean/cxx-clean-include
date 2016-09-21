@@ -139,7 +139,7 @@ namespace cxxclean
 		void InitCpp();
 
 		// 生成各文件的待清理记录
-		void GenerateResult();
+		void Analyze();
 
 		bool ReplaceMin(FileID a, FileID b);
 
@@ -153,11 +153,19 @@ namespace cxxclean
 
 		inline bool IsSystemHeader(FileID file) const;
 
-		inline FileID GetTopSysAncestor(FileID file) const;
+		inline bool IsUserFileSlowly(FileID file) const;
 
-		inline FileID SearchTopSysAncestor(FileID file) const;
+		inline bool IsUserFile(FileID file) const;
 
-		void GenerateSysAncestor();
+		inline bool IsOuterFile(FileID file) const;
+
+		inline FileID GetTopOuterFileAncestor(FileID file) const;
+
+		inline FileID SearchOuterFileAncestor(FileID file) const;
+
+		void GenerateUserFiles();
+
+		void GenerateOutFileAncestor();
 
 		void GenerateUserUse();
 
@@ -627,7 +635,7 @@ namespace cxxclean
 		bool IsRelyBySameName(FileID file) const;
 
 		// 该文件的所有同名文件是否被依赖（同一文件可被包含多次）
-		bool IsMinKidBySameName(FileID useFile, FileID recordAtfile) const;
+		bool IsMinKidBySameName(FileID top, FileID kid) const;
 
 		// 该文件是否被主文件循环引用到
 		bool IsRelyByTop(FileID file) const;
@@ -639,10 +647,10 @@ namespace cxxclean
 		bool IsFileBeforeLoc(FileID a, SourceLocation b) const;
 
 		// 祖先文件是否被强制包含
-		bool IsAncestorForceInclude(FileID file);
+		bool IsAncestorForceInclude(FileID file) const;
 
 		// 获取被强制包含祖先文件
-		FileID GetAncestorForceInclude(FileID file);
+		FileID GetAncestorForceInclude(FileID file) const;
 
 		// 打印引用记录
 		void PrintUse() const;
@@ -766,9 +774,11 @@ namespace cxxclean
 		std::map<FileID, std::set<FileID>>			m_minKids;
 		std::set<FileID>							m_rootKids;
 		std::map<FileID, std::set<SourceLocation>>	m_skipIncludeLocs;
-		std::map<FileID, FileID>					m_sysAncestor;
+		std::map<FileID, FileID>					m_outFileAncestor;
 		std::map<FileID, std::set<FileID>>			m_userUses;
 		FileHistoryMap								m_historys;
+		std::set<FileID>							m_userFiles;
+		std::set<FileID>							m_forceIncludes;
 
 	private:
 		clang::Rewriter*							m_rewriter;

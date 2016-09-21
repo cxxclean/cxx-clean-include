@@ -810,14 +810,14 @@ namespace cxxclean
 		// 第2遍时不需要再分析了，因为第1遍已经分析好了
 		if (ProjectHistory::instance.m_isFirst)
 		{
-			m_root->GenerateResult();
+			m_root->Analyze();
 			m_root->Print();
 		}
 
-		bool can_clean	 = false;
-		can_clean		|= Project::instance.m_onlyHas1File;;
-		can_clean		|= !Project::instance.m_isCleanAll;
-		can_clean		|= !ProjectHistory::instance.m_isFirst;
+		bool can_clean = false;
+		can_clean |= Project::instance.m_onlyHas1File;;
+		can_clean |= !Project::instance.m_isCleanAll;
+		can_clean |= !ProjectHistory::instance.m_isFirst;
 
 		if (can_clean)
 		{
