@@ -239,7 +239,11 @@ namespace cxxclean
 
 			if (kids.find(a) != kids.end())
 			{
-				llvm::errs() << "====>[ReplaceMin]a = " << GetAbsoluteFileName(a) << ", b = " << GetAbsoluteFileName(b) << " at file = " << GetAbsoluteFileName(top) << ")\n";
+				if (Project::instance.m_verboseLvl >= VerboseLvl_3)
+				{
+					llvm::errs() << "====>[ReplaceMin]a = " << GetDebugFileName(a) << ", b = " << GetDebugFileName(b) << " at file = " << GetDebugFileName(top) << ")\n";
+				}
+
 				kids.erase(a);
 				kids.insert(b);
 			}
@@ -274,7 +278,10 @@ namespace cxxclean
 
 			if (IsAncestorForceInclude(top))
 			{
-				llvm::errs() << "====>[ExpandMin]IsAncestorForceInclude(" << GetAbsoluteFileName(top) << ")\n";
+				if (Project::instance.m_verboseLvl >= VerboseLvl_3)
+				{
+					llvm::errs() << "====>[ExpandMin]IsAncestorForceInclude(" << GetDebugFileName(top) << ")\n";
+				}
 
 				m_min.erase(top);
 				return true;
@@ -296,7 +303,10 @@ namespace cxxclean
 				FileID ancestorForceInclude = GetAncestorForceInclude(kid);
 				if (ancestorForceInclude.isValid() && ancestorForceInclude != kid)
 				{
-					llvm::errs() << "====>[ExpandMin]GetAncestorForceInclude(" << GetAbsoluteFileName(kid) << ") = " << GetAbsoluteFileName(ancestorForceInclude) << ")\n";
+					if (Project::instance.m_verboseLvl >= VerboseLvl_3)
+					{
+						llvm::errs() << "====>[ExpandMin]GetAncestorForceInclude(" << GetDebugFileName(kid) << ") = " << GetDebugFileName(ancestorForceInclude) << ")\n";
+					}
 
 					kids.erase(kid);
 					kids.insert(ancestorForceInclude);
@@ -310,7 +320,11 @@ namespace cxxclean
 				}
 				else if (IsAncestor(top, kid))
 				{
-					llvm::errs() << "====>[ExpandMin]IsAncestor(kid = " << GetAbsoluteFileName(top) << ", ancestor = " << GetAbsoluteFileName(kid) << ")\n";
+					if (Project::instance.m_verboseLvl >= VerboseLvl_3)
+					{
+						llvm::errs() << "====>[ExpandMin]IsAncestor(kid = " << GetDebugFileName(top) << ", ancestor = " << GetDebugFileName(kid) << ")\n";
+					}
+
 					m_min[kid].insert(top);
 					kids.erase(kid);
 
@@ -323,8 +337,11 @@ namespace cxxclean
 					kids.erase(kid);
 					kids.insert(ancestor);
 
-					llvm::errs() << "====>[ExpandMin]GetCommonAncestor(" << GetAbsoluteFileName(top) << ", " << GetAbsoluteFileName(kid) << ") = "
-					             << GetAbsoluteFileName(ancestor) << "\n";
+					if (Project::instance.m_verboseLvl >= VerboseLvl_3)
+					{
+						llvm::errs() << "====>[ExpandMin]GetCommonAncestor(" << GetDebugFileName(top) << ", " << GetDebugFileName(kid) << ") = "
+						             << GetAbsoluteFileName(ancestor) << "\n";
+					}
 
 					m_min[ancestor].insert(kid);
 					m_min[ancestor].insert(top);
@@ -360,6 +377,11 @@ namespace cxxclean
 					FileID same = GetBestSameFile(forceInclude, kid);
 					if (same != kid)
 					{
+						if (Project::instance.m_verboseLvl >= VerboseLvl_3)
+						{
+							llvm::errs() << "====>[MergeMin]GetBestSameFile(forceInclude = " << GetDebugFileName(forceInclude) << ", kid = " << GetDebugFileName(kid) << ")\n";
+						}
+
 						minKids.erase(kid);
 						break;
 					}
@@ -372,21 +394,14 @@ namespace cxxclean
 						continue;
 					}
 
-					int deep2 = GetDeepth(other);
-
-					if (IsAncestor(kid, other) && (m_min.find(other) == m_min.end()))
+					if (HasMinKidBySameName(kid, other))
 					{
-						llvm::errs() << "====>[MergeMin]IsAncestor(kid = "<< GetAbsoluteFileName(kid) << ", ancestor = " << GetAbsoluteFileName(other) << ")\n";
+						if (Project::instance.m_verboseLvl >= VerboseLvl_3)
+						{
+							llvm::errs() << "====>[MergeMin]HasMinKidBySameName(top = " << GetDebugFileName(kid) << ", kid = " << GetDebugFileName(other) << ")\n";
+						}
 
-						//minKids.erase(kid);
-						//break;
-					}
-
-					if (IsMinKidOf(kid, other))
-					{
-						llvm::errs() << "====>[MergeMin]IsMinKidOf(kid = "<< GetAbsoluteFileName(kid) << ", old = " << GetAbsoluteFileName(other) << ")\n";
-
-						minKids.erase(kid);
+						minKids.erase(other);
 						break;
 					}
 				}
@@ -536,32 +551,6 @@ namespace cxxclean
 
 		while (ExpandMin()) {}
 
-		// 1. 取代系统头文件
-		/*for (auto &itr : m_min)
-		{
-			FileID top = itr.first;
-			const FileSet &kids = itr.second;
-
-			FileSet minKids = kids;
-
-			for (FileID kid : kids)
-			{
-				FileID topAncestor = GetTopSysAncestor(kid);
-				if (topAncestor == kid)
-				{
-					continue;
-				}
-
-				minKids.erase(kid);
-				minKids.insert(topAncestor);
-			}
-
-			if (minKids.size() < kids.size())
-			{
-				itr.second = minKids;
-			}
-		}
-		*/
 		for (auto &itr : m_min)
 		{
 			FileID by				= itr.first;
@@ -571,8 +560,8 @@ namespace cxxclean
 		}
 
 		// 2. 合并
-		MergeMin();
-
+		while (MergeMin()) {}
+		//MergeMin();
 
 		// 3.
 		auto includeLocs = m_includeLocs;
@@ -588,33 +577,6 @@ namespace cxxclean
 			FileID file = GetFileID(loc);
 			m_skipIncludeLocs[file].insert(loc);
 		}
-
-		//// 3. 处理父子关系
-		//for (auto &itr : m_min)
-		//{
-		//	FileID top			= itr.first;
-		//	const FileSet &kids	= itr.second;
-
-		//	FileSet minKids = kids;
-
-		//	int deep1 = GetDeepth(top);
-
-		//	for (FileID kid : kids)
-		//	{
-		//		int deep2 = GetDeepth(kid);
-
-		//		if (deep2 < deep1 && IsKidOf(top, kid))
-		//		{
-		//			minKids.erase(kid);
-		//			break;
-		//		}
-		//	}
-
-		//	if (minKids.size() < kids.size())
-		//	{
-		//		itr.second = minKids;
-		//	}
-		//}
 	}
 
 	void ParsingFile::GetUseKids(FileID top, std::set<FileID> &kids) const
@@ -739,10 +701,10 @@ namespace cxxclean
 		kids.insert(done.begin(), done.end());
 	}
 
-	bool ParsingFile::IsMinKidOf(FileID kid, FileID old) const
+	bool ParsingFile::HasMinKid(FileID top, FileID kid) const
 	{
 		// 查找top文件的引用记录
-		auto &kidItr = m_minKids.find(old);
+		auto &kidItr = m_minKids.find(top);
 		if (kidItr == m_minKids.end())
 		{
 			return false;
@@ -995,9 +957,9 @@ namespace cxxclean
 	}
 
 	// 该文件的所有同名文件是否被依赖（同一文件可被包含多次）
-	bool ParsingFile::IsMinKidBySameName(FileID top, FileID kid) const
+	bool ParsingFile::HasMinKidBySameName(FileID top, FileID kid) const
 	{
-		if (IsMinKidOf(kid, top))
+		if (HasMinKid(top, kid))
 		{
 			return true;
 		}
@@ -1016,7 +978,7 @@ namespace cxxclean
 				continue;
 			}
 
-			if (IsMinKidOf(same, top))
+			if (HasMinKid(top, same))
 			{
 				return true;
 			}
@@ -1415,7 +1377,7 @@ namespace cxxclean
 		recordAtFile = GetTopOuterFileAncestor(recordAtFile);
 
 		// 1. 若b未被引用，则肯定要加前置声明
-		if (IsMinKidBySameName(useFile, recordAtFile))
+		if (HasMinKidBySameName(useFile, recordAtFile))
 		{
 			return false;
 		}
@@ -1432,7 +1394,7 @@ namespace cxxclean
 			return false;
 		}
 
-		if (IsMinKidBySameName(insertAtFile, recordAtFile))
+		if (HasMinKidBySameName(insertAtFile, recordAtFile))
 		{
 			return false;
 		}
@@ -2009,13 +1971,13 @@ namespace cxxclean
 		for (auto itr : m_usingNamespaces)
 		{
 			SourceLocation usingLoc		= itr.first;
-			const NamespaceInfo &nsInfo	= itr.second;
+			const NamespaceDecl	*ns		= itr.second;
 
 			if (m_srcMgr->isBeforeInTranslationUnit(usingLoc, loc))
 			{
-				if (nsInfo.ns->getQualifiedNameAsString() == ns->getQualifiedNameAsString())
+				if (ns->getQualifiedNameAsString() == ns->getQualifiedNameAsString())
 				{
-					Use(loc, usingLoc, nsInfo.decl.c_str());
+					Use(loc, usingLoc, GetNestedNamespace(ns).c_str());
 				}
 			}
 		}
@@ -2064,22 +2026,16 @@ namespace cxxclean
 
 		SourceLocation usingLoc = GetSpellingLoc(d->getUsingLoc());
 
+		m_usingNamespaces[usingLoc] = firstNs;
+
 		for (const NamespaceDecl *ns : firstNs->redecls())
 		{
 			SourceLocation nsLoc	= GetSpellingLoc(ns->getLocStart());
-			std::string usingText	= "using namespace " + ns->getQualifiedNameAsString() + ";";
-			std::string nsText		= GetNestedNamespace(ns);
-
-			NamespaceInfo &nsInfo = m_usingNamespaces[usingLoc];
-			nsInfo.decl	= nsText;
-			nsInfo.ns	= ns;
 
 			if (m_srcMgr->isBeforeInTranslationUnit(nsLoc, usingLoc))
 			{
 				// 引用命名空间所在的文件（注意：using namespace时必须能找到对应的namespace声明，比如，using namespace A前一定要有namespace A{}否则编译会报错）
-				Use(nsLoc, usingLoc, usingText.c_str());
-
-				Use(usingLoc, nsLoc, nsText.c_str());
+				Use(usingLoc, nsLoc, GetNestedNamespace(ns).c_str());
 				break;
 			}
 		}
@@ -2118,7 +2074,7 @@ namespace cxxclean
 			return "";
 		}
 
-		string name;// = "namespace " + d->getNameAsString() + "{}";
+		string name;
 
 		while (d)
 		{
@@ -2129,11 +2085,10 @@ namespace cxxclean
 			if (parent && parent->isNamespace())
 			{
 				d = cast<NamespaceDecl>(parent);
+				continue;
 			}
-			else
-			{
-				break;
-			}
+
+			break;
 		}
 
 		return name;
@@ -2611,7 +2566,11 @@ namespace cxxclean
 
 				if (file == recordAtFile && !next->isThisDeclarationADefinition())
 				{
-					llvm::errs() << "====>[UseForward]skip record = " <<  GetRecordName(*cxxRecord) << ", record file = " << GetAbsoluteFileName(file) << "\n";
+					if (Project::instance.m_verboseLvl >= VerboseLvl_3)
+					{
+						llvm::errs() << "====>[UseForward]skip record = " <<  GetRecordName(*cxxRecord) << ", record file = " << GetAbsoluteFileName(file) << "\n";
+					}
+
 					return;
 				}
 			}
@@ -2962,9 +2921,8 @@ namespace cxxclean
 				continue;
 			}
 
-			div.AddRow(htmltool::get_file_html(GetAbsoluteFileName(child)), 2, 50);
-			div.AddGrid("parent = ", 10);
-			div.AddGrid(htmltool::get_file_html(GetAbsoluteFileName(parent)));
+			div.AddRow(htmltool::get_file_html(GetAbsoluteFileName(child)), 2, 40);
+			div.AddGrid("parent = " + htmltool::get_file_html(GetAbsoluteFileName(parent)));
 		}
 
 		div.AddRow("");
@@ -3074,11 +3032,17 @@ namespace cxxclean
 			string includeToken				= GetIncludeLine(file);
 			string parentFileName			= pathtool::get_absolute_path(parentPresumedLoc.getFilename());
 
-			string ancestors;
+			stringstream ancestors;
 
-			for (FileID parent = GetParent(file); parent.isValid(); parent = GetParent(parent))
+			for (FileID parent = GetParent(file); parent.isValid();)
 			{
-				ancestors += pathtool::get_file_name(GetAbsoluteFileName(parent)) + ",";
+				ancestors << htmltool::get_min_file_name_html(GetAbsoluteFileName(parent));
+
+				parent = GetParent(parent);
+				if (parent.isValid())
+				{
+					ancestors << "<-";
+				}
 			}
 
 			if (includeToken.empty())
@@ -3093,7 +3057,7 @@ namespace cxxclean
 			                         htmltool::get_file_html(parentFileName).c_str(),
 			                         htmltool::get_number_html(GetLineNo(loc)).c_str(),
 			                         htmltool::get_include_html(includeToken).c_str(),
-			                         ancestors.c_str()
+			                         ancestors.str().c_str()
 			                        );
 		}
 
@@ -3179,6 +3143,35 @@ namespace cxxclean
 	{
 		const char* raw_file_name = GetFileName(file);
 		return pathtool::get_absolute_path(raw_file_name);
+	}
+
+	// 用于调试：获取文件的绝对路径和相关信息
+	string ParsingFile::GetDebugFileName(FileID file) const
+	{
+		stringstream name;
+		stringstream ancestors;
+
+		name << "[" << GetAbsoluteFileName(file);
+
+		for (FileID parent = GetParent(file); parent.isValid(); )
+		{
+			ancestors << pathtool::get_file_name(GetAbsoluteFileName(parent));
+
+			parent = GetParent(parent);
+			if (parent.isValid())
+			{
+				ancestors << ",";
+			}
+		}
+
+		if (!ancestors.str().empty())
+		{
+			name << "(" << ancestors.str() << ")";
+		}
+
+		name << "]";
+
+		return name.str();
 	}
 
 	// 获取第1个文件#include第2个文件的文本串
@@ -3930,7 +3923,7 @@ namespace cxxclean
 
 		if (verbose >= VerboseLvl_3)
 		{
-			PrintMinInclude();
+			PrintMinUse();
 			PrintMinKid();
 			PrintUserUse();
 			PrintUse();
@@ -4312,7 +4305,10 @@ namespace cxxclean
 		}
 		else
 		{
-			llvm::errs() << "[TakeNeed] not in m_min = " << GetAbsoluteFileName(top) << "\n";
+			if (Project::instance.m_verboseLvl >= VerboseLvl_3)
+			{
+				llvm::errs() << "[TakeNeed] not in m_min = " << GetDebugFileName(top) << "\n";
+			}
 		}
 
 		FileSet includes	= includeItr->second;
@@ -5269,9 +5265,9 @@ namespace cxxclean
 		for (auto &itr : m_usingNamespaces)
 		{
 			SourceLocation loc		= itr.first;
-			const NamespaceInfo &ns	= itr.second;
+			const NamespaceDecl	*ns	= itr.second;
 
-			nsByFile[GetFileID(loc)].insert(ns.ns->getQualifiedNameAsString());
+			nsByFile[GetFileID(loc)].insert(ns->getQualifiedNameAsString());
 		}
 
 		int num = 0;
@@ -5332,7 +5328,7 @@ namespace cxxclean
 
 			for (FileID sameFile : sameFiles)
 			{
-				div.AddRow("file = " + DebugBeIncludeText(sameFile), 3);
+				div.AddRow("same file = " + DebugBeIncludeText(sameFile), 3);
 			}
 
 			div.AddRow("");
@@ -5340,7 +5336,7 @@ namespace cxxclean
 	}
 
 	// 打印
-	void ParsingFile::PrintMinInclude() const
+	void ParsingFile::PrintMinUse() const
 	{
 		HtmlDiv &div = HtmlLog::instance.m_newDiv;
 		div.AddRow(strtool::get_text(cn_file_min_use, htmltool::get_number_html(++m_printIdx).c_str(), htmltool::get_number_html(m_min.size()).c_str()), 1);
@@ -5358,7 +5354,7 @@ namespace cxxclean
 
 			for (FileID kid : kidItr.second)
 			{
-				div.AddRow("use = " + DebugBeIncludeText(kid), 3);
+				div.AddRow("min use = " + DebugBeIncludeText(kid), 3);
 			}
 
 			div.AddRow("");
@@ -5383,7 +5379,7 @@ namespace cxxclean
 
 			for (FileID kid : kidItr.second)
 			{
-				div.AddRow("kid = " + DebugBeIncludeText(kid), 3);
+				div.AddRow("min kid = " + DebugBeIncludeText(kid), 3);
 			}
 
 			div.AddRow("");
@@ -5421,7 +5417,7 @@ namespace cxxclean
 
 			for (FileID beuse : itr.second)
 			{
-				div.AddRow("use = " + DebugBeIncludeText(beuse), 3);
+				div.AddRow("user use = " + DebugBeIncludeText(beuse), 3);
 			}
 
 			div.AddRow("");

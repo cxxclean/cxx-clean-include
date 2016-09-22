@@ -243,6 +243,8 @@ namespace htmltool
 
 	std::string get_file_html(const std::string &filename);
 
+	std::string get_min_file_name_html(const std::string &filename);
+
 	std::string get_include_html(const std::string &text);
 
 	std::string get_number_html(int num);

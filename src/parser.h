@@ -98,7 +98,7 @@ namespace cxxclean
 			{
 			}
 
-			std::string			decl;		// 命名空间的声明，如：namespace A{ namespace B { namespace C {} } }
+			std::string			name;		// 命名空间的声明，如：namespace A{ namespace B { namespace C {} } }
 			const NamespaceDecl	*ns;		// 命名空间的定义
 		};
 
@@ -175,7 +175,7 @@ namespace cxxclean
 
 		void GetMin(FileID by, std::set<FileID> &out) const;
 
-		bool IsMinKidOf(FileID kid, FileID old) const;
+		bool HasMinKid(FileID top, FileID kid) const;
 
 		bool IsRootMinKid(FileID kid) const;
 
@@ -303,6 +303,9 @@ namespace cxxclean
 
 		// 获取文件的绝对路径
 		string GetAbsoluteFileName(FileID file) const;
+
+		// 用于调试：获取文件的绝对路径和相关信息
+		string GetDebugFileName(FileID file) const;
 
 	private:
 		// 获取头文件搜索路径
@@ -635,7 +638,7 @@ namespace cxxclean
 		bool IsRelyBySameName(FileID file) const;
 
 		// 该文件的所有同名文件是否被依赖（同一文件可被包含多次）
-		bool IsMinKidBySameName(FileID top, FileID kid) const;
+		bool HasMinKidBySameName(FileID top, FileID kid) const;
 
 		// 该文件是否被主文件循环引用到
 		bool IsRelyByTop(FileID file) const;
@@ -689,7 +692,7 @@ namespace cxxclean
 		void PrintSameFile() const;
 
 		// 打印
-		void PrintMinInclude() const;
+		void PrintMinUse() const;
 
 		// 打印
 		void PrintMinKid() const;
@@ -754,7 +757,10 @@ namespace cxxclean
 		std::map<FileID, std::set<std::string>>		m_namespaces;
 
 		// 18. 应保留的using namespace记录：[using namespace的位置] -> [对应的namespace定义]
-		std::map<SourceLocation, NamespaceInfo>		m_usingNamespaces;
+		map<SourceLocation, const NamespaceDecl *>	m_usingNamespaces;
+
+		// 18. 应保留的using namespace记录：[using xx::xx的位置] -> [对应的类定义]
+		std::map<SourceLocation, UsingDecl*>		m_usings;
 
 		// 19. 各文件的后代：[文件] -> [该文件包含的全部后代]
 		std::map<FileID, std::set<FileID>>			m_children;

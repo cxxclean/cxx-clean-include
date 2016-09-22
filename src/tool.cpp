@@ -189,7 +189,7 @@ namespace strtool
 	}
 
 	// ¥Ú”°
-	char g_sprintfBuf[2048] = {0};
+	char g_sprintfBuf[10 * 1024] = {0};
 
 	const char* get_text(const char* fmt, ...)
 	{
@@ -602,6 +602,15 @@ namespace htmltool
 	{
 		std::string html = R"--(<a href="#{file}">#{file}</a>)--";
 		strtool::replace(html, "#{file}", filename.c_str());
+
+		return html;
+	}
+
+	std::string get_min_file_name_html(const std::string &filename)
+	{
+		std::string html = R"--(<a href="#{filepath}">#{filename}</a>)--";
+		strtool::replace(html, "#{filepath}", filename.c_str());
+		strtool::replace(html, "#{filename}", pathtool::get_file_name(filename).c_str());
 
 		return html;
 	}
