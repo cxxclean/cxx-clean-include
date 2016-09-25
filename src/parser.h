@@ -64,10 +64,10 @@ namespace cxxclean
 		typedef std::map<FileID, ChildrenReplaceMap> ReplaceFileMap;
 
 		// [位置] -> [使用的class、struct引用或指针]
-		typedef std::map<SourceLocation, std::set<const CXXRecordDecl*>> ForwardDeclMap;
+		typedef std::map<SourceLocation, std::set<const CXXRecordDecl*>> UseRecordsMap;
 
 		// [文件] -> [该文件所使用的class、struct、union指针或引用]
-		typedef std::map<FileID, ForwardDeclMap> ForwardDeclByFileMap;
+		typedef std::map<FileID, UseRecordsMap> UseRecordsByFileMap;
 
 		// 文件集
 		typedef std::set<FileID> FileSet;
@@ -121,6 +121,8 @@ namespace cxxclean
 
 		~ParsingFile();
 
+		inline clang::SourceManager& GetSrcMgr() const { return *m_srcMgr; }
+
 		// 添加父文件关系
 		void AddParent(FileID child, FileID parent) { m_parents[child] = parent; }
 
@@ -133,52 +135,16 @@ namespace cxxclean
 		// 添加成员文件
 		void AddFile(FileID file);
 
-		inline clang::SourceManager& GetSrcMgr() const { return *m_srcMgr; }
-
 		// 为当前cpp文件的清理作前期准备
 		void InitCpp();
 
-		// 生成各文件的待清理记录
+		// 开始分析
 		void Analyze();
-
-		bool ReplaceMin(FileID a, FileID b);
-
-		bool ExpandMin();
-
-		bool MergeMin();
-
-		inline bool IsMinUse(FileID a, FileID b) const;
-
+		
+		// 是否包含了任意文件
 		inline bool HasAnyInclude(FileID a) const;
 
-		inline bool IsSystemHeader(FileID file) const;
-
-		inline bool IsUserFileSlowly(FileID file) const;
-
-		inline bool IsUserFile(FileID file) const;
-
-		inline bool IsOuterFile(FileID file) const;
-
-		inline FileID GetTopOuterFileAncestor(FileID file) const;
-
-		inline FileID SearchOuterFileAncestor(FileID file) const;
-
-		void GenerateUserFiles();
-
-		void GenerateOutFileAncestor();
-
-		void GenerateUserUse();
-
-		void GenerateMinUse();
-
-		void GetUseKids(FileID by, std::set<FileID> &out) const;
-
-		void GetMin(FileID by, std::set<FileID> &out) const;
-
-		bool HasMinKid(FileID top, FileID kid) const;
-
-		bool IsRootMinKid(FileID kid) const;
-
+		// 计算文件深度
 		int GetDeepth(FileID file) const;
 
 		// 是否为可前置声明的类型
@@ -229,6 +195,7 @@ namespace cxxclean
 		// 当前位置使用目标类型（注：Type代表某个类型，但不含const、volatile、static等的修饰）
 		void UseType(SourceLocation loc, const Type *t);
 
+		// 引用上下文，如命名空间
 		void UseContext(SourceLocation loc, const DeclContext*);
 
 		// 引用嵌套名字修饰符
@@ -255,8 +222,8 @@ namespace cxxclean
 		// 文件b是否直接#include文件a
 		bool IsIncludedBy(FileID a, FileID b);
 
-		// 获取文件a的指定名称的直接后代文件
-		FileID GetDirectChildByName(FileID a, const char* childFileName) const;
+		// 获取文件a的指定名称的直接包含文件
+		FileID GetIncludeByName(FileID a, const char* includeName) const;
 
 		// 获取文件a的指定名称的后代文件
 		FileID GetChildByName(FileID a, const char* childFileName) const;
@@ -276,9 +243,6 @@ namespace cxxclean
 
 		// 打印信息
 		void Print();
-
-		// 将当前cpp文件产生的待清理记录与之前其他cpp文件产生的待清理记录合并
-		void MergeTo(FileHistoryMap &old) const;
 
 		// 获取本文件的编译错误历史
 		CompileErrorHistory& GetCompileErrorHistory() { return m_compileErrorHistory; }
@@ -323,24 +287,6 @@ namespace cxxclean
 		// 该文件名是否被包含多次
 		inline bool HasSameFile(FileID file) const;
 
-		// 根据主文件的依赖关系，生成相关文件的依赖文件集
-		void GenerateRely();
-
-		// 尝试添加各个被依赖文件的祖先文件，返回值：true表示依赖文件集被扩张、false表示依赖文件夹不变
-		bool TryAddAncestor();
-
-		// 记录各文件的被依赖后代文件
-		void GenerateRelyChildren();
-
-		// 新增依赖文件，返回结果表示是否新增了一些待处理的文件，是true、否false
-		bool ExpandRely(FileID top);
-
-		// 获取该文件可被替换到的文件，若无法被替换，则返回空文件id
-		FileID GetCanReplaceTo(FileID top) const;
-
-		// 生成无用#include的记录
-		void GenerateUnusedInclude();
-
 		// 文件a是否使用到文件b
 		bool IsUse(FileID a, FileID b) const;
 
@@ -350,22 +296,6 @@ namespace cxxclean
 		// 从指定的文件列表中找到属于传入文件的后代
 		std::set<FileID> GetChildren(FileID ancestor, std::set<FileID> all_children/* 包括非ancestor孩子的文件 */);
 
-		/*
-			获取指定文件直接依赖和间接依赖的文件集
-
-			计算过程是：
-				获取top所依赖的文件，并循环获取这些依赖文件所依赖的其他文件，直到所有的被依赖文件均已被处理
-
-			例如（-->表示包含）：
-				hello.cpp --> a.h  --> b.h
-				          |
-						  --> c.h  --> d.h --> e.h
-
-				如果hello.cpp依赖b.h，而b.h又依赖e.h，则在本例中，hello.cpp的依赖文件列表为：
-					hello.cpp、b.h、e.h
-		*/
-		void GetTopRelys(FileID top, std::set<FileID> &out) const;
-
 		// 获取文件的深度（令主文件的高度为0）
 		int GetDepth(FileID child) const;
 
@@ -374,24 +304,6 @@ namespace cxxclean
 
 		// 获取2个孩子们最近的共同祖先
 		FileID GetCommonAncestor(FileID child_1, FileID child_2) const;
-
-		// 当前文件之前是否已有文件声明了该class、struct、union
-		bool HasRecordBefore(FileID cur, const CXXRecordDecl &cxxRecord) const;
-
-		// 是否应保留当前位置引用的class、struct、union的前置声明
-		bool IsNeedClass(SourceLocation, const CXXRecordDecl &cxxRecord) const;
-
-		// 是否应保留当前位置引用的class、struct、union的前置声明
-		bool IsNeedMinClass(SourceLocation, const CXXRecordDecl &cxxRecord) const;
-
-		// 生成文件替换列表
-		void GenerateReplace();
-
-		// 生成新增前置声明列表
-		void GenerateForwardClass();
-
-		// 生成新增前置声明列表
-		void GenerateMinForwardClass();
 
 		// 获取指定位置所在行的文本
 		std::string GetSourceOfLine(SourceLocation loc) const;
@@ -500,10 +412,7 @@ namespace cxxclean
 
 		// 打印各文件的孩子文件
 		void PrintChildren();
-
-		// 打印新增的引用关系
-		void PrintNewUse();
-
+		
 		// 是否允许清理该c++文件（若不允许清理，则文件内容不会有任何变化）
 		bool CanClean(FileID file) const;
 
@@ -587,73 +496,19 @@ namespace cxxclean
 		// 文件格式是否是windows格式，换行符为[\r\n]，类Unix下为[\n]
 		bool IsWindowsFormat(FileID) const;
 
-		// 合并可被移除的#include行
-		void MergeUnusedLine(const FileHistory &newFile, FileHistory &oldFile) const;
-
-		// 合并可新增的前置声明
-		void MergeForwardLine(const FileHistory &newFile, FileHistory &oldFile) const;
-
-		// 合并可替换的#include
-		void MergeReplaceLine(const FileHistory &newFile, FileHistory &oldFile) const;
-
-		// 将某些文件中的一些行标记为不可修改
-		void SkipRelyLines(const FileSkipLineMap&) const;
-
 		void InitHistory(FileID file, FileHistory &history) const;
 
-		// 取出当前cpp文件产生的待清理记录
-		void TakeNeed(FileID top, FileHistory &out) const;
-
-		// 取出当前cpp文件产生的待清理记录
+		// 取出对当前cpp文件的分析结果
 		void TakeHistorys(FileHistoryMap &out) const;
-
-		// 将可清除的行按文件进行存放
-		void TakeUnusedLine(FileHistoryMap &out) const;
-
-		// 将新增的前置声明按文件进行存放
-		void TakeForwardClass(FileHistoryMap &out) const;
-
+		
 		// 该文件是否是预编译头文件
 		bool IsPrecompileHeader(FileID file) const;
-
-		// 将文件前置声明记录按文件进行归类
-		void SplitForwardByFile(ForwardDeclByFileMap&) const;
-
-		// 取出指定文件的#include替换信息
-		void TakeBeReplaceOfFile(FileHistory &history, FileID top, const ChildrenReplaceMap &childernReplaces) const;
-
-		// 取出各文件的#include替换信息
-		void TakeReplace(FileHistoryMap &out) const;
 
 		// 取出本文件的编译错误历史
 		void TakeCompileErrorHistory(FileHistoryMap &out) const;
 
-		// 是否禁止改动某文件
-		bool IsSkip(FileID file) const;
-
-		// 该文件是否被依赖
-		inline bool IsRely(FileID file) const;
-
-		// 该文件的所有同名文件是否被依赖（同一文件可被包含多次）
-		bool IsRelyBySameName(FileID file) const;
-
-		// 该文件的所有同名文件是否被依赖（同一文件可被包含多次）
-		bool HasMinKidBySameName(FileID top, FileID kid) const;
-
-		// 该文件是否被主文件循环引用到
-		bool IsRelyByTop(FileID file) const;
-
-		// 该文件是否可被替换
-		bool IsReplaced(FileID file) const;
-
 		// a文件是否在b位置之前
 		bool IsFileBeforeLoc(FileID a, SourceLocation b) const;
-
-		// 祖先文件是否被强制包含
-		bool IsAncestorForceInclude(FileID file) const;
-
-		// 获取被强制包含祖先文件
-		FileID GetAncestorForceInclude(FileID file) const;
 
 		// 打印引用记录
 		void PrintUse() const;
@@ -663,15 +518,6 @@ namespace cxxclean
 
 		// 打印引用类名、函数名、宏名等的记录
 		void PrintUsedNames() const;
-
-		// 打印主文件的依赖文件集
-		void PrintTopRely() const;
-
-		// 打印依赖文件集
-		void PrintRely() const;
-
-		// 打印各文件对应的有用孩子文件记录
-		void PrintRelyChildren() const;
 
 		// 打印可转为前置声明的类指针或引用记录
 		void PrintForwardDecl() const;
@@ -687,6 +533,173 @@ namespace cxxclean
 
 		// 打印各文件内的using namespace
 		void PrintUsingNamespace() const;
+		
+		//================== 模式2所需的接口（见project.h中的CleanMode） ==================//
+		
+		// 根据主文件的依赖关系，生成相关文件的依赖文件集
+		void GenerateRely();
+
+		// 尝试添加各个被依赖文件的祖先文件，返回值：true表示依赖文件集被扩张、false表示依赖文件夹不变
+		bool TryAddAncestor();
+
+		// 记录各文件的被依赖后代文件
+		void GenerateRelyChildren();
+
+		// 新增依赖文件，返回结果表示是否新增了一些待处理的文件，是true、否false
+		bool ExpandRely(FileID top);
+
+		// 获取该文件可被替换到的文件，若无法被替换，则返回空文件id
+		FileID GetCanReplaceTo(FileID top) const;
+
+		// 生成无用#include的记录
+		void GenerateUnusedInclude();
+
+		/*
+			获取指定文件直接依赖和间接依赖的文件集
+
+			计算过程是：
+				获取top所依赖的文件，并循环获取这些依赖文件所依赖的其他文件，直到所有的被依赖文件均已被处理
+
+			例如（-->表示包含）：
+				hello.cpp --> a.h  --> b.h
+				          |
+						  --> c.h  --> d.h --> e.h
+
+				如果hello.cpp依赖b.h，而b.h又依赖e.h，则在本例中，hello.cpp的依赖文件列表为：
+					hello.cpp、b.h、e.h
+		*/
+		void GetTopRelys(FileID top, std::set<FileID> &out) const;
+
+		// 当前文件之前是否已有文件声明了该class、struct、union
+		bool HasRecordBefore(FileID cur, const CXXRecordDecl &cxxRecord) const;
+
+		// 是否应保留当前位置引用的class、struct、union的前置声明
+		bool IsNeedClass(SourceLocation, const CXXRecordDecl &cxxRecord) const;
+		
+		// 生成文件替换列表
+		void GenerateReplace();
+
+		// 生成新增前置声明列表
+		void GenerateForwardClass();
+
+		// 生成新增前置声明列表
+		void GenerateMinForwardClass();
+
+		// 将当前cpp文件产生的待清理记录与之前其他cpp文件产生的待清理记录合并
+		void MergeTo(FileHistoryMap &old) const;
+
+		// 合并可被移除的#include行
+		void MergeUnusedLine(const FileHistory &newFile, FileHistory &oldFile) const;
+
+		// 合并可新增的前置声明
+		void MergeForwardLine(const FileHistory &newFile, FileHistory &oldFile) const;
+
+		// 合并可替换的#include
+		void MergeReplaceLine(const FileHistory &newFile, FileHistory &oldFile) const;
+
+		// 将某些文件中的一些行标记为不可修改
+		void SkipRelyLines(const FileSkipLineMap&) const;
+
+		// 将可清除的行按文件进行存放
+		void TakeUnusedLine(FileHistoryMap &out) const;
+
+		// 将新增的前置声明按文件进行存放
+		void TakeForwardClass(FileHistoryMap &out) const;
+
+		// 将文件前置声明记录按文件进行归类
+		void SplitForwardByFile(UseRecordsByFileMap&) const;
+
+		// 取出指定文件的#include替换信息
+		void TakeBeReplaceOfFile(FileHistory &history, FileID top, const ChildrenReplaceMap &childernReplaces) const;
+
+		// 取出各文件的#include替换信息
+		void TakeReplace(FileHistoryMap &out) const;
+
+		// 是否禁止改动某文件
+		bool IsSkip(FileID file) const;
+
+		// 该文件是否被依赖
+		inline bool IsRely(FileID file) const;
+
+		// 该文件的所有同名文件是否被依赖（同一文件可被包含多次）
+		bool IsRelyBySameName(FileID file) const;
+
+		// 该文件是否被主文件循环引用到
+		bool IsRelyByTop(FileID file) const;
+
+		// 该文件是否可被替换
+		bool IsReplaced(FileID file) const;
+		
+		// 打印主文件的依赖文件集
+		void PrintTopRely() const;
+
+		// 打印依赖文件集
+		void PrintRely() const;
+
+		// 打印各文件对应的有用孩子文件记录
+		void PrintRelyChildren() const;
+
+
+		//================== 模式3所需的接口（见project.h中的CleanMode） ==================//
+		
+		// 根据当前文件，查找第2层的祖先（令root为第一层），若当前文件的父文件即为主文件，则返回当前文件
+		FileID GetLvl2AncestorBySame(FileID kid, FileID top) const;
+
+		// 第2个文件是否是第1个文件的祖先（考虑同名文件）
+		bool IsAncestorBySame(FileID yound, FileID old) const;
+
+		// 该文件的所有同名文件是否被依赖（同一文件可被包含多次）
+		bool HasMinKidBySameName(FileID top, FileID kid) const;
+
+		// 是否应保留该位置引用的class、struct、union的前置声明
+		bool IsNeedMinClass(SourceLocation, const CXXRecordDecl &cxxRecord) const;
+
+		bool ReplaceMin(FileID a, FileID b);
+
+		bool ExpandMin();
+
+		bool MergeMin();
+
+		inline bool IsMinUse(FileID a, FileID b) const;
+
+		inline bool IsUserFile(FileID file) const;
+
+		inline bool IsOuterFile(FileID file) const;
+
+		inline FileID GetTopOuterFileAncestor(FileID file) const;
+
+		inline FileID SearchOuterFileAncestor(FileID file) const;
+
+		void GenerateKidBySame();
+
+		void GenerateForceIncludes();
+
+		void GenerateOutFileAncestor();
+
+		void GenerateUserUse();
+
+		void GenerateMinUse();
+
+		void GetKidsBySame(FileID top, std::set<FileID> &kids) const;
+
+		void GetMin(FileID by, std::set<FileID> &out) const;
+
+		bool HasMinKid(FileID top, FileID kid) const;
+
+		// 取出记录，使得各文件仅包含自己所需要的头文件
+		void TakeNeed(FileID top, FileHistory &out) const;
+
+		// 祖先文件是否被强制包含
+		bool IsAncestorForceInclude(FileID file) const;
+
+		// 获取被强制包含祖先文件
+		FileID GetAncestorForceInclude(FileID file) const;
+
+		// 打印各文件的孩子文件
+		void PrintUserChildren();
+
+		// 打印
+		void PrintSameChildren();
 
 		// 打印被包含多次的文件
 		void PrintSameFile() const;
@@ -698,7 +711,7 @@ namespace cxxclean
 		void PrintMinKid() const;
 
 		// 打印
-		void PrintSysAncestor() const;
+		void PrintOutFileAncestor() const;
 
 		// 打印
 		void PrintUserUse() const;
@@ -708,83 +721,100 @@ namespace cxxclean
 		static ParsingFile *g_atFile;
 
 	private:
-		// 1. 各文件引用其他文件的记录：[文件] -> [引用的其他文件列表]（例如，假设A.h用到了B.h中的class B，则认为A.h引用了B.h）
-		std::map<FileID, std::set<FileID>>			m_uses;
+		//================== 最终分析结果 ==================//
 
-		// 2. 主文件的依赖文件集（该集合是闭包的，即该集合中的任一文件所依赖的文件仍在集合内）
-		std::set<FileID>							m_topRelys;
+		// [最终分析结果]. 分析当前cpp文件的结果：[c++文件名] -> [该文件的清理结果]
+		FileHistoryMap								m_historys;
 
-		// 3. 依赖文件集（该集合是闭包的，即该集合中的任一文件所依赖的文件仍在集合内）
-		std::set<FileID>							m_relys;
 
-		// 4. 各文件的被引用的后代文件：[文件] -> [后代文件中被循环引用的部分]
-		std::map<FileID, std::set<FileID>>			m_relyChildren;
+		//================== 模式1和2的数据（见project.h中的CleanMode）：仅删除多余头文件（不考虑生成前置声明） ==================//
 
-		// 5. 各文件所包含的文件列表：[文件] -> [所include的文件]
-		std::map<FileID, std::set<FileID>>			m_includes;
-
-		// 6. 当前c++文件以及所包含的所有文件
-		std::set<FileID>							m_files;
-
-		// 7. 当前c++文件所涉及到的所有#include文本的位置以及所对应的范围： [#include "xxxx.h"中第一个双引号或<符号的位置] -> [#include整个文本串的范围]
-		std::map<SourceLocation, SourceRange>		m_includeLocs;
-
-		// 8. 全部有用的#include位置（用于查询某#include是否有用）
-		std::set<SourceLocation>					m_usedLocs;
-
-		// 9. 全部没用到的#include位置（用于查询某#include是否应被清除，之所以不使用FileID因为某些重复#include会被自动跳过，导致并未生成FileID）
+		// 模式1分析结果：全部没用到的#include位置（用于查询某#include是否应被清除，之所以不使用FileID因为某些重复#include会被自动跳过，导致并未生成FileID）
 		std::set<SourceLocation>					m_unusedLocs;
 
-		// 10. 父文件ID映射表：[文件] -> [父文件]
-		std::map<FileID, FileID>					m_parents;
-
-		// 11. 可被置换的#include列表：[文件] -> [该文件可被替换为的文件]
+		// 模式2分析结果：可被替换的#include列表：[文件ID] -> [该文件可被替换为的文件ID]
 		std::map<FileID, FileID>					m_replaces;
 
-		// 12. 各文件中可被置换的#include列表：[文件] -> [该文件中哪些文件可被替换成为其他的哪些文件]
+		// 1. 主文件的依赖文件集（该集合是闭包的，即该集合中的任一文件所依赖的文件仍在集合内）
+		FileSet										m_topRelys;
+
+		// 2. 依赖文件集（该集合是闭包的，即该集合中的任一文件所依赖的文件仍在集合内）
+		FileSet										m_relys;
+
+		// 3. 各文件的被引用的后代文件：[文件ID] -> [后代文件中被循环引用的部分]
+		std::map<FileID, FileSet>					m_relyChildren;
+
+		// 4. 全部有用的#include位置（用于查询某#include是否有用）
+		std::set<SourceLocation>					m_usedLocs;
+
+		// 5. 各文件中可被置换的#include列表：[文件ID] -> [该文件中哪些文件可被替换成为其他的哪些文件]
 		ReplaceFileMap								m_splitReplaces;
 
-		// 13. 头文件搜索路径列表
+
+		//================== 模式3的数据（见project.h中的CleanMode）：每个文件尽量只包含自己用到的文件（将自动生成前置声明） ==================//
+
+		// 模式3分析结果：各文件的最小包含文件列表：[文件ID] -> [该文件仅应直接包含的文件ID列表]
+		std::map<FileID, FileSet>					m_min;
+		
+		// 1. 各文件的后代文件（仅用户文件）：[文件ID] -> [该文件包含的全部后代文件ID（仅用户文件）]
+		std::map<FileID, FileSet>					m_userChildren;
+
+		// 2. 各文件的后代文件（已对同名文件进行处理）：[文件ID] -> [该文件包含的全部后代文件ID（已对同名文件进行处理）]
+		std::map<FileID, FileSet>					m_childrenBySame;
+
+		// 3. 各文件应包含的后代文件列表：[文件ID] -> [该文件应包含的后代文件ID列表]
+		std::map<FileID, FileSet>					m_minKids;
+
+		// 4. 各文件中被跳过的#include：[文件ID] -> [该文件中被跳过的#include位置列表]（因为有的文件不需要重复包含，所以被clang跳过了，所以这些#include需要被删）
+		std::map<FileID, std::set<SourceLocation>>	m_skipIncludeLocs;
+
+		// 5. 各个项目外文件的祖先项目外文件：[文件ID] -> [对应的祖先外部文件ID]（比如，假设项目文件A中有#include <vector>，那么<vector>文件所包含的所有后代文件的祖先都是<vector>文件）
+		std::map<FileID, FileID>					m_outFileAncestor;
+
+		// 6. 项目内文件的引用关系：[项目内文件ID] -> [所引用的项目内文件ID列表 + 项目外文件ID列表]
+		std::map<FileID, FileSet>					m_userUses;
+
+		// 7. 被强制包含的文件ID列表
+		FileSet										m_forceIncludes;
+
+
+		//================== 一些通用的临时数据 ==================//
+
+		// 1. 各文件引用其他文件的记录：[文件ID] -> [引用的其他文件列表]（例如，假设A.h用到了B.h中的class B，则认为A.h引用了B.h）
+		std::map<FileID, FileSet>					m_uses;
+
+		// 2. 各文件所包含的文件列表：[文件ID] -> [所include的文件]
+		std::map<FileID, FileSet>					m_includes;
+
+		// 3. 所有文件ID
+		FileSet										m_files;
+
+		// 4. 所有#include的位置对应的范围： [#include "xxxx.h"中第一个双引号或<符号的位置] -> [#include整个文本串的范围]
+		std::map<SourceLocation, SourceRange>		m_includeLocs;
+
+		// 5. 父文件关系：[文件ID] -> [父文件ID]
+		std::map<FileID, FileID>					m_parents;
+
+		// 6. 头文件搜索路径列表
 		std::vector<HeaderSearchDir>				m_headerSearchPaths;
 
-		// 14. 每个代码位置所使用的class、struct、union指针或引用的记录：[位置] -> [所使用的class、struct、union指针或引用]
-		ForwardDeclMap								m_forwardDecls;
+		// 7. 每个位置所使用的class、struct、union指针或引用的记录，用于生成前置声明（注意：只关注指针或引用）：[位置] -> [所使用的class、struct、union指针或引用]
+		UseRecordsMap								m_useRecords;
 
-		// 15. 各文件所使用的类名、函数名、宏名等的名称记录：[文件] -> [该文件所使用的类名、函数名、宏名等]
+		// 8. using namespace记录：[using namespace的位置] -> [对应的namespace定义]
+		map<SourceLocation, const NamespaceDecl*>	m_usingNamespaces;
+
+		// 9. 各文件的后代：[文件ID] -> [该文件包含的全部后代文件ID]
+		std::map<FileID, FileSet>					m_children;
+
+		// 10. 仅用于打印：各文件所使用的类名、函数名、宏名等的名称记录：[文件ID] -> [该文件所使用的其他文件中的类名、函数名、宏名、变量名等]
 		std::map<FileID, std::vector<UseNameInfo>>	m_useNames;
 
-		// 16. 各文件内声明的命名空间记录：[文件] -> [该文件内的命名空间记录]
+		// 11. 仅用于打印：各文件内声明的命名空间记录：[文件] -> [该文件内的命名空间记录]
 		std::map<FileID, std::set<std::string>>		m_namespaces;
 
-		// 18. 应保留的using namespace记录：[using namespace的位置] -> [对应的namespace定义]
-		map<SourceLocation, const NamespaceDecl *>	m_usingNamespaces;
-
-		// 18. 应保留的using namespace记录：[using xx::xx的位置] -> [对应的类定义]
-		std::map<SourceLocation, UsingDecl*>		m_usings;
-
-		// 19. 各文件的后代：[文件] -> [该文件包含的全部后代]
-		std::map<FileID, std::set<FileID>>			m_children;
-
-		// 20. 用于调试：新增的文件引用关系：[文件] -> [新增的引用记录]
-		std::map<FileID, std::set<FileID>>			m_newUse;
-
-		// 21. 可被移动到其他cpp中的文件列表，map<文件a，将被转移到a中的文件>
-		std::map<FileID, std::map<FileID, FileID>>	m_moves;
-
-		// 22. 同一个文件名对应的不同文件id，map<文件名，该文件名对应的不同文件id>
-		std::map<std::string, std::set<FileID>>		m_sameFiles;
-
-		// 23.
-		std::map<FileID, std::set<FileID>>			m_min;
-		std::map<FileID, std::set<FileID>>			m_kids;
-		std::map<FileID, std::set<FileID>>			m_minKids;
-		std::set<FileID>							m_rootKids;
-		std::map<FileID, std::set<SourceLocation>>	m_skipIncludeLocs;
-		std::map<FileID, FileID>					m_outFileAncestor;
-		std::map<FileID, std::set<FileID>>			m_userUses;
-		FileHistoryMap								m_historys;
-		std::set<FileID>							m_userFiles;
-		std::set<FileID>							m_forceIncludes;
+		// 12. 同一个文件名对应的不同文件ID：[文件名] -> [同名文件ID列表]
+		std::map<std::string, FileSet>				m_sameFiles;
 
 	private:
 		clang::Rewriter*							m_rewriter;

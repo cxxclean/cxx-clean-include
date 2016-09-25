@@ -13,6 +13,7 @@
 #include "project.h"
 #include "vs.h"
 #include "history.h"
+#include "tool.h"
 
 // 初始化环境配置
 bool Init(cxxclean::CxxCleanOptionsParser &optionParser, int argc, const char **argv)
@@ -73,12 +74,11 @@ int main(int argc, const char **argv)
 	if (cxxclean::Project::instance.m_need2Step)
 	{
 		cxxclean::ProjectHistory::instance.m_isFirst		= false;
-		cxxclean::ProjectHistory::instance.g_printFileNo	= 0;
+		cxxclean::ProjectHistory::instance.g_fileNum	= 0;
 
 		Run(optionParser);
 	}
 
-	// 这里故意打印到err输出
-	llvm::errs() << "-- finished --!\n";
+	Log("-- finished --!");
 	return 0;
 }

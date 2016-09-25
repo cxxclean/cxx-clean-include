@@ -18,6 +18,14 @@ namespace llvm
 
 using namespace std;
 
+#define LogInfo(text)	llvm::errs() << "==>[Info][" << __FUNCTION__ << "][" << __LINE__<< "] " << text << "\n"
+#define LogError(text)	llvm::errs() << "==>[Error][" << __FUNCTION__ << "][" << __LINE__<< "] " << text << "\n"
+#define LogInfoByLvl(logLvl, text)	if (Project::instance.m_logLvl >= logLvl) { LogInfo(text); }
+#define LogErrorByLvl(logLvl, text)	if (Project::instance.m_logLvl >= logLvl) { LogError(text); }
+
+#define LogRaw(text)	llvm::errs() << text
+#define Log(text)	llvm::errs() << text << "\n"
+
 namespace strtool
 {
 	// ÊÇ·ñÎª¿Õ°××Ö·û
@@ -250,8 +258,6 @@ namespace htmltool
 	std::string get_number_html(int num);
 
 	std::string get_warn_html(const char *text);
-
-	std::string get_pre_html(const char *text);
 }
 
 namespace timetool

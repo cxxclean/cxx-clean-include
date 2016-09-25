@@ -603,8 +603,6 @@ namespace cxxclean
 	// 比如：typedef int A;
 	bool CxxCleanASTVisitor::VisitTypedefDecl(clang::TypedefDecl *d)
 	{
-		// llvm::errs() << "Visiting " << d->getDeclKindName() << " " << d->getName() << "\n";
-
 		m_root->UseQualType(d->getLocStart(), d->getUnderlyingType());
 		return true;
 	}
@@ -670,7 +668,7 @@ namespace cxxclean
 		}
 
 		// 用于调试：打印语法树
-		if (Project::instance.m_verboseLvl >= VerboseLvl_6)
+		if (Project::instance.m_logLvl >= LogLvl_6)
 		{
 			cxx::log() << "<pre>------------ HandleTranslationUnit ------------:</pre>\n";
 			cxx::log() << "<pre>";
@@ -762,7 +760,7 @@ namespace cxxclean
 
 		if (diagLevel >= DiagnosticIDs::Fatal || IsFatalError(errId))
 		{
-			errHistory.fatalErrors.insert(errId);
+			errHistory.fatalErrorIds.insert(errId);
 
 			tip += strtool::get_text(cn_fatal_error_num_tip, strtool::itoa(errNum).c_str(), htmltool::get_number_html(errId).c_str());
 		}
@@ -777,36 +775,32 @@ namespace cxxclean
 	// 开始文件处理
 	bool CxxCleanAction::BeginSourceFileAction(CompilerInstance &compiler, StringRef filename)
 	{
-		++ProjectHistory::instance.g_printFileNo;
+		++ProjectHistory::instance.g_fileNum;
 
 		if (ProjectHistory::instance.m_isFirst)
 		{
 			bool only1Step = !Project::instance.m_need2Step;
 			if (only1Step)
 			{
-				llvm::errs() << "cleaning file: ";
+				LogRaw("cleaning file: ");
 			}
 			else
 			{
-				llvm::errs() << "step 1 of 2. analyze file: ";
+				LogRaw("step 1 of 2. analyze file: ");
 			}
 		}
 		else
 		{
-			llvm::errs() << "step 2 of 2. cleaning file: ";
+			LogRaw("step 2 of 2. cleaning file: ");
 		}
 
-		llvm::errs() << ProjectHistory::instance.g_printFileNo
-		             << "/" << Project::instance.m_cpps.size() << ". " << filename << " ...\n";
-
+		LogRaw(ProjectHistory::instance.g_fileNum << "/" << Project::instance.m_cpps.size() << ". " << filename << " ...\n");
 		return true;
 	}
 
 	// 结束文件处理
 	void CxxCleanAction::EndSourceFileAction()
 	{
-		// llvm::errs() << "** EndSourceFileAction for: " << srcMgr.getFileEntryForID(srcMgr.getMainFileID())->getName() << "\n";
-
 		// 第2遍时不需要再分析了，因为第1遍已经分析好了
 		if (ProjectHistory::instance.m_isFirst)
 		{
@@ -841,52 +835,6 @@ namespace cxxclean
 		return llvm::make_unique<CxxCleanASTConsumer>(m_root);
 	}
 
-	// 用于调试：打印包含文件
-	void CxxCleanAction::PrintIncludes()
-	{
-		cxx::log() << "\n////////////////////////////////\n";
-		cxx::log() << "print fileinfo_iterator include:\n";
-		cxx::log() << "////////////////////////////////\n";
-
-		SourceManager &srcMgr = m_rewriter.getSourceMgr();
-
-		typedef SourceManager::fileinfo_iterator fileinfo_iterator;
-
-		fileinfo_iterator beg = srcMgr.fileinfo_begin();
-		fileinfo_iterator end = srcMgr.fileinfo_end();
-
-		for (fileinfo_iterator itr = beg; itr != end; ++itr)
-		{
-			const FileEntry *fileEntry = itr->first;
-			SrcMgr::ContentCache *cache = itr->second;
-
-			//printf("#include = %s\n", fileEntry->getName());
-			cxx::log() << "    #include = "<< fileEntry->getName()<< "\n";
-		}
-	}
-
-	// 用于调试：打印主文件的包含文件
-	void CxxCleanAction::PrintTopIncludes()
-	{
-		cxx::log() << "\n////////////////////////////////\n";
-		cxx::log() << "print top getLocalSLocEntry include:\n";
-		cxx::log() << "////////////////////////////////\n";
-
-		SourceManager &srcMgr = m_rewriter.getSourceMgr();
-		int include_size = srcMgr.local_sloc_entry_size();
-
-		for (int i = 1; i < include_size; i++)
-		{
-			const SrcMgr::SLocEntry &locEntry = srcMgr.getLocalSLocEntry(i);
-			if (!locEntry.isFile())
-			{
-				continue;
-			}
-
-			cxx::log() << "    #include = "<< srcMgr.getFilename(locEntry.getFile().getIncludeLoc()) << "\n";
-		}
-	}
-
 	static llvm::cl::OptionCategory g_optionCategory("cxx-clean-include category");
 
 	static cl::opt<string>	g_cleanOption	("clean",
@@ -897,10 +845,10 @@ namespace cxxclean
 	        cl::cat(g_optionCategory));
 
 	static cl::opt<string>	g_cleanModes	("mode",
-	        cl::desc("clean modes, can use like [ -mode 1+2+3 ], default is [ -mode 1+2 ]\n"
+	        cl::desc("clean modes, can use like [ -mode 1 ] or [ -mode 1+2 ], default is [ -mode 3 ]\n"
 	                 "mode 1. clean unused #include\n"
 	                 "mode 2. replace some #include to other #include\n"
-	                 "mode 3. try move #include to other file"
+					 "mode 3. each file only #include files it need"
 	                ),
 	        cl::cat(g_optionCategory));
 
@@ -912,7 +860,7 @@ namespace cxxclean
 	                ),
 	        cl::cat(g_optionCategory));
 
-	static cl::opt<bool>	g_noWriteOption	("no",
+	static cl::opt<bool>	g_noOverWrite	("no",
 	        cl::desc("means no overwrite, if this option is checked, all of the c++ file will not be changed"),
 	        cl::cat(g_optionCategory));
 
@@ -920,26 +868,18 @@ namespace cxxclean
 	        cl::desc("only allow clean cpp file(cpp, cc, cxx), don't clean the header file(h, hxx, hh)"),
 	        cl::cat(g_optionCategory));
 
-	static cl::opt<bool>	g_deepClean	("deep",
-	                                     cl::desc("deep clean"),
-	                                     cl::cat(g_optionCategory));
-
 	static cl::opt<bool>	g_printVsConfig	("print-vs",
 	        cl::desc("print vs configuration, for example, print header search path, print c++ file list, print predefine macro and so on"),
 	        cl::cat(g_optionCategory));
 
-	static cl::opt<bool>	g_printProject	("print-project",
-	        cl::desc("print project configuration, for example, print c++ source list to be cleaned, print allowed clean directory or allowed clean c++ file list, and so on"),
-	        cl::cat(g_optionCategory));
-
-	static cl::opt<int>		g_verbose		("v",
-	        cl::desc("verbose level, level can be 0 ~ 6, default is 1, higher level will print more detail"),
+	static cl::opt<int>		g_logLevel		("v",
+	        cl::desc("log level(verbose level), level can be 0 ~ 6, default is 1, higher level will print more detail"),
 	        cl::cat(g_optionCategory));
 
 	void PrintVersion()
 	{
-		llvm::outs() << "cxx-clean-include version is 1.0\n";
-		llvm::outs() << clang::getClangToolFullVersion("clang lib version is") << '\n';
+		llvm::outs() << "cxx-clean-include version: 1.0\n";
+		llvm::outs() << clang::getClangToolFullVersion("clang lib version: ") << '\n';
 	}
 
 	// 解析选项并将解析结果存入相应的对象，若应中途退出则返回true，否则返回false
@@ -958,7 +898,7 @@ namespace cxxclean
 			return false;
 		}
 
-		if (!ParseCleanLvlOption())
+		if (!ParseCleanModeOption())
 		{
 			return false;
 		}
@@ -979,22 +919,15 @@ namespace cxxclean
 			return false;
 		}
 
-		if (g_printProject)
-		{
-			HtmlLog::instance.BeginLog();
-			Project::instance.Print();
-			return false;
-		}
-
 		if (Project::instance.m_cpps.empty())
 		{
-			llvm::errs() << "cxx-clean-include: \n    try use -help argument to see more information.\n";
+			Log("cxx-clean-include: \n    try use -help argument to see more information.");
 			return 0;
 		}
 
 		HtmlLog::instance.BeginLog();
 
-		if (Project::instance.m_verboseLvl >= VerboseLvl_3)
+		if (Project::instance.m_logLvl >= LogLvl_3)
 		{
 			Project::instance.Print();
 		}
@@ -1179,7 +1112,7 @@ namespace cxxclean
 			bool ok = pathtool::ls(src, m_sourceList);
 			if (!ok)
 			{
-				llvm::errs() << "error: parse argument -src " << src << " failed, not found the c++ files.\n";
+				Log("error: parse argument -src " << src << " failed, not found the c++ files.");
 				return false;
 			}
 
@@ -1201,8 +1134,7 @@ namespace cxxclean
 		Project &project			= Project::instance;
 
 		project.m_isCleanAll		= !g_onlyCleanCpp;
-		project.m_isOverWrite		= !g_noWriteOption;
-		project.m_isDeepClean		= g_deepClean;
+		project.m_isOverWrite		= !g_noOverWrite;
 		project.m_workingDir		= pathtool::get_current_path();
 		project.m_cpps				= m_sourceList;
 
@@ -1215,7 +1147,7 @@ namespace cxxclean
 			{
 				if (!vs.ParseVs(clean_option))
 				{
-					llvm::errs() << "parse vs project<" << clean_option << "> failed!\n";
+					Log("parse vs project<" << clean_option << "> failed!");
 					return false;
 				}
 
@@ -1243,7 +1175,7 @@ namespace cxxclean
 					bool ok = pathtool::ls(folder, project.m_cpps);
 					if (!ok)
 					{
-						llvm::errs() << "error: -clean " << folder << " failed!\n";
+						Log("error: -clean " << folder << " failed!");
 						return false;
 					}
 
@@ -1255,7 +1187,7 @@ namespace cxxclean
 			}
 			else
 			{
-				llvm::errs() << "unsupport parsed <" << clean_option << ">!\n";
+				Log("unsupport parsed <" << clean_option << ">!");
 				return false;
 			}
 		}
@@ -1279,18 +1211,18 @@ namespace cxxclean
 	// 解析-v选项
 	bool CxxCleanOptionsParser::ParseVerboseOption()
 	{
-		if (g_verbose.getNumOccurrences() == 0)
+		if (g_logLevel.getNumOccurrences() == 0)
 		{
-			Project::instance.m_verboseLvl = VerboseLvl_1;
+			Project::instance.m_logLvl = LogLvl_1;
 			return true;
 		}
 
-		int lvl = g_verbose;
-		Project::instance.m_verboseLvl = (VerboseLvl)lvl;
+		int logLvl = g_logLevel;
+		Project::instance.m_logLvl = (LogLvl)logLvl;
 
-		if (lvl < 0 || lvl >= VerboseLvl_Max)
+		if (logLvl < 0 || logLvl >= LogLvl_Max)
 		{
-			llvm::errs() << "unsupport verbose level: " << lvl << ", must be 1 ~ " << VerboseLvl_Max - 1 << "!\n";
+			Log("unsupport verbose level: " << logLvl << ", must be 1 ~ " << LogLvl_Max - 1 << "!");
 			return false;
 		}
 
@@ -1298,22 +1230,22 @@ namespace cxxclean
 	}
 
 	// 解析-level选项
-	bool CxxCleanOptionsParser::ParseCleanLvlOption()
+	bool CxxCleanOptionsParser::ParseCleanModeOption()
 	{
-		string strLvls ;
+		string strModes ;
 
 		if (g_cleanModes.getNumOccurrences() == 0)
 		{
-			// 默认： [删除多余#include] + [替换#include]
-			strLvls = "1+2";
+			// 默认： 
+			strModes = '0' + CleanMode_Need;
 		}
 		else
 		{
-			strLvls = g_cleanModes;
+			strModes = g_cleanModes;
 		}
 
 		std::vector<string> strLvlVec;
-		strtool::split(strLvls, strLvlVec, '+');
+		strtool::split(strModes, strLvlVec, '+');
 
 		Project::instance.m_cleanModes.resize(CleanMode_Max - 1, false);
 
@@ -1323,7 +1255,7 @@ namespace cxxclean
 
 			if (lvl < 0 || lvl >= CleanMode_Max)
 			{
-				llvm::errs() << "[ -level " << strLvls << " ] is invalid: unsupport [" << lvl << "], must be 1 ~ " << CleanMode_Max - 1 << "!\n";
+				Log("[ -level " << strModes << " ] is invalid: unsupport [" << lvl << "], must be 1 ~ " << CleanMode_Max - 1 << "!");
 				return false;
 			}
 

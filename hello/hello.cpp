@@ -23,6 +23,11 @@
 #include "j_enumeration.h"				// 测试枚举
 #include "k_namespace.h"				// 测试命名空间
 #include "l_use_template.h"				// 模板参数类型
+#include "m_using_namespace.h"			// 测试using命名空间
+#include "n_same_forward.h"				// 测试前置声明被多次包含
+#include "o_nested_class.h"				// 测试前置声明分布在各个文件的情况
+#include "p_same_file.h"				// 测试文件被重复包含
+#include "q_using_class.h"				// 测试using类
 
 #include <stdio.h>
 #include <stdio.h>

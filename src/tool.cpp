@@ -629,11 +629,6 @@ namespace htmltool
 	{
 		return strtool::get_text(R"--(<span class="num">%s</span>)--", text);
 	}
-
-	std::string get_pre_html(const char *text)
-	{
-		return strtool::get_text(R"--(<pre>%s</span>)--", text);
-	}
 }
 
 namespace timetool

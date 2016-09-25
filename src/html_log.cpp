@@ -209,34 +209,24 @@ const char* g_endHtml = R"--(
 
 const char* g_divHtml = R"--(
 			<div class="box">
-				<div class="title">
-					<ul>#{div_titles}
-					</ul>
-				</div>
-				<div class="chart">
-					<dl>#{div_rows}
-					</dl>
-				</div>
+				<div class="title"><ul>#{div_titles}					
+				</ul></div>
+				<div class="chart"><dl>#{div_rows}					
+				</dl></div>
 			</div>)--";
 
 const char *g_titleHtml = R"--(
-						<li class="col" style="width:#{width}%;">
-							#{title}
-						</li>)--";
+					<li class="col" style="width:#{width}%;">#{title}</li>)--";
 
 const char* g_rowHtml = R"--(
-						<dd class="row"#{bold}>#{row}
-						</dd>)--";
+					<dd class="row"#{bold}>#{row}</dd>)--";
 
 const char* g_errorRowHtml = R"--(
-						<dd class="error_row"#{bold}>#{row}
-						</dd>)--";
+					<dd class="error_row"#{bold}>#{row}</dd>)--";
 
-const char* g_gridHtml = R"--(
-							<div #{class}style="#{width}text-indent:#{indent}px;">#{text}</div>)--";
+const char* g_gridHtml = R"--(<div #{class}style="#{width}text-indent:#{indent}px;">#{text}</div>)--";
 
-const char* g_errorGridHtml = R"--(
-							<div><pre style="padding:0 #{indent}px;">#{text}</pre></div>)--";
+const char* g_errorGridHtml = R"--(<div><pre style="padding:0 #{indent}px;">#{text}</pre></div>)--";
 
 namespace cxxclean
 {
@@ -310,10 +300,11 @@ namespace cxxclean
 	{
 		cxx::log() << GetHtmlStart(m_htmlTitle.c_str());
 
-		cxx::log() << "\n";
-		cxx::log() << timetool::get_now() << "\n";
-		cxx::log() << "<span style=\"float:right\">" << m_bigTitle << "</span>" << "\n";
-		cxx::log() << "<hr/>\n";
+		const char* indent = "\n			";
+
+		cxx::log() << indent << timetool::get_now();
+		cxx::log() << indent << "<span style=\"float:right\">" << m_bigTitle << "</span>";
+		cxx::log() << indent << "<hr/>";
 
 		AddBigTitle(m_bigTitle);
 	}
@@ -406,6 +397,6 @@ namespace cxxclean
 	// 添加大标题
 	void HtmlLog::AddBigTitle(const std::string &title)
 	{
-		cxx::log() << "<h1>" << title << "</h1>";
+		cxx::log() << "\n			<h1>" << title << "</h1>";
 	}
 }

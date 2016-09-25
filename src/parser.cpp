@@ -52,9 +52,6 @@ namespace cxxclean
 	void ParsingFile::AddIncludeLoc(SourceLocation loc, SourceRange range)
 	{
 		SourceRange spellingRange(GetExpasionLoc(range.getBegin()), GetExpasionLoc(range.getEnd()));
-
-		// cxx::log() << "ParsingFile::AddIncludeLoc = " << GetSourceOfLine(GetExpasionLoc(loc)) << "\n";
-
 		m_includeLocs[GetExpasionLoc(loc)] = range;
 	}
 
@@ -194,13 +191,14 @@ namespace cxxclean
 		}
 	}
 
-	// 生成各文件的待清理记录
+	// 开始分析
 	void ParsingFile::Analyze()
 	{
-		if (Project::instance.IsCleanModeOpen(CleanMode_Need))
+		if (Project::IsCleanModeOpen(CleanMode_Need))
 		{
-			GenerateUserFiles();
+			GenerateForceIncludes();
 			GenerateOutFileAncestor();
+			GenerateKidBySame();
 			GenerateUserUse();
 			GenerateMinUse();
 			GenerateMinForwardClass();
@@ -239,10 +237,7 @@ namespace cxxclean
 
 			if (kids.find(a) != kids.end())
 			{
-				if (Project::instance.m_verboseLvl >= VerboseLvl_3)
-				{
-					llvm::errs() << "====>[ReplaceMin]a = " << GetDebugFileName(a) << ", b = " << GetDebugFileName(b) << " at file = " << GetDebugFileName(top) << ")\n";
-				}
+				LogInfoByLvl(LogLvl_3, "a = " << GetDebugFileName(a) << ", b = " << GetDebugFileName(b) << " at file = " << GetDebugFileName(top) << ")");
 
 				kids.erase(a);
 				kids.insert(b);
@@ -278,18 +273,10 @@ namespace cxxclean
 
 			if (IsAncestorForceInclude(top))
 			{
-				if (Project::instance.m_verboseLvl >= VerboseLvl_3)
-				{
-					llvm::errs() << "====>[ExpandMin]IsAncestorForceInclude(" << GetDebugFileName(top) << ")\n";
-				}
+				LogInfoByLvl(LogLvl_3, "IsAncestorForceInclude(" << GetDebugFileName(top) << ")");
 
 				m_min.erase(top);
 				return true;
-			}
-
-			if (!IsRootMinKid(top))
-			{
-				//continue;
 			}
 
 			for (FileID kid : kids)
@@ -303,10 +290,7 @@ namespace cxxclean
 				FileID ancestorForceInclude = GetAncestorForceInclude(kid);
 				if (ancestorForceInclude.isValid() && ancestorForceInclude != kid)
 				{
-					if (Project::instance.m_verboseLvl >= VerboseLvl_3)
-					{
-						llvm::errs() << "====>[ExpandMin]GetAncestorForceInclude(" << GetDebugFileName(kid) << ") = " << GetDebugFileName(ancestorForceInclude) << ")\n";
-					}
+					LogInfoByLvl(LogLvl_3, "GetAncestorForceInclude(" << GetDebugFileName(kid) << ") = " << GetDebugFileName(ancestorForceInclude) << ")");
 
 					kids.erase(kid);
 					kids.insert(ancestorForceInclude);
@@ -314,16 +298,13 @@ namespace cxxclean
 					return true;
 				}
 
-				if (IsAncestor(kid, top))
+				if (IsAncestorBySame(kid, top))
 				{
 					continue;
 				}
-				else if (IsAncestor(top, kid))
+				else if (IsAncestorBySame(top, kid))
 				{
-					if (Project::instance.m_verboseLvl >= VerboseLvl_3)
-					{
-						llvm::errs() << "====>[ExpandMin]IsAncestor(kid = " << GetDebugFileName(top) << ", ancestor = " << GetDebugFileName(kid) << ")\n";
-					}
+					LogInfoByLvl(LogLvl_3, "IsAncestor(kid = " << GetDebugFileName(top) << ", ancestor = " << GetDebugFileName(kid) << ")");
 
 					m_min[kid].insert(top);
 					kids.erase(kid);
@@ -337,11 +318,7 @@ namespace cxxclean
 					kids.erase(kid);
 					kids.insert(ancestor);
 
-					if (Project::instance.m_verboseLvl >= VerboseLvl_3)
-					{
-						llvm::errs() << "====>[ExpandMin]GetCommonAncestor(" << GetDebugFileName(top) << ", " << GetDebugFileName(kid) << ") = "
-						             << GetAbsoluteFileName(ancestor) << "\n";
-					}
+					LogInfoByLvl(LogLvl_3, "GetCommonAncestor(" << GetDebugFileName(top) << ", " << GetDebugFileName(kid) << ") = " << GetAbsoluteFileName(ancestor));
 
 					m_min[ancestor].insert(kid);
 					m_min[ancestor].insert(top);
@@ -377,10 +354,7 @@ namespace cxxclean
 					FileID same = GetBestSameFile(forceInclude, kid);
 					if (same != kid)
 					{
-						if (Project::instance.m_verboseLvl >= VerboseLvl_3)
-						{
-							llvm::errs() << "====>[MergeMin]GetBestSameFile(forceInclude = " << GetDebugFileName(forceInclude) << ", kid = " << GetDebugFileName(kid) << ")\n";
-						}
+						LogInfoByLvl(LogLvl_3, "GetBestSameFile(forceInclude = " << GetDebugFileName(forceInclude) << ", kid = " << GetDebugFileName(kid) << ")");
 
 						minKids.erase(kid);
 						break;
@@ -396,10 +370,7 @@ namespace cxxclean
 
 					if (HasMinKidBySameName(kid, other))
 					{
-						if (Project::instance.m_verboseLvl >= VerboseLvl_3)
-						{
-							llvm::errs() << "====>[MergeMin]HasMinKidBySameName(top = " << GetDebugFileName(kid) << ", kid = " << GetDebugFileName(other) << ")\n";
-						}
+						LogInfoByLvl(LogLvl_3, "HasMinKidBySameName(top = " << GetDebugFileName(kid) << ", kid = " << GetDebugFileName(other) << ")");
 
 						minKids.erase(other);
 						break;
@@ -417,22 +388,7 @@ namespace cxxclean
 		return any;
 	}
 
-	inline bool ParsingFile::IsSystemHeader(FileID file) const
-	{
-		if (file.isInvalid())
-		{
-			return false;
-		}
-
-		llvm::errs() << "IsSystemHeader" << GetAbsoluteFileName(file) << "\n";
-
-		return !CanClean(file);
-
-		//SourceLocation fileBeginLoc = m_srcMgr->getLocForStartOfFile(file);
-		//return m_srcMgr->isInSystemHeader(fileBeginLoc);
-	}
-
-	inline bool ParsingFile::IsUserFileSlowly(FileID file) const
+	inline bool ParsingFile::IsUserFile(FileID file) const
 	{
 		if (file.isInvalid())
 		{
@@ -444,13 +400,7 @@ namespace cxxclean
 			return false;
 		}
 
-		// llvm::errs() << "IsUserFileSlow: " << GetAbsoluteFileName(file) << "\n";
 		return CanClean(file);
-	}
-
-	inline bool ParsingFile::IsUserFile(FileID file) const
-	{
-		return m_userFiles.find(file) != m_userFiles.end();
 	}
 
 	inline bool ParsingFile::IsOuterFile(FileID file) const
@@ -460,7 +410,7 @@ namespace cxxclean
 			return false;
 		}
 
-		return !IsUserFileSlowly(file);
+		return !IsUserFile(file);
 	}
 
 	inline FileID ParsingFile::GetTopOuterFileAncestor(FileID file) const
@@ -486,15 +436,39 @@ namespace cxxclean
 		return topSysAncestor;
 	}
 
-	void ParsingFile::GenerateUserFiles()
+	void ParsingFile::GenerateKidBySame()
+	{
+		for (auto &itr : m_children)
+		{
+			FileID top = itr.first;
+			const FileSet &children	= itr.second;
+
+			if (IsOuterFile(top))
+			{
+				continue;
+			}
+
+			FileSet &userChildren	= m_userChildren[top];
+
+			for (FileID child : children)
+			{
+				userChildren.insert(GetTopOuterFileAncestor(child));
+			}
+		}
+
+		for (auto &itr : m_userChildren)
+		{
+			FileID top = itr.first;
+
+			std::set<FileID> &kids	= m_childrenBySame[top];
+			GetKidsBySame(top, kids);
+		}
+	}
+
+	void ParsingFile::GenerateForceIncludes()
 	{
 		for (FileID file : m_files)
 		{
-			if (IsUserFileSlowly(file))
-			{
-				m_userFiles.insert(file);
-			}
-
 			if (IsForceIncluded(file))
 			{
 				m_forceIncludes.insert(file);
@@ -543,10 +517,6 @@ namespace cxxclean
 
 	void ParsingFile::GenerateMinUse()
 	{
-		FileID root = m_srcMgr->getMainFileID();
-		GetUseKids(root, m_rootKids);
-		m_rootKids.insert(root);
-
 		m_min = m_userUses;
 
 		while (ExpandMin()) {}
@@ -563,7 +533,7 @@ namespace cxxclean
 		while (MergeMin()) {}
 		//MergeMin();
 
-		// 3.
+		// 3. 统计出哪些#include被跳过
 		auto includeLocs = m_includeLocs;
 		for (FileID file : m_files)
 		{
@@ -579,25 +549,13 @@ namespace cxxclean
 		}
 	}
 
-	void ParsingFile::GetUseKids(FileID top, std::set<FileID> &kids) const
+	void ParsingFile::GetKidsBySame(FileID top, std::set<FileID> &kids) const
 	{
-		const auto &uses = m_userUses;
+		FileSet done;
+		FileSet todo;
 
-		// 查找top文件的引用记录
-		auto &topUseItr = uses.find(top);
-		if (topUseItr == uses.end())
-		{
-			return;
-		}
+		todo.insert(top);
 
-		std::set<FileID> todo;
-		std::set<FileID> done;
-
-		// 获取top文件所依赖的文件集
-		const std::set<FileID> &topUseFiles = topUseItr->second;
-		todo.insert(topUseFiles.begin(), topUseFiles.end());
-
-		//------------------------------- 循环获取被依赖文件所依赖的其他文件 -------------------------------//
 		while (!todo.empty())
 		{
 			FileID cur = *todo.begin();
@@ -610,34 +568,47 @@ namespace cxxclean
 
 			done.insert(cur);
 
-			// 1. 若当前文件不依赖其他文件，则跳过
-			auto & useItr = uses.find(cur);
-			if (useItr == uses.end())
+			FileSet sames;
+
+			auto sameItr = m_sameFiles.find(GetAbsoluteFileName(cur));
+			if (sameItr != m_sameFiles.end())
 			{
-				continue;
+				sames = sameItr->second;
+			}
+			else
+			{
+				sames.insert(cur);
 			}
 
-			// 只扩展后代文件
-			if (!IsAncestor(cur, top))
+			for (FileID same : sames)
 			{
-				continue;
-			}
+				todo.insert(same);
 
-			// 2. todo集合 += 当前文件依赖的其他文件
-			const std::set<FileID> &useFiles = useItr->second;
-
-			for (const FileID &beuse : useFiles)
-			{
-				if (done.find(beuse) != done.end())
+				auto childrenItr = m_userChildren.find(same);
+				if (childrenItr == m_userChildren.end())
 				{
 					continue;
 				}
 
-				todo.insert(beuse);
+				const FileSet &children = childrenItr->second;
+				todo.insert(children.begin(), children.end());
 			}
 		}
 
-		done.erase(top);
+		auto sameItr = m_sameFiles.find(GetAbsoluteFileName(top));
+		if (sameItr != m_sameFiles.end())
+		{
+			const FileSet &sames = sameItr->second;
+			for (FileID same : sames)
+			{
+				done.erase(same);
+			}
+		}
+		else
+		{
+			done.erase(top);
+		}
+
 		kids.insert(done.begin(), done.end());
 	}
 
@@ -712,11 +683,6 @@ namespace cxxclean
 
 		const FileSet &kids = kidItr->second;
 		return kids.find(kid) != kids.end();
-	}
-
-	bool ParsingFile::IsRootMinKid(FileID kid) const
-	{
-		return m_rootKids.find(kid) != m_rootKids.end();
 	}
 
 	int ParsingFile::GetDeepth(FileID file) const
@@ -821,8 +787,6 @@ namespace cxxclean
 					if (canReplaceTo != oldReplaceTo)
 					{
 						m_replaces.erase(lv2Top);
-
-						// cxx::log() << "fatal: there is replace cleared!\n";
 						return true;
 					}
 
@@ -832,7 +796,7 @@ namespace cxxclean
 				FileID canReplaceTo;
 
 				// 仅[替换#include]清理选项开启时，才尝试替换
-				if (Project::instance.IsCleanModeOpen(CleanMode_Replace))
+				if (Project::IsCleanModeOpen(CleanMode_Replace))
 				{
 					canReplaceTo = GetCanReplaceTo(lv2Top);
 				}
@@ -1030,7 +994,7 @@ namespace cxxclean
 	void ParsingFile::GenerateUnusedInclude()
 	{
 		// 仅[删除无用#include]清理选项开启时，才允许继续
-		if (!Project::instance.IsCleanModeOpen(CleanMode_Unused))
+		if (!Project::IsCleanModeOpen(CleanMode_Unused))
 		{
 			return;
 		}
@@ -1107,8 +1071,6 @@ namespace cxxclean
 		// 属于ancestor的后代文件列表
 		std::set<FileID> children;
 
-		// cxx::log() << "ancestor = " << get_file_name(ancestor) << "\n";
-
 		// 获取属于该文件的后代中被主文件使用的一部分
 		for (FileID child : all_children)
 		{
@@ -1117,7 +1079,6 @@ namespace cxxclean
 				continue;
 			}
 
-			// cxx::log() << "    child = " << get_file_name(child) << "\n";
 			children.insert(child);
 		}
 
@@ -1366,7 +1327,7 @@ namespace cxxclean
 		return false;
 	}
 
-	// 是否应保留当前位置引用的class、struct、union的前置声明
+	// 是否应保留该位置引用的class、struct、union的前置声明
 	bool ParsingFile::IsNeedMinClass(SourceLocation loc, const CXXRecordDecl &cxxRecord) const
 	{
 		// 使用前置声明的文件
@@ -1406,7 +1367,7 @@ namespace cxxclean
 	void ParsingFile::GenerateForwardClass()
 	{
 		// 1. 清除一些不必要保留的前置声明
-		for (auto &itr = m_forwardDecls.begin(); itr != m_forwardDecls.end();)
+		for (auto &itr = m_useRecords.begin(); itr != m_useRecords.end();)
 		{
 			SourceLocation loc								= itr->first;
 			std::set<const CXXRecordDecl*> &old_forwards	= itr->second;
@@ -1415,7 +1376,7 @@ namespace cxxclean
 
 			if (!IsRely(file))
 			{
-				m_forwardDecls.erase(itr++);
+				m_useRecords.erase(itr++);
 				continue;
 			}
 
@@ -1431,7 +1392,7 @@ namespace cxxclean
 
 			if (can_forwards.empty())
 			{
-				m_forwardDecls.erase(itr++);
+				m_useRecords.erase(itr++);
 				continue;
 			}
 
@@ -1450,7 +1411,7 @@ namespace cxxclean
 	void ParsingFile::GenerateMinForwardClass()
 	{
 		// 1. 清除一些不必要保留的前置声明
-		for (auto &itr = m_forwardDecls.begin(); itr != m_forwardDecls.end();)
+		for (auto &itr = m_useRecords.begin(); itr != m_useRecords.end();)
 		{
 			SourceLocation loc						= itr->first;
 			std::set<const CXXRecordDecl*> &records	= itr->second;
@@ -1471,7 +1432,7 @@ namespace cxxclean
 
 			if (records.empty())
 			{
-				m_forwardDecls.erase(itr++);
+				m_useRecords.erase(itr++);
 				continue;
 			}
 
@@ -1492,13 +1453,13 @@ namespace cxxclean
 
 		if (range.getEnd() < range.getBegin())
 		{
-			llvm::errs() << "[error][ParsingFile::GetSourceOfRange] if (range.getEnd() < range.getBegin())\n";
+			LogError("if (range.getEnd() < range.getBegin())");
 			return "";
 		}
 
 		if (!m_srcMgr->isWrittenInSameFile(range.getBegin(), range.getEnd()))
 		{
-			llvm::errs() << "[error][ParsingFile::GetSourceOfRange] if (!m_srcMgr->isWrittenInSameFile(range.getBegin(), range.getEnd()))\n";
+			LogError("if (!m_srcMgr->isWrittenInSameFile(range.getBegin(), range.getEnd()))");
 			return "";
 		}
 
@@ -1527,18 +1488,6 @@ namespace cxxclean
 		const char* beg = m_srcMgr->getCharacterData(loc,	&err);
 		if (err)
 		{
-			/*
-			PresumedLoc presumedLoc = m_srcMgr->getPresumedLoc(loc);
-			if (presumedLoc.isValid())
-			{
-				llvm::errs() << "[error][ParsingFile::GetSourceAtLoc]! err = " << err << "at file = " << presumedLoc.getFilename() << ", line = " << GetLineNo(loc) << "\n";
-			}
-			else
-			{
-				llvm::errs() << "[error][ParsingFile::GetSourceAtLoc]! err = " << err << "\n";
-			}
-			*/
-
 			return nullptr;
 		}
 
@@ -1613,11 +1562,7 @@ namespace cxxclean
 
 		if (nullptr == c1 || nullptr == c2)
 		{
-			if (Project::instance.m_verboseLvl >= VerboseLvl_2)
-			{
-				llvm::errs() << "====> ParsingFile::GetNextLine = null" << "\n";
-			}
-
+			LogErrorByLvl(LogLvl_2, "GetNextLine = null");
 			return SourceRange(fileEndLoc, fileEndLoc);
 		}
 
@@ -1691,7 +1636,7 @@ namespace cxxclean
 	bool ParsingFile::IsNewLineWord(SourceLocation loc) const
 	{
 		string text = GetSourceOfRange(SourceRange(loc, loc.getLocWithOffset(1)));
-		return text == "\r" || text == "\n";
+		return text == "\r" || text == "";
 	}
 
 	/*
@@ -1740,7 +1685,7 @@ namespace cxxclean
 
 	inline void ParsingFile::UseName(FileID file, FileID beusedFile, const char* name /* = nullptr */, int line)
 	{
-		if (Project::instance.m_verboseLvl < VerboseLvl_3)
+		if (Project::instance.m_logLvl < LogLvl_3)
 		{
 			return;
 		}
@@ -1794,6 +1739,50 @@ namespace cxxclean
 		return ancestor;
 	}
 
+	// 根据当前文件，查找第2层的祖先（令root为第一层），若当前文件的父文件即为主文件，则返回当前文件
+	FileID ParsingFile::GetLvl2AncestorBySame(FileID kid, FileID top) const
+	{
+		auto itr = m_includes.find(top);
+		if (itr == m_includes.end())
+		{
+			return FileID();
+		}
+
+		string kidFileName = GetAbsoluteFileName(kid);
+
+		const FileSet &includes = itr->second;
+		for (FileID beInclude : includes)
+		{
+			string beIncludeFileName = GetAbsoluteFileName(beInclude);
+			if (beIncludeFileName == kidFileName)
+			{
+				return beInclude;
+			}
+
+			auto sameItr = m_sameFiles.find(beIncludeFileName);
+			if (sameItr == m_sameFiles.end())
+			{
+				if (IsAncestorBySame(kid, beInclude))
+				{
+					return beInclude;
+				}
+			}
+			else
+			{
+				const FileSet &sames = sameItr->second;
+				for (FileID same : sames)
+				{
+					if (IsAncestorBySame(kid, same))
+					{
+						return beInclude;
+					}
+				}
+			}
+		}
+
+		return FileID();
+	}
+
 	// 第2个文件是否是第1个文件的祖先
 	bool ParsingFile::IsAncestor(FileID young, FileID old) const
 	{
@@ -1840,6 +1829,19 @@ namespace cxxclean
 		}
 
 		return false;
+	}
+
+	// 第2个文件是否是第1个文件的祖先（考虑同名文件）
+	bool ParsingFile::IsAncestorBySame(FileID young, FileID old) const
+	{
+		auto itr = m_childrenBySame.find(old);
+		if (itr == m_childrenBySame.end())
+		{
+			return false;
+		}
+
+		const FileSet &kids = itr->second;
+		return kids.find(young) != kids.end();
 	}
 
 	// 是否为孩子文件的共同祖先
@@ -1893,9 +1895,13 @@ namespace cxxclean
 
 		if (nullptr == m_srcMgr->getFileEntryForID(a) || nullptr == m_srcMgr->getFileEntryForID(b))
 		{
-			// 这段先注释掉
-			// cxx::log() << "------->error: use_include() : m_srcMgr->getFileEntryForID(file) failed!" << m_srcMgr->getFilename(m_srcMgr->getLocForStartOfFile(file)) << ":" << m_srcMgr->getFilename(m_srcMgr->getLocForStartOfFile(beusedFile)) << "\n";
-			// cxx::log() << "------->error: use_include() : m_srcMgr->getFileEntryForID(file) failed!" << get_source_of_line(m_srcMgr->getLocForStartOfFile(file)) << ":" << get_source_of_line(m_srcMgr->getLocForStartOfFile(beusedFile)) << "\n";
+			if (Project::instance.m_logLvl >= LogLvl_3)
+			{
+				// 这段注释保留
+				//LogError("m_srcMgr->getFileEntryForID(a) failed!" << m_srcMgr->getFilename(m_srcMgr->getLocForStartOfFile(a)) << ":" << m_srcMgr->getFilename(m_srcMgr->getLocForStartOfFile(b)));
+				//LogError("m_srcMgr->getFileEntryForID(b) failed!" << GetSourceOfLine(m_srcMgr->getLocForStartOfFile(a)) << ":" << GetSourceOfLine(m_srcMgr->getLocForStartOfFile(b)));
+			}
+
 			return;
 		}
 
@@ -1922,8 +1928,6 @@ namespace cxxclean
 		}
 
 		string macroName = macroNameTok.getIdentifierInfo()->getName().str() + "[macro]";
-
-		// cxx::log() << "macro id = " << macroName.getIdentifierInfo()->getName().str() << "\n";
 		Use(loc, info->getDefinitionLoc(), macroName.c_str());
 	}
 
@@ -1993,7 +1997,7 @@ namespace cxxclean
 	// 声明了命名空间
 	void ParsingFile::DeclareNamespace(const NamespaceDecl *d)
 	{
-		if (Project::instance.m_verboseLvl < VerboseLvl_3)
+		if (Project::instance.m_logLvl < LogLvl_3)
 		{
 			return;
 		}
@@ -2107,17 +2111,17 @@ namespace cxxclean
 		return includes.find(a) != includes.end();
 	}
 
-	// 获取文件a的指定名称的直接后代文件
-	FileID ParsingFile::GetDirectChildByName(FileID a, const char* childFileName) const
+	// 获取文件a的指定名称的直接包含文件
+	FileID ParsingFile::GetIncludeByName(FileID a, const char* includeName) const
 	{
 		auto &itr = m_includes.find(a);
 		if (itr != m_includes.end())
 		{
-			for (FileID child : itr->second)
+			for (FileID beInclude : itr->second)
 			{
-				if (GetAbsoluteFileName(child) == childFileName)
+				if (GetAbsoluteFileName(beInclude) == includeName)
 				{
-					return child;
+					return beInclude;
 				}
 			}
 		}
@@ -2129,7 +2133,7 @@ namespace cxxclean
 	FileID ParsingFile::GetChildByName(FileID a, const char* childFileName) const
 	{
 		// 1. 优先返回直接孩子文件
-		FileID directChild = GetDirectChildByName(a, childFileName);
+		FileID directChild = GetIncludeByName(a, childFileName);
 		if (directChild.isValid())
 		{
 			return directChild;
@@ -2277,8 +2281,6 @@ namespace cxxclean
 			TemplateTypeParmDecl *decl = templateTypeParmType->getDecl();
 			if (nullptr == decl)
 			{
-				// llvm::errs() << "------------ TemplateTypeParmType dump ------------:\n";
-				// llvm::errs() << "------------ templateTypeParmType->getDecl()->dumpColor() ------------\n";
 				return;
 			}
 
@@ -2293,35 +2295,25 @@ namespace cxxclean
 		else if (isa<ParenType>(t))
 		{
 			const ParenType *parenType = cast<ParenType>(t);
-			// llvm::errs() << "------------ ParenType dump ------------:\n";
-			// llvm::errs() << "------------ parenType->getInnerType().dump() ------------:\n";
 			UseQualType(loc, parenType->getInnerType());
 		}
 		else if (isa<InjectedClassNameType>(t))
 		{
 			const InjectedClassNameType *injectedClassNameType = cast<InjectedClassNameType>(t);
-			// llvm::errs() << "------------InjectedClassNameType dump:\n";
-			// llvm::errs() << "------------injectedClassNameType->getInjectedSpecializationType().dump():\n";
 			UseQualType(loc, injectedClassNameType->getInjectedSpecializationType());
 		}
 		else if (isa<PackExpansionType>(t))
 		{
 			const PackExpansionType *packExpansionType = cast<PackExpansionType>(t);
-			// llvm::errs() << "\n------------PackExpansionType------------\n";
 			UseQualType(loc, packExpansionType->getPattern());
 		}
 		else if (isa<DecltypeType>(t))
 		{
 			const DecltypeType *decltypeType = cast<DecltypeType>(t);
-			// llvm::errs() << "\n------------DecltypeType------------\n";
 			UseQualType(loc, decltypeType->getUnderlyingType());
 		}
 		else if (isa<DependentNameType>(t))
 		{
-			//				const DependentNameType *dependentNameType = cast<DependentNameType>(t);
-			//				llvm::errs() << "\n------------DependentNameType------------\n";
-			//				llvm::errs() << "\n------------dependentNameType->getQualifier()->dump()------------\n";
-			//				dependentNameType->getQualifier()->dump();
 		}
 		else if (isa<DependentTemplateSpecializationType>(t))
 		{
@@ -2383,7 +2375,7 @@ namespace cxxclean
 		}
 		else
 		{
-			// llvm::errs() << "-------------- haven't support type --------------\n";
+			// LogInfo(""-------------- haven't support type --------------");
 			// t->dump();
 		}
 	}
@@ -2551,7 +2543,7 @@ namespace cxxclean
 			return;
 		}
 
-		if (Project::instance.IsCleanModeOpen(CleanMode_Need))
+		if (Project::IsCleanModeOpen(CleanMode_Need))
 		{
 			// 如果本文件内该位置之前已有前置声明则不再处理
 			const TagDecl *first = cxxRecord->getFirstDecl();
@@ -2566,17 +2558,14 @@ namespace cxxclean
 
 				if (file == recordAtFile && !next->isThisDeclarationADefinition())
 				{
-					if (Project::instance.m_verboseLvl >= VerboseLvl_3)
-					{
-						llvm::errs() << "====>[UseForward]skip record = " <<  GetRecordName(*cxxRecord) << ", record file = " << GetAbsoluteFileName(file) << "\n";
-					}
+					LogInfoByLvl(LogLvl_3, "skip record = [" <<  GetRecordName(*cxxRecord) << "], record file = " << GetDebugFileName(file));
 
 					return;
 				}
 			}
 
 			// 添加文件所使用的前置声明记录
-			m_forwardDecls[loc].insert(cxxRecord);
+			m_useRecords[loc].insert(cxxRecord);
 		}
 		else
 		{
@@ -2645,7 +2634,7 @@ namespace cxxclean
 			return;
 		}
 
-		if (!IsUserFileSlowly(GetFileID(loc)))
+		if (!IsUserFile(GetFileID(loc)))
 		{
 			UseQualType(loc, var);
 			return;
@@ -2886,7 +2875,7 @@ namespace cxxclean
 	// 是否允许清理该c++文件（若不允许清理，则文件内容不会有任何变化）
 	bool ParsingFile::CanClean(FileID file) const
 	{
-		return Project::instance.CanClean(GetAbsoluteFileName(file));
+		return Project::CanClean(GetAbsoluteFileName(file));
 	}
 
 	// 打印各文件的父文件
@@ -2921,8 +2910,9 @@ namespace cxxclean
 				continue;
 			}
 
-			div.AddRow(htmltool::get_file_html(GetAbsoluteFileName(child)), 2, 40);
-			div.AddGrid("parent = " + htmltool::get_file_html(GetAbsoluteFileName(parent)));
+			div.AddRow("kid = " + DebugBeIncludeText(child), 2);
+			div.AddRow("parent = " + DebugBeIncludeText(parent), 3);
+			div.AddRow("");
 		}
 
 		div.AddRow("");
@@ -2957,7 +2947,7 @@ namespace cxxclean
 				continue;
 			}
 
-			div.AddRow("file = " + htmltool::get_file_html(GetAbsoluteFileName(parent)), 2);
+			div.AddRow("file = " + DebugBeIncludeText(parent), 2);
 
 			for (FileID child : itr.second)
 			{
@@ -2973,39 +2963,46 @@ namespace cxxclean
 		}
 	}
 
-	// 打印新增的引用关系
-	void ParsingFile::PrintNewUse()
+	// 打印各文件的孩子文件
+	void ParsingFile::PrintUserChildren()
 	{
-		int num = 0;
-		for (auto &itr : m_newUse)
-		{
-			FileID file = itr.first;
-
-			if (!CanClean(file))
-			{
-				continue;
-			}
-
-			++num;
-		}
-
 		HtmlDiv &div = HtmlLog::instance.m_newDiv;
-		div.AddRow(AddPrintIdx() + ". list of new use : use count = " + strtool::itoa(num), 1);
+		div.AddRow(AddPrintIdx() + ". list of user children : file count = " + strtool::itoa(m_userChildren.size()), 1);
 
-		for (auto &itr : m_newUse)
+		for (auto &itr : m_userChildren)
 		{
-			FileID file = itr.first;
+			FileID parent = itr.first;
 
-			if (!CanClean(file))
+			div.AddRow("file = " + DebugBeIncludeText(parent), 2);
+
+			for (FileID child : itr.second)
 			{
-				continue;
+				div.AddRow("user child = " + DebugBeIncludeText(child), 3);
 			}
 
-			div.AddRow("file = " + htmltool::get_file_html(GetAbsoluteFileName(file)), 2);
+			div.AddRow("");
+		}
+	}
 
-			for (FileID newuse : itr.second)
+	void ParsingFile::PrintSameChildren()
+	{
+		HtmlDiv &div = HtmlLog::instance.m_newDiv;
+		div.AddRow(AddPrintIdx() + ". list of children by same name : file count = " + strtool::itoa(m_childrenBySame.size()), 1);
+
+		for (auto &itr : m_childrenBySame)
+		{
+			FileID parent = itr.first;
+
+			div.AddRow("file = " + DebugBeIncludeText(parent), 2);
+
+			for (FileID child : itr.second)
 			{
-				div.AddRow("new use = " + DebugBeIncludeText(newuse), 3);
+				if (!CanClean(child))
+				{
+					continue;
+				}
+
+				div.AddRow("child = " + DebugBeIncludeText(child), 3);
 			}
 
 			div.AddRow("");
@@ -3151,7 +3148,7 @@ namespace cxxclean
 		stringstream name;
 		stringstream ancestors;
 
-		name << "[" << GetAbsoluteFileName(file);
+		name << "[[" << GetAbsoluteFileName(file) << "(ID = " << file.getHashValue() << ")";
 
 		for (FileID parent = GetParent(file); parent.isValid(); )
 		{
@@ -3169,7 +3166,7 @@ namespace cxxclean
 			name << "(" << ancestors.str() << ")";
 		}
 
-		name << "]";
+		name << "]]";
 
 		return name.str();
 	}
@@ -3242,7 +3239,7 @@ namespace cxxclean
 		bool err = Overwrite();
 		if (err)
 		{
-			llvm::errs() << "[Error]overwrite some changed files failed!\n";
+			LogError("overwrite some changed files failed!");
 		}
 	}
 
@@ -3250,63 +3247,6 @@ namespace cxxclean
 	// （本接口拷贝自Rewriter::overwriteChangedFiles，唯一的不同是回写成功时会删除文件缓存）
 	bool ParsingFile::Overwrite()
 	{
-		// 下面这个类是从clang\lib\Rewrite\Rewriter.cpp文件拷贝过来的
-		// A wrapper for a file stream that atomically overwrites the target.
-		//
-		// Creates a file output stream for a temporary file in the constructor,
-		// which is later accessible via getStream() if ok() return true.
-		// Flushes the stream and moves the temporary file to the target location
-		// in the destructor.
-		class AtomicallyMovedFile
-		{
-		public:
-			AtomicallyMovedFile(DiagnosticsEngine &Diagnostics, StringRef Filename,
-			                    bool &AllWritten)
-				: Diagnostics(Diagnostics), Filename(Filename), AllWritten(AllWritten)
-			{
-				TempFilename = Filename;
-				TempFilename += "-%%%%%%%%";
-				int FD;
-				if (llvm::sys::fs::createUniqueFile(TempFilename, FD, TempFilename))
-				{
-					AllWritten = false;
-					Diagnostics.Report(clang::diag::err_unable_to_make_temp)
-					        << TempFilename;
-				}
-				else
-				{
-					FileStream.reset(new llvm::raw_fd_ostream(FD, /*shouldClose=*/true));
-				}
-			}
-
-			~AtomicallyMovedFile()
-			{
-				if (!ok()) return;
-
-				// Close (will also flush) theFileStream.
-				FileStream->close();
-				if (std::error_code ec = llvm::sys::fs::rename(TempFilename, Filename))
-				{
-					AllWritten = false;
-					Diagnostics.Report(clang::diag::err_unable_to_rename_temp)
-					        << TempFilename << Filename << ec.message();
-					// If the remove fails, there's not a lot we can do - this is already an
-					// error.
-					llvm::sys::fs::remove(TempFilename);
-				}
-			}
-
-			bool ok() { return (bool)FileStream; }
-			raw_ostream &getStream() { return *FileStream; }
-
-		private:
-			DiagnosticsEngine &Diagnostics;
-			StringRef Filename;
-			SmallString<128> TempFilename;
-			std::unique_ptr<llvm::raw_fd_ostream> FileStream;
-			bool &AllWritten;
-		};
-
 		class CxxCleanReWriter
 		{
 		public:
@@ -3359,23 +3299,17 @@ namespace cxxclean
 			const FileEntry *entry				= srcMgr.getFileEntryForID(I->first);
 			const RewriteBuffer &rewriteBuffer	= I->second;
 
-			if (Project::instance.m_verboseLvl >= VerboseLvl_2)
-			{
-				llvm::errs() << "======> overwriting [" << entry->getName() << "]...\n";
-			}
+			LogInfoByLvl(LogLvl_2, "overwriting [" << entry->getName() << "]...");
 
 			bool ok = CxxCleanReWriter::WriteToFile(rewriteBuffer, *entry);
 			if (!ok)
 			{
-				llvm::errs() << "======> [error] overwrite file[" << entry->getName() << "] failed!\n";
+				LogError("overwrite file[" << entry->getName() << "] failed!");
 				AllWritten = false;
 			}
 			else
 			{
-				if (Project::instance.m_verboseLvl >= VerboseLvl_2)
-				{
-					llvm::errs() << "======> [ok] overwriting [" << entry->getName() << "] success!\n";
-				}
+				LogInfoByLvl(LogLvl_2, "overwriting [" << entry->getName() << "] success!");
 			}
 
 			/*
@@ -3402,19 +3336,16 @@ namespace cxxclean
 
 		if (nullptr == GetSourceAtLoc(begLoc) || nullptr == GetSourceAtLoc(endLoc))
 		{
-			llvm::errs() << "[error][ParsingFile::RemoveText] nullptr == GetSourceAtLoc(begLoc) || nullptr == GetSourceAtLoc(endLoc)\n";
+			LogError("nullptr == GetSourceAtLoc(begLoc) || nullptr == GetSourceAtLoc(endLoc)");
 			return;
 		}
 
-		if (Project::instance.m_verboseLvl >= VerboseLvl_2)
-		{
-			llvm::errs() << "------->replace [" << GetAbsoluteFileName(file) << "]: [" << beg << "," << end << "] to text = [" << text << "]\n";
-		}
+		LogInfoByLvl(LogLvl_2, "replace [" << GetAbsoluteFileName(file) << "]: [" << beg << "," << end << "] to text = [" << text << "]");
 
 		bool err = m_rewriter->ReplaceText(begLoc, end - beg, text);
 		if (err)
 		{
-			llvm::errs() << "=======>[error] replace [" << GetAbsoluteFileName(file) << "]: [" << beg << "," << end << "] to text = [" << text << "] failed\n";
+			LogError("replace [" << GetAbsoluteFileName(file) << "]: [" << beg << "," << end << "] to text = [" << text << "] failed");
 		}
 	}
 
@@ -3432,19 +3363,16 @@ namespace cxxclean
 
 		if (nullptr == GetSourceAtLoc(insertLoc))
 		{
-			llvm::errs() << "[error][ParsingFile::RemoveText] nullptr == GetSourceAtLoc(insertLoc)\n";
+			LogError("nullptr == GetSourceAtLoc(insertLoc)");
 			return;
 		}
 
-		if (Project::instance.m_verboseLvl >= VerboseLvl_2)
-		{
-			llvm::errs() << "------->insert [" << GetAbsoluteFileName(file) << "]: [" << loc << "] to text = [" << text << "]\n";
-		}
+		LogInfoByLvl(LogLvl_2, "insert [" << GetAbsoluteFileName(file) << "]: [" << loc << "] to text = [" << text << "]");
 
 		bool err = m_rewriter->InsertText(insertLoc, text, false, false);
 		if (err)
 		{
-			llvm::errs() << "=======>[error] insert [" << GetAbsoluteFileName(file) << "]: [" << loc << "] to text = [" << text << "] failed\n";
+			LogError("insert [" << GetAbsoluteFileName(file) << "]: [" << loc << "] to text = [" << text << "] failed");
 		}
 	}
 
@@ -3454,7 +3382,7 @@ namespace cxxclean
 		SourceLocation fileBegLoc	= m_srcMgr->getLocForStartOfFile(file);
 		if (fileBegLoc.isInvalid())
 		{
-			llvm::errs() << "[error][ParsingFile::RemoveText] if (fileBegLoc.isInvalid()), remove text in [" << GetAbsoluteFileName(file) << "] failed!\n";
+			LogError("if (fileBegLoc.isInvalid()), remove text in [" << GetAbsoluteFileName(file) << "] failed!");
 			return;
 		}
 
@@ -3463,7 +3391,7 @@ namespace cxxclean
 
 		if (nullptr == GetSourceAtLoc(begLoc) || nullptr == GetSourceAtLoc(endLoc))
 		{
-			llvm::errs() << "[error][ParsingFile::RemoveText] nullptr == GetSourceAtLoc(begLoc) || nullptr == GetSourceAtLoc(endLoc)\n";
+			LogError("nullptr == GetSourceAtLoc(begLoc) || nullptr == GetSourceAtLoc(endLoc)");
 			return;
 		}
 
@@ -3474,15 +3402,12 @@ namespace cxxclean
 		rewriteOption.IncludeInsertsAtEndOfRange	= false;
 		rewriteOption.RemoveLineIfEmpty				= false;
 
-		if (Project::instance.m_verboseLvl >= VerboseLvl_2)
-		{
-			llvm::errs() << "------->remove [" << GetAbsoluteFileName(file) << "]: [" << beg << "," << end << "], text = [" << GetSourceOfRange(range) << "]\n";
-		}
+		LogInfoByLvl(LogLvl_2, "remove [" << GetAbsoluteFileName(file) << "]: [" << beg << "," << end << "], text = [" << GetSourceOfRange(range) << "]");
 
 		bool err = m_rewriter->RemoveText(range.getBegin(), end - beg, rewriteOption);
 		if (err)
 		{
-			llvm::errs() << "=======>[error] remove [" << GetAbsoluteFileName(file) << "]: [" << beg << "," << end << "], text = [" << GetSourceOfRange(range) << "] failed\n";
+			LogError("remove [" << GetAbsoluteFileName(file) << "]: [" << beg << "," << end << "], text = [" << GetSourceOfRange(range) << "] failed");
 		}
 	}
 
@@ -3600,20 +3525,18 @@ namespace cxxclean
 		std::map<std::string, FileID> nameToFileIDMap;
 
 		// 建立当前cpp中文件名到文件FileID的map映射（注意：同一个文件可能被包含多次，FileID是不一样的，这里只存入最小的FileID）
+		for (FileID file : m_files)
 		{
-			for (FileID file : m_files)
+			const string &name = GetAbsoluteFileName(file);
+
+			if (!Project::CanClean(name))
 			{
-				const string &name = GetAbsoluteFileName(file);
+				continue;
+			}
 
-				if (!Project::instance.CanClean(name))
-				{
-					continue;
-				}
-
-				if (nameToFileIDMap.find(name) == nameToFileIDMap.end())
-				{
-					nameToFileIDMap.insert(std::make_pair(name, file));
-				}
+			if (nameToFileIDMap.find(name) == nameToFileIDMap.end())
+			{
+				nameToFileIDMap.insert(std::make_pair(name, file));
 			}
 		}
 
@@ -3632,7 +3555,7 @@ namespace cxxclean
 				continue;
 			}
 
-			if (!Project::instance.CanClean(fileName))
+			if (!Project::CanClean(fileName))
 			{
 				continue;
 			}
@@ -3646,7 +3569,6 @@ namespace cxxclean
 			auto & findItr = nameToFileIDMap.find(fileName);
 			if (findItr == nameToFileIDMap.end())
 			{
-				// llvm::errs() << "[error][ParsingFile::CleanBy] if (findItr == allFiles.end()) filename = " << fileName << "\n";
 				continue;
 			}
 
@@ -3849,7 +3771,7 @@ namespace cxxclean
 
 			const std::set<FileID> &be_uses = itr.second;
 
-			div.AddRow("file = " + htmltool::get_file_html(GetAbsoluteFileName(file)), 2);
+			div.AddRow("file = " + DebugBeIncludeText(file), 2);
 
 			for (FileID be_used_file : be_uses)
 			{
@@ -3881,7 +3803,7 @@ namespace cxxclean
 				SourceLocation loc = m_srcMgr->getIncludeLoc(beuse_file);
 				if (m_includeLocs.find(loc) == m_includeLocs.end())
 				{
-					div.AddRow("not found = " + htmltool::get_file_html(GetAbsoluteFileName(beuse_file)), 2);
+					div.AddRow("not found = " + DebugBeIncludeText(beuse_file), 2);
 					div.AddRow("old text = " + DebugLocText(loc), 2);
 					continue;
 				}
@@ -3900,8 +3822,8 @@ namespace cxxclean
 	// 打印信息
 	void ParsingFile::Print()
 	{
-		VerboseLvl verbose = Project::instance.m_verboseLvl;
-		if (verbose <= VerboseLvl_0)
+		LogLvl verbose = Project::instance.m_logLvl;
+		if (verbose <= LogLvl_0)
 		{
 			return;
 		}
@@ -3910,18 +3832,18 @@ namespace cxxclean
 
 		std::string rootFileName	= GetAbsoluteFileName(m_srcMgr->getMainFileID());
 		div.AddTitle(strtool::get_text(cn_file_history_title,
-		                               htmltool::get_number_html(ProjectHistory::instance.g_printFileNo).c_str(),
+		                               htmltool::get_number_html(ProjectHistory::instance.g_fileNum).c_str(),
 		                               htmltool::get_number_html(Project::instance.m_cpps.size()).c_str(),
 		                               htmltool::get_file_html(rootFileName).c_str()));
 
 		m_printIdx = 0;
 
-		if (verbose >= VerboseLvl_1)
+		if (verbose >= LogLvl_1)
 		{
 			PrintCleanLog();
 		}
 
-		if (verbose >= VerboseLvl_3)
+		if (verbose >= LogLvl_3)
 		{
 			PrintMinUse();
 			PrintMinKid();
@@ -3932,19 +3854,23 @@ namespace cxxclean
 			PrintForwardDecl();
 		}
 
-		if (verbose >= VerboseLvl_4)
+		if (verbose >= LogLvl_4)
 		{
-			PrintSysAncestor();
-			PrintNewUse();
-
-			PrintTopRely();
-			PrintRely();
-
-			PrintRelyChildren();
+			if (Project::IsCleanModeOpen(CleanMode_Need))
+			{
+				PrintOutFileAncestor();
+				PrintUserChildren();
+				PrintSameChildren();
+			}
+			else
+			{
+				PrintTopRely();
+				PrintRely();
+				PrintRelyChildren();
+			}
 
 			PrintAllFile();
 			PrintInclude();
-
 			PrintHeaderSearchPath();
 			PrintRelativeInclude();
 			PrintParent();
@@ -3953,7 +3879,7 @@ namespace cxxclean
 			PrintUsingNamespace();
 		}
 
-		if (verbose >= VerboseLvl_5)
+		if (verbose >= LogLvl_5)
 		{
 			PrintNotFoundIncludeLocForDebug();
 		}
@@ -3973,11 +3899,7 @@ namespace cxxclean
 
 			if (newFile.IsLineUnused(line))
 			{
-				if (Project::instance.m_verboseLvl >= VerboseLvl_3)
-				{
-					llvm::errs() << "======> merge unused at [" << oldFile.m_filename << "]: new line unused, old line unused at line = " << line << " -> " << oldLine.text << "\n";
-				}
-
+				LogInfoByLvl(LogLvl_3, "merge unused at [" << oldFile.m_filename << "]: new line unused, old line unused at line = " << line << " -> " << oldLine.text );
 				++oldLineItr;
 			}
 			else
@@ -3990,17 +3912,11 @@ namespace cxxclean
 
 					oldFile.m_replaces[line] = newReplaceLine;
 
-					if (Project::instance.m_verboseLvl >= VerboseLvl_3)
-					{
-						llvm::errs() << "======> merge unused at [" << oldFile.m_filename << "]: new line replace, old line unused at line = " << line << " -> " << oldLine.text << "\n";
-					}
+					LogInfoByLvl(LogLvl_3, "merge unused at [" << oldFile.m_filename << "]: new line replace, old line unused at line = " << line << " -> " << oldLine.text );
 				}
 				else
 				{
-					if (Project::instance.m_verboseLvl >= VerboseLvl_3)
-					{
-						llvm::errs() << "======> merge unused at [" << oldFile.m_filename << "]: new line do nothing, old line unused at line = " << line << " -> " << oldLine.text << "\n";
-					}
+					LogInfoByLvl(LogLvl_3, "merge unused at [" << oldFile.m_filename << "]: new line do nothing, old line unused at line = " << line << " -> " << oldLine.text );
 				}
 
 				oldLines.erase(oldLineItr++);
@@ -4078,10 +3994,7 @@ namespace cxxclean
 				// 说明该文件未新生成任何替换记录，此时应将该文件内所有旧替换记录全部删除
 				if (newFileID.isInvalid())
 				{
-					if (Project::instance.m_verboseLvl >= VerboseLvl_3)
-					{
-						llvm::errs() << "======> merge repalce at [" << oldFile.m_filename << "]: error, not found newFileID at line = " << line << " -> " << oldLine.oldText << "\n";
-					}
+					LogInfoByLvl(LogLvl_3, "merge repalce at [" << oldFile.m_filename << "]: error, not found newFileID at line = " << line << " -> " << oldLine.oldText );
 
 					++oldLineItr;
 					continue;
@@ -4111,20 +4024,13 @@ namespace cxxclean
 				// 若旧的取代文件是新的取代文件的祖先，则保留旧的替换信息
 				if (IsAncestor(beReplaceFileID, oldLine.oldFile.c_str()))
 				{
-					if (Project::instance.m_verboseLvl >= VerboseLvl_3)
-					{
-						llvm::errs() << "======> merge repalce at [" << oldFile.m_filename << "]: old line replace is new line replace ancestorat line = " << line << " -> " << oldLine.oldText << "\n";
-					}
-
+					LogInfoByLvl(LogLvl_3, "merge repalce at [" << oldFile.m_filename << "]: old line replace is new line replace ancestorat line = " << line << " -> " << oldLine.oldText );
 					++oldLineItr;
 				}
 				// 若新的取代文件是旧的取代文件的祖先，则改为使用新的替换信息
 				else if(IsAncestor(oldLine.oldFile.c_str(), beReplaceFileID))
 				{
-					if (Project::instance.m_verboseLvl >= VerboseLvl_3)
-					{
-						llvm::errs() << "======> merge repalce at [" << oldFile.m_filename << "]: new line replace is old line replace ancestor at line = " << line << " -> " << oldLine.oldText << "\n";
-					}
+					LogInfoByLvl(LogLvl_3, "merge repalce at [" << oldFile.m_filename << "]: new line replace is old line replace ancestor at line = " << line << " -> " << oldLine.oldText );
 
 					oldLine.replaceTo = newLine.replaceTo;
 					++oldLineItr;
@@ -4132,10 +4038,7 @@ namespace cxxclean
 				// 否则，若没有直系关系，则该行无法被替换，删除该行原有的替换记录
 				else
 				{
-					if (Project::instance.m_verboseLvl >= VerboseLvl_3)
-					{
-						llvm::errs() << "======> merge repalce at [" << oldFile.m_filename << "]: old line replace, new line replace at line = " << line << " -> " << oldLine.oldText << "\n";
-					}
+					LogInfoByLvl(LogLvl_3, "merge repalce at [" << oldFile.m_filename << "]: old line replace, new line replace at line = " << line << " -> " << oldLine.oldText );
 
 					SkipRelyLines(oldLine.replaceTo.m_rely);
 					oldFile.m_replaces.erase(oldLineItr++);
@@ -4146,10 +4049,7 @@ namespace cxxclean
 				// 若在新文件中该行应被删除，而在旧文件中该行应被替换，则保留旧文件的替换记录
 				if (newFile.IsLineUnused(line))
 				{
-					if (Project::instance.m_verboseLvl >= VerboseLvl_3)
-					{
-						llvm::errs() << "======> merge repalce at [" << oldFile.m_filename << "]: old line replace, new line delete at line = " << line << " -> " << oldLine.oldText << "\n";
-					}
+					LogInfoByLvl(LogLvl_3, "merge repalce at [" << oldFile.m_filename << "]: old line replace, new line delete at line = " << line << " -> " << oldLine.oldText );
 
 					++oldLineItr;
 					continue;
@@ -4157,10 +4057,7 @@ namespace cxxclean
 				// 若该行没有新的替换记录，说明该行无法被替换，删除该行旧的替换记录
 				else
 				{
-					if (Project::instance.m_verboseLvl >= VerboseLvl_3)
-					{
-						llvm::errs() << "======> merge repalce at [" << oldFile.m_filename << "]: old line replace, new line do nothing at line = " << line << " -> " << oldLine.oldText << "\n";
-					}
+					LogInfoByLvl(LogLvl_3, "merge repalce at [" << oldFile.m_filename << "]: old line replace, new line do nothing at line = " << line << " -> " << oldLine.oldText );
 
 					SkipRelyLines(oldLine.replaceTo.m_rely);
 					oldFile.m_replaces.erase(oldLineItr++);
@@ -4219,7 +4116,7 @@ namespace cxxclean
 			bool found = (findItr != oldFiles.end());
 			if (found)
 			{
-				if (Project::instance.IsCleanModeOpen(CleanMode_Need))
+				if (Project::IsCleanModeOpen(CleanMode_Need))
 				{
 					continue;
 				}
@@ -4284,7 +4181,7 @@ namespace cxxclean
 		history.m_isSkip			= IsPrecompileHeader(file);
 	}
 
-	// 取出当前cpp文件产生的待清理记录
+	// 取出记录，使得各文件仅包含自己所需要的头文件
 	void ParsingFile::TakeNeed(FileID top, FileHistory &history) const
 	{
 		InitHistory(top, history);
@@ -4305,10 +4202,7 @@ namespace cxxclean
 		}
 		else
 		{
-			if (Project::instance.m_verboseLvl >= VerboseLvl_3)
-			{
-				llvm::errs() << "[TakeNeed] not in m_min = " << GetDebugFileName(top) << "\n";
-			}
+			LogInfoByLvl(LogLvl_3, "not in m_min = " << GetDebugFileName(top));
 		}
 
 		FileSet includes	= includeItr->second;
@@ -4418,7 +4312,7 @@ namespace cxxclean
 		}
 
 		// 3.
-		for (auto &itr : m_forwardDecls)
+		for (auto &itr : m_useRecords)
 		{
 			SourceLocation loc = itr.first;
 			const std::set<const CXXRecordDecl*> &cxxRecords = itr.second;
@@ -4431,18 +4325,14 @@ namespace cxxclean
 				SourceLocation insertLoc = GetInsertForwardLine(file, *cxxRecord);
 				if (insertLoc.isInvalid())
 				{
-					if (Project::instance.m_verboseLvl >= VerboseLvl_2)
-					{
-						llvm::errs() << "------->error: insertLoc.isInvalid(), " << GetAbsoluteFileName(file) << ", record = " << GetRecordName(*cxxRecord) << "\n";
-					}
-
+					LogErrorByLvl(LogLvl_2, "insertLoc.isInvalid(), " << GetDebugFileName(file) << ", record = " << GetRecordName(*cxxRecord));
 					continue;
 				}
 
 				PresumedLoc insertPresumedLoc = m_srcMgr->getPresumedLoc(insertLoc);
 				if (insertPresumedLoc.isInvalid())
 				{
-					llvm::errs() << "------->error: take_new_forwarddecl_by_file getPresumedLoc failed\n";
+					LogError("take_new_forwarddecl_by_file getPresumedLoc failed");
 					continue;
 				}
 
@@ -4465,7 +4355,7 @@ namespace cxxclean
 				SourceLocation fileStart = m_srcMgr->getLocForStartOfFile(GetFileID(insertLoc));
 				if (fileStart.getLocWithOffset(forwardLine.offset) != insertLoc)
 				{
-					llvm::errs() << "error: fileStart.getLocWithOffset(forwardLine.m_offsetAtFile) != insertLoc \n";
+					LogError("fileStart.getLocWithOffset(forwardLine.m_offsetAtFile) != insertLoc");
 				}
 			}
 		}
@@ -4486,10 +4376,10 @@ namespace cxxclean
 
 		for (FileID add : adds)
 		{
-			FileID lv2 = GetLvl2Ancestor(add, top);
+			FileID lv2 = GetLvl2AncestorBySame(add, top);
 			if (lv2.isInvalid())
 			{
-				llvm::errs() << "===> lv2.isInvalid(): " << GetAbsoluteFileName(add) << ", " << GetAbsoluteFileName(top) << "\n";
+				LogErrorByLvl(LogLvl_3, "lv2.isInvalid(): " << GetDebugFileName(add) << ", " << GetDebugFileName(top));
 				continue;
 			}
 
@@ -4515,31 +4405,28 @@ namespace cxxclean
 		}
 	}
 
-	// 取出当前cpp文件产生的待清理记录
+	// 取出对当前cpp文件的分析结果
 	void ParsingFile::TakeHistorys(FileHistoryMap &out) const
 	{
-		if (Project::instance.IsCleanModeOpen(CleanMode_Need))
+		if (Project::IsCleanModeOpen(CleanMode_Need))
 		{
 			for (FileID top : m_files)
-				//for (auto &itr : m_min)
 			{
-				//FileID top = itr.first;
-
-				string fileName = GetAbsoluteFileName(top);
-
-				if (!IsUserFileSlowly(top))
+				if (!IsUserFile(top))
 				{
 					continue;
 				}
 
+				string fileName = GetAbsoluteFileName(top);
 				if (out.find(fileName) != out.end())
 				{
 					continue;
 				}
 
-				// 生成对应于该文件的的记录
 				TakeNeed(top, out[fileName]);
 			}
+
+			TakeCompileErrorHistory(out);
 		}
 		else
 		{
@@ -4548,7 +4435,7 @@ namespace cxxclean
 			{
 				string fileName		= GetAbsoluteFileName(file);
 
-				if (!Project::instance.CanClean(fileName))
+				if (!Project::CanClean(fileName))
 				{
 					continue;
 				}
@@ -4586,14 +4473,13 @@ namespace cxxclean
 			PresumedLoc presumedLoc = m_srcMgr->getPresumedLoc(loc);
 			if (presumedLoc.isInvalid())
 			{
-				cxx::log() << "------->error: take_unused_line_by_file getPresumedLoc failed\n";
+				LogError("take_unused_line_by_file getPresumedLoc failed");
 				continue;
 			}
 
 			string fileName			= pathtool::get_absolute_path(presumedLoc.getFilename());
-			if (!Project::instance.CanClean(fileName))
+			if (!Project::CanClean(fileName))
 			{
-				// cxx::log() << "------->error: !Vsproject::instance.has_file(fileName) : " << fileName << "\n";
 				continue;
 			}
 
@@ -4613,29 +4499,26 @@ namespace cxxclean
 			delLine.end		= m_srcMgr->getFileOffset(nextLine.getBegin());
 			delLine.text	= GetSourceOfRange(lineRange);
 
-			if (Project::instance.m_verboseLvl >= VerboseLvl_2)
-			{
-				llvm::errs() << "------->TakeUnusedLine [" << fileName << "]: [" << delLine.beg << "," << m_srcMgr->getFileOffset(lineRange.getEnd()) << ","
-				             << delLine.end << "," << m_srcMgr->getFileOffset(nextLine.getEnd()) << "], text = [" << delLine.text << "]\n";
-			}
+			LogInfoByLvl(LogLvl_2, "TakeUnusedLine [" << fileName << "]: [" << delLine.beg << "," << m_srcMgr->getFileOffset(lineRange.getEnd()) << ","
+			             << delLine.end << "," << m_srcMgr->getFileOffset(nextLine.getEnd()) << "], text = [" << delLine.text << "]");
 		}
 	}
 
 	// 将新增的前置声明按文件进行存放
 	void ParsingFile::TakeForwardClass(FileHistoryMap &out) const
 	{
-		if (m_forwardDecls.empty())
+		if (m_useRecords.empty())
 		{
 			return;
 		}
 
-		ForwardDeclByFileMap forwards;
+		UseRecordsByFileMap forwards;
 		SplitForwardByFile(forwards);
 
 		for (auto &itr : forwards)
 		{
 			FileID file							= itr.first;
-			const ForwardDeclMap &locToRecords	= itr.second;
+			const UseRecordsMap &locToRecords	= itr.second;
 
 			string fileName		= GetAbsoluteFileName(file);
 
@@ -4654,24 +4537,20 @@ namespace cxxclean
 					SourceLocation insertLoc = GetInsertForwardLine(file, *cxxRecord);
 					if (insertLoc.isInvalid())
 					{
-						if (Project::instance.m_verboseLvl >= VerboseLvl_2)
-						{
-							llvm::errs() << "------->error: insertLoc.isInvalid(), " << GetAbsoluteFileName(file) << ", record = " << GetRecordName(*cxxRecord)<< "\n";
-						}
-
+						LogErrorByLvl(LogLvl_2, "insertLoc.isInvalid(), " << GetDebugFileName(file) << ", record = " << GetRecordName(*cxxRecord));
 						continue;
 					}
 
 					PresumedLoc insertPresumedLoc = m_srcMgr->getPresumedLoc(insertLoc);
 					if (insertPresumedLoc.isInvalid())
 					{
-						llvm::errs() << "------->error: take_new_forwarddecl_by_file getPresumedLoc failed\n";
+						LogError("take_new_forwarddecl_by_file getPresumedLoc failed");
 						continue;
 					}
 
-					string insertFileName			= pathtool::get_absolute_path(insertPresumedLoc.getFilename());
+					string insertFileName = pathtool::get_absolute_path(insertPresumedLoc.getFilename());
 
-					if (!Project::instance.CanClean(insertFileName))
+					if (!Project::CanClean(insertFileName))
 					{
 						continue;
 					}
@@ -4689,7 +4568,7 @@ namespace cxxclean
 					SourceLocation fileStart = m_srcMgr->getLocForStartOfFile(GetFileID(insertLoc));
 					if (fileStart.getLocWithOffset(forwardLine.offset) != insertLoc)
 					{
-						llvm::errs() << "error: fileStart.getLocWithOffset(forwardLine.m_offsetAtFile) != insertLoc \n";
+						LogError("fileStart.getLocWithOffset(forwardLine.m_offsetAtFile) != insertLoc ");
 					}
 				}
 			}
@@ -4697,9 +4576,9 @@ namespace cxxclean
 	}
 
 	// 将文件前置声明记录按文件进行归类
-	void ParsingFile::SplitForwardByFile(ForwardDeclByFileMap &forwards) const
+	void ParsingFile::SplitForwardByFile(UseRecordsByFileMap &forwards) const
 	{
-		for (auto &itr : m_forwardDecls)
+		for (auto &itr : m_useRecords)
 		{
 			SourceLocation loc		= itr.first;
 			FileID file				= GetFileID(loc);
@@ -4776,7 +4655,7 @@ namespace cxxclean
 			std::string replaceParentName	= GetAbsoluteFileName(GetParent(replaceFile));
 			int replaceLineNo				= GetIncludeLineNo(replaceFile);
 
-			if (Project::instance.CanClean(replaceParentName))
+			if (Project::CanClean(replaceParentName))
 			{
 				replaceTo.m_rely[replaceParentName].insert(replaceLineNo);
 			}
@@ -4791,7 +4670,7 @@ namespace cxxclean
 					std::string relyParentName	= GetAbsoluteFileName(GetParent(rely));
 					int relyLineNo				= GetIncludeLineNo(rely);
 
-					if (Project::instance.CanClean(relyParentName))
+					if (Project::CanClean(relyParentName))
 					{
 						replaceTo.m_rely[relyParentName].insert(relyLineNo);
 					}
@@ -4864,7 +4743,7 @@ namespace cxxclean
 				continue;
 			}
 
-			div.AddRow("file = " + htmltool::get_file_html(GetAbsoluteFileName(file)), 2);
+			div.AddRow("file = " + DebugBeIncludeText(file), 2);
 
 			for (FileID beuse : use_list.second)
 			{
@@ -4903,11 +4782,11 @@ namespace cxxclean
 				continue;
 			}
 
-			div.AddRow("file = " + htmltool::get_file_html(GetAbsoluteFileName(file)), 2);
+			div.AddRow("file = " + DebugBeIncludeText(file), 2);
 
 			for (FileID beinclude : includeList.second)
 			{
-				div.AddRow("include = " + DebugBeDirectIncludeText(beinclude), 3);
+				div.AddRow("include = " + DebugBeIncludeText(beinclude), 3);
 			}
 
 			div.AddRow("");
@@ -5110,7 +4989,7 @@ namespace cxxclean
 				continue;
 			}
 
-			div.AddRow("file = " + htmltool::get_file_html(GetAbsoluteFileName(file)), 2);
+			div.AddRow("file = " + DebugBeIncludeText(file), 2);
 
 			for (auto & usedChild : usedItr.second)
 			{
@@ -5124,7 +5003,7 @@ namespace cxxclean
 	// 打印可转为前置声明的类指针或引用记录
 	void ParsingFile::PrintForwardDecl() const
 	{
-		ForwardDeclByFileMap forwards;
+		UseRecordsByFileMap forwards;
 		SplitForwardByFile(forwards);
 
 		HtmlDiv &div = HtmlLog::instance.m_newDiv;
@@ -5133,9 +5012,9 @@ namespace cxxclean
 		for (auto &itr : forwards)
 		{
 			FileID file = itr.first;
-			const ForwardDeclMap &locToRecords = itr.second;
+			const UseRecordsMap &locToRecords = itr.second;
 
-			div.AddRow("fileName = " + GetAbsoluteFileName(file), 2);
+			div.AddRow("fileName = " + DebugBeIncludeText(file), 2);
 
 			for (auto &recordItr : locToRecords)
 			{
@@ -5175,13 +5054,12 @@ namespace cxxclean
 		{
 			const string &name = GetAbsoluteFileName(file);
 
-			if (!Project::instance.CanClean(name))
+			if (!Project::CanClean(name))
 			{
 				continue;
 			}
 
-			div.AddRow("file id = " + strtool::itoa(file.getHashValue()), 2, 20);
-			div.AddGrid("filename = " + htmltool::get_file_html(name));
+			div.AddRow("file = " + DebugBeIncludeText(file), 2);
 		}
 
 		div.AddRow("");
@@ -5204,7 +5082,7 @@ namespace cxxclean
 				continue;
 			}
 
-			if (Project::instance.m_verboseLvl < VerboseLvl_3)
+			if (Project::instance.m_logLvl < LogLvl_3)
 			{
 				string ext = strtool::get_ext(history.m_filename);
 				if (!cpptool::is_cpp(ext))
@@ -5245,7 +5123,7 @@ namespace cxxclean
 				continue;
 			}
 
-			div.AddRow("file = " + htmltool::get_file_html(GetAbsoluteFileName(file)), 2);
+			div.AddRow("file = " + DebugBeIncludeText(file), 2);
 
 			const std::set<std::string> &namespaces = itr.second;
 
@@ -5295,7 +5173,7 @@ namespace cxxclean
 				continue;
 			}
 
-			div.AddRow("file = " + htmltool::get_file_html(GetAbsoluteFileName(file)), 2);
+			div.AddRow("file = " + DebugBeIncludeText(file), 2);
 
 			std::set<std::string> &namespaces = itr.second;
 
@@ -5387,7 +5265,7 @@ namespace cxxclean
 	}
 
 	// 打印
-	void ParsingFile::PrintSysAncestor() const
+	void ParsingFile::PrintOutFileAncestor() const
 	{
 		HtmlDiv &div = HtmlLog::instance.m_newDiv;
 		div.AddRow(strtool::get_text(cn_file_sys_ancestor, htmltool::get_number_html(++m_printIdx).c_str(), htmltool::get_number_html(m_outFileAncestor.size()).c_str()), 1);
@@ -5398,7 +5276,7 @@ namespace cxxclean
 			FileID ancestor	= itr.second;
 
 			div.AddRow("kid  = " + DebugBeIncludeText(kid), 2);
-			div.AddRow("ancestor = " + DebugBeIncludeText(ancestor), 3);
+			div.AddRow("out file ancestor = " + DebugBeIncludeText(ancestor), 3);
 
 			div.AddRow("");
 		}
@@ -5413,7 +5291,7 @@ namespace cxxclean
 		{
 			FileID file = itr.first;
 
-			div.AddRow("user file = " + htmltool::get_file_html(GetAbsoluteFileName(file)), 2);
+			div.AddRow("user file = " + DebugBeIncludeText(file), 2);
 
 			for (FileID beuse : itr.second)
 			{

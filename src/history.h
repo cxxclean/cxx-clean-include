@@ -49,6 +49,7 @@ namespace cxxclean
 		std::set<string>			classes;			// 新增前置声明列表
 	};
 
+	// 新增行的内容
 	struct BeAdd
 	{
 		string						fileName;			// 文件名
@@ -114,15 +115,15 @@ namespace cxxclean
 		// 是否有严重编译错误或编译错误数过多
 		bool HaveFatalError() const
 		{
-			return !fatalErrors.empty();
+			return !fatalErrorIds.empty();
 		}
 
 		// 打印
 		void Print() const;
 
 		int							errNum;				// 编译错误数
-		int							hasTooManyError;	// 是否错误数过多[由clang库内置参数决定]
-		std::set<int>				fatalErrors;		// 严重错误列表
+		bool						hasTooManyError;	// 是否错误数过多[由clang库内置参数决定]
+		std::set<int>				fatalErrorIds;		// 严重错误列表
 		std::vector<std::string>	errTips;			// 编译错误提示列表
 	};
 
@@ -139,18 +140,19 @@ namespace cxxclean
 		{
 		}
 
-		// 打印单个文件的清理历史
-		void Print(int id /* 文件序号 */, bool print_err = true) const;
+		// 打印本文件的清理历史
+		void Print(int id /* 文件序号 */, bool isPrintCompiliError = true) const;
 
-		// 打印单个文件内的可被删#include记录
+		// 打印本文件的可被删#include记录
 		void PrintUnusedInclude() const;
 
-		// 打印单个文件内的可新增前置声明记录
+		// 打印本文件的可新增前置声明记录
 		void PrintForwardClass() const;
 
-		// 打印单个文件内的可被替换#include记录
+		// 打印本文件的可被替换#include记录
 		void PrintReplace() const;
 
+		// 打印本文件内的新增行
 		void PrintAdd() const;
 
 		const char* GetNewLineWord() const
@@ -171,11 +173,6 @@ namespace cxxclean
 		bool IsLineBeReplaced(int line) const
 		{
 			return m_replaces.find(line) != m_replaces.end();
-		}
-
-		bool IsLineAddForward(int line) const
-		{
-			return m_forwards.find(line) != m_forwards.end();
 		}
 
 		bool HaveFatalError() const
@@ -214,7 +211,7 @@ namespace cxxclean
 		ProjectHistory()
 			: m_isFirst(true)
 			, m_printIdx(0)
-			, g_printFileNo(0)
+			, g_fileNum(0)
 		{
 		}
 
@@ -260,20 +257,20 @@ namespace cxxclean
 		// 当前是第几次分析所有源文件
 		bool				m_isFirst;
 
-		// 对所有c++文件的分析历史（注：其中也包含头文件）
+		// 对所有c++文件的分析历史（注：其中也包含c++头文件）
 		FileHistoryMap		m_files;
 
 		// 各文件中应保留的行（不允许删除这些行）
 		FileSkipLineMap		m_skips;
 
-		// 已清理过的文件（注：列表中的文件将不再重复清理）
+		// 已清理过的文件（注：已被清理的文件将不再重复清理）
 		std::set<string>	m_cleanedFiles;
 
-		// 当前正在打印第几个文件
-		int					g_printFileNo;
+		// 仅用于打印：当前正在处理第几个文件
+		int					g_fileNum;
 
 	private:
-		// 当前打印索引，仅用于日志打印
+		// 当前内部打印索引，仅用于日志打印
 		mutable int			m_printIdx;
 	};
 }

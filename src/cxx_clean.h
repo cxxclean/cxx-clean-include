@@ -192,13 +192,6 @@ namespace cxxclean
 		std::unique_ptr<ASTConsumer> CreateASTConsumer(CompilerInstance &compiler, StringRef file) override;
 
 	private:
-		// 用于调试：打印包含文件
-		void PrintIncludes();
-
-		// 用于调试：打印主文件的包含文件
-		void PrintTopIncludes();
-
-	private:
 		// 文件重写类，用来修改c++源码内容
 		Rewriter	m_rewriter;
 
@@ -231,17 +224,17 @@ namespace cxxclean
 		// 添加visual studio的额外的包含路径，因为clang库遗漏了一个包含路径会导致#include <atlcomcli.h>时找不到头文件
 		void AddVsSearchDir(ClangTool &tool) const;
 
-		// 解析-src选项
+		// 解析单个的c++文件目标-src选项
 		bool ParseSrcOption();
 
-		// 解析-clean选项
+		// 解析清理目标-clean选项
 		bool ParseCleanOption();
 
-		// 解析-v选项
+		// 解析日志打印级别-v选项
 		bool ParseVerboseOption();
 
-		// 解析-level选项
-		bool ParseCleanLvlOption();
+		// 解析清理模式-mode选项
+		bool ParseCleanModeOption();
 
 		CompilationDatabase &getCompilations() const {return *m_compilation;}
 

@@ -37,14 +37,14 @@ namespace cxxclean
 
 		// div.AddRow(" ", 1, 100, false, true);
 
-		if (!fatalErrors.empty())
+		if (!fatalErrorIds.empty())
 		{
 			std::string errTexts;
 
 			int i		= 0;
-			int size	= fatalErrors.size();
+			int size	= fatalErrorIds.size();
 
-			for (int err : fatalErrors)
+			for (int err : fatalErrorIds)
 			{
 				errTexts += htmltool::get_number_html(err);
 
@@ -63,7 +63,7 @@ namespace cxxclean
 			std::string tip = get_text(cn_error_too_many, htmltool::get_number_html(errNum).c_str());
 			div.AddRow(tip, 1, 100, true, Row_Error);
 		}
-		else if (fatalErrors.empty())
+		else if (fatalErrorIds.empty())
 		{
 			if (errNum > 0)
 			{
@@ -75,10 +75,10 @@ namespace cxxclean
 		div.AddRow("");
 	}
 
-	// 打印单个文件的清理历史
-	void FileHistory::Print(int id /* 文件序号 */, bool print_err /* = true */) const
+	// 打印本文件的清理历史
+	void FileHistory::Print(int id /* 文件序号 */, bool isPrintCompiliError /* = true */) const
 	{
-		if (!Project::instance.CanClean(m_filename))
+		if (!Project::CanClean(m_filename))
 		{
 			return;
 		}
@@ -88,10 +88,10 @@ namespace cxxclean
 		bool isError	= m_compileErrorHistory.HaveFatalError();
 		const char *tip = (isError ? cn_file_history_compile_error : cn_file_history);
 
-		div.AddRow(strtool::get_text(tip, htmltool::get_number_html(id).c_str(), htmltool::get_file_html(m_filename).c_str()), 
-			1, 100, false, Row_None, isError ? Grid_Error : Grid_Ok);
+		div.AddRow(strtool::get_text(tip, htmltool::get_number_html(id).c_str(), htmltool::get_file_html(m_filename).c_str()),
+		           1, 100, false, Row_None, isError ? Grid_Error : Grid_Ok);
 
-		if (print_err)
+		if (isPrintCompiliError)
 		{
 			m_compileErrorHistory.Print();
 		}
@@ -108,7 +108,7 @@ namespace cxxclean
 		PrintAdd();
 	}
 
-	// 打印单个文件内的可被删#include记录
+	// 打印本文件的可被删#include记录
 	void FileHistory::PrintUnusedInclude() const
 	{
 		if (m_delLines.empty())
@@ -133,7 +133,7 @@ namespace cxxclean
 		div.AddRow("");
 	}
 
-	// 打印单个文件内的可新增前置声明记录
+	// 打印本文件的可新增前置声明记录
 	void FileHistory::PrintForwardClass() const
 	{
 		if (m_forwards.empty())
@@ -162,7 +162,7 @@ namespace cxxclean
 		}
 	}
 
-	// 打印单个文件内的可被替换#include记录
+	// 打印本文件的可被替换#include记录
 	void FileHistory::PrintReplace() const
 	{
 		if (m_replaces.empty())
@@ -212,6 +212,7 @@ namespace cxxclean
 		}
 	}
 
+	// 打印本文件内的新增行
 	void FileHistory::PrintAdd() const
 	{
 		if (m_adds.empty())
@@ -280,13 +281,13 @@ namespace cxxclean
 				switch (lineType)
 				{
 				case LineType_Del:
-					llvm::errs() << "LineType_Del\n";
+					LogInfoByLvl(LogLvl_2, "LineType_Del" << m_filename << ":" << line);
 
 					m_delLines.erase(line);
 					break;
 
 				case LineType_Replace:
-					llvm::errs() << "LineType_Replace\n";
+					LogInfoByLvl(LogLvl_2, "LineType_Replace" << m_filename << ":" << line);
 
 					m_replaces.erase(line);
 					break;
@@ -312,6 +313,11 @@ namespace cxxclean
 	// 修正
 	void ProjectHistory::Fix()
 	{
+		if (Project::IsCleanModeOpen(CleanMode_Need))
+		{
+			return;
+		}
+
 		for (auto &itr : m_files)
 		{
 			FileHistory &history = itr.second;
@@ -322,7 +328,7 @@ namespace cxxclean
 	// 打印日志
 	void ProjectHistory::Print() const
 	{
-		if (Project::instance.m_verboseLvl >= VerboseLvl_3)
+		if (Project::instance.m_logLvl >= LogLvl_3)
 		{
 			PrintSkip();
 		}

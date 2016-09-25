@@ -38,6 +38,11 @@
     <ClInclude Include="n.h" />
     <ClInclude Include="o_nested_class.h" />
     <ClInclude Include="o.h" />
+    <ClInclude Include="p_same_file.h" />
+    <ClInclude Include="p1.h" />
+    <ClInclude Include="p2.h" />
+    <ClInclude Include="q.h" />
+    <ClInclude Include="q_using_class.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="hello.cpp" />
@@ -56,5 +61,7 @@
     <ClCompile Include="m_using_namespace.cpp" />
     <ClCompile Include="n_same_forward.cpp" />
     <ClCompile Include="o_nested_class.cpp" />
+    <ClCompile Include="p_same_file.cpp" />
+    <ClCompile Include="q_using_class.cpp" />
   </ItemGroup>
 </Project>

@@ -461,7 +461,7 @@ namespace cxxclean
 	{
 		if (!llvm::sys::fs::exists(vsproj_path))
 		{
-			llvm::errs() << "could not find vs project<" << vsproj_path << ">, aborted!\n";
+			Log("could not find vs project<" << vsproj_path << ">, aborted!");
 			return false;
 		}
 

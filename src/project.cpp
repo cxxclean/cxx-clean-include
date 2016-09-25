@@ -85,24 +85,24 @@ namespace cxxclean
 	// 指定的清理选项是否开启
 	bool Project::IsCleanModeOpen(CleanMode mode)
 	{
-		if (mode <= 0 || mode > (int)m_cleanModes.size())
+		if (mode <= 0 || mode > (int)instance.m_cleanModes.size())
 		{
 			return false;
 		}
 
-		return m_cleanModes[mode - 1];
+		return instance.m_cleanModes[mode - 1];
 	}
 
 	// 该文件是否允许被清理
-	bool Project::CanClean(const char* filename) const
+	bool Project::CanClean(const char* filename)
 	{
-		if (!m_allowCleanDir.empty())
+		if (!instance.m_allowCleanDir.empty())
 		{
-			return pathtool::is_at_folder(m_allowCleanDir.c_str(), filename);
+			return pathtool::is_at_folder(instance.m_allowCleanDir.c_str(), filename);
 		}
 		else
 		{
-			return m_allowCleanList.find(tolower(filename)) != m_allowCleanList.end();
+			return instance.m_allowCleanList.find(tolower(filename)) != instance.m_allowCleanList.end();
 		}
 
 		return false;
