@@ -1,0 +1,29 @@
+windows下使用vs编译本工具流程（参见 http://clang.llvm.org/get_started.html 官方教程）
+
+1. 新建llvm文件夹，使用svn将llvm官方源码导出到该文件夹
+	http://llvm.org/svn/llvm-project/llvm/trunk
+
+2. 在llvm/tools下新建clang文件夹，使用svn将clang官方源码导出到该文件夹
+	http://llvm.org/svn/llvm-project/llvm/trunk
+
+3. 按照下面步骤将本项目添加到clang项目中
+	3.1 在llvm\tools\clang\tools下新建cxx-clean-include文件夹
+	3.2 将本文件夹的内容复制到cxx-clean-include文件夹下
+	3.3 在llvm\tools\clang\tools\CMakeLists.txt中最后一行添加
+		add_clang_subdirectory(cxx-clean-include)
+	3.4 将[一些需要修改的clang项目文件]下的文件夹直接覆盖到llvm\tools\clang\lib文件夹下（注意：是覆盖clang的源文件）
+
+4. 到此，已准备好了所需的源码，开始使用CMake生成项目文件
+	4.1 新建llvm-build文件夹（不能在llvm文件夹底下），用于存放CMake生成的项目文件
+	4.2 [可选]为了减少CMake导出量，可作以下配置（以cmake-gui为例）
+		a. CMake里先将所有的打勾都取消
+		b. 将所有的all改成host，意思是只针对本平台进行配置
+		c. 给下面的选项打勾
+			LLVM_INCLUDE_TOOLS
+			LLVM_INCLUDE_UTILS
+			LLVM_TOOL_CLANG_TOOLS_EXTRA_BUILD  本项含义是：编译llvm\tools\clang\tools\extra下的项目
+		d. [可选]在Advanced选项，将类似CLANG_TOOL_xxxxxx_BUILD的均取消打勾，只留下CLANG_TOOL_CXX_CLEAN_INCLUDE_BUILD
+
+	4.3 使用CMake导出vs项目文件
+
+5. 打开vs项目，选中clang项目然后重新编译
