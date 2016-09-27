@@ -220,6 +220,11 @@ namespace cxxclean
 
 	bool ParsingFile::ReplaceMin(FileID a, FileID b)
 	{
+		if (a == b)
+		{
+			return false;
+		}
+
 		for (auto &itr : m_min)
 		{
 			FileID top = itr.first;
@@ -304,7 +309,7 @@ namespace cxxclean
 				}
 				else if (IsAncestorBySame(top, kid))
 				{
-					LogInfoByLvl(LogLvl_3, "IsAncestor(kid = " << GetDebugFileName(top) << ", ancestor = " << GetDebugFileName(kid) << ")");
+					LogInfoByLvl(LogLvl_3, "IsAncestorBySame(kid = " << GetDebugFileName(top) << ", ancestor = " << GetDebugFileName(kid) << ")");
 
 					m_min[kid].insert(top);
 					kids.erase(kid);
@@ -318,7 +323,7 @@ namespace cxxclean
 					kids.erase(kid);
 					kids.insert(ancestor);
 
-					LogInfoByLvl(LogLvl_3, "GetCommonAncestor(" << GetDebugFileName(top) << ", " << GetDebugFileName(kid) << ") = " << GetAbsoluteFileName(ancestor));
+					LogInfoByLvl(LogLvl_3, "GetCommonAncestor(" << GetDebugFileName(top) << ", " << GetDebugFileName(kid) << ") = " << GetDebugFileName(ancestor));
 
 					m_min[ancestor].insert(kid);
 					m_min[ancestor].insert(top);
@@ -368,9 +373,17 @@ namespace cxxclean
 						continue;
 					}
 
+					if (GetAbsoluteFileName(kid) == GetAbsoluteFileName(other))
+					{
+						LogInfoByLvl(LogLvl_3, "same same(kid = " << GetDebugFileName(kid) << ", other = " << GetDebugFileName(other) << ")");
+
+						minKids.erase(other);
+						break;
+					}
+
 					if (HasMinKidBySameName(kid, other))
 					{
-						LogInfoByLvl(LogLvl_3, "HasMinKidBySameName(top = " << GetDebugFileName(kid) << ", kid = " << GetDebugFileName(other) << ")");
+						LogInfoByLvl(LogLvl_3, "HasMinKidBySameName(kid = " << GetDebugFileName(kid) << ", other = " << GetDebugFileName(other) << ")");
 
 						minKids.erase(other);
 						break;
@@ -1835,13 +1848,33 @@ namespace cxxclean
 	bool ParsingFile::IsAncestorBySame(FileID young, FileID old) const
 	{
 		auto itr = m_childrenBySame.find(old);
-		if (itr == m_childrenBySame.end())
+		if (itr != m_childrenBySame.end())
 		{
-			return false;
+			const FileSet &kids = itr->second;
+			return kids.find(young) != kids.end();
 		}
 
-		const FileSet &kids = itr->second;
-		return kids.find(young) != kids.end();
+		if (IsAncestor(young, old))
+		{
+			return true;
+		}
+		else
+		{
+			auto sameYoungItr = m_sameFiles.find(GetAbsoluteFileName(young));
+			if (sameYoungItr != m_sameFiles.end())
+			{
+				const FileSet &sameYoungs = sameYoungItr->second;
+				for (FileID sameYoung : sameYoungs)
+				{
+					if (IsAncestor(sameYoung, old))
+					{
+						return true;
+					}
+				}
+			}
+		}
+
+		return false;
 	}
 
 	// 是否为孩子文件的共同祖先
@@ -3345,7 +3378,7 @@ namespace cxxclean
 		bool err = m_rewriter->ReplaceText(begLoc, end - beg, text);
 		if (err)
 		{
-			LogError("replace [" << GetAbsoluteFileName(file) << "]: [" << beg << "," << end << "] to text = [" << text << "] failed");
+			LogError("replace [" << GetDebugFileName(file) << "]: [" << beg << "," << end << "] to text = [" << text << "] failed");
 		}
 	}
 
@@ -3372,7 +3405,7 @@ namespace cxxclean
 		bool err = m_rewriter->InsertText(insertLoc, text, false, false);
 		if (err)
 		{
-			LogError("insert [" << GetAbsoluteFileName(file) << "]: [" << loc << "] to text = [" << text << "] failed");
+			LogError("insert [" << GetDebugFileName(file) << "]: [" << loc << "] to text = [" << text << "] failed");
 		}
 	}
 
@@ -3382,7 +3415,7 @@ namespace cxxclean
 		SourceLocation fileBegLoc	= m_srcMgr->getLocForStartOfFile(file);
 		if (fileBegLoc.isInvalid())
 		{
-			LogError("if (fileBegLoc.isInvalid()), remove text in [" << GetAbsoluteFileName(file) << "] failed!");
+			LogError("if (fileBegLoc.isInvalid()), remove text in [" << GetDebugFileName(file) << "] failed!");
 			return;
 		}
 
@@ -3407,7 +3440,7 @@ namespace cxxclean
 		bool err = m_rewriter->RemoveText(range.getBegin(), end - beg, rewriteOption);
 		if (err)
 		{
-			LogError("remove [" << GetAbsoluteFileName(file) << "]: [" << beg << "," << end << "], text = [" << GetSourceOfRange(range) << "] failed");
+			LogError("remove [" << GetDebugFileName(file) << "]: [" << beg << "," << end << "], text = [" << GetSourceOfRange(range) << "] failed");
 		}
 	}
 
@@ -4214,11 +4247,28 @@ namespace cxxclean
 
 		for (FileID kid : kids)
 		{
+			bool isSame = false;
+
 			if (includes.find(kid) != includes.end())
+			{
+				isSame = true;
+			}
+			else
+			{
+				for (FileID beInclude : includes)
+				{
+					if (GetAbsoluteFileName(beInclude) == GetAbsoluteFileName(kid))
+					{
+						isSame = true;
+						break;
+					}
+				}
+			}
+
+			if (isSame)
 			{
 				includes.erase(kid);
 				remainKids.erase(kid);
-				continue;
 			}
 		}
 
