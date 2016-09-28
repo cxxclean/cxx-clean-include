@@ -48,6 +48,24 @@ namespace cxxclean
 		g_atFile = nullptr;
 	}
 
+	// 添加父文件关系
+	void ParsingFile::AddParent(FileID child, FileID parent)
+	{
+		if (child != parent && child.isValid() && parent.isValid())
+		{
+			m_parents[child] = parent;
+		}
+	}
+
+	// 添加包含文件记录
+	void ParsingFile::AddInclude(FileID file, FileID beInclude)
+	{
+		if (file != beInclude && file.isValid() && beInclude.isValid())
+		{
+			m_includes[file].insert(beInclude);
+		}
+	}
+
 	// 添加#include的位置记录
 	void ParsingFile::AddIncludeLoc(SourceLocation loc, SourceRange range)
 	{
@@ -58,10 +76,30 @@ namespace cxxclean
 	// 添加成员文件
 	void ParsingFile::AddFile(FileID file)
 	{
-		if (file.isValid())
+		if (file.isInvalid())
 		{
-			m_files.insert(file);
-			m_sameFiles[GetAbsoluteFileName(file)].insert(file);
+			return;
+		}
+
+		const std::string fileName = GetAbsoluteFileName(file);
+
+		m_files.insert(file);
+
+		if (!fileName.empty())
+		{
+			m_sameFiles[fileName].insert(file);
+		}
+
+		FileID parentID = m_srcMgr->getFileID(m_srcMgr->getIncludeLoc(file));
+		if (parentID.isValid())
+		{
+			if (IsForceIncluded(file))
+			{
+				parentID = m_srcMgr->getMainFileID();
+			}
+
+			AddParent(file, parentID);
+			AddInclude(parentID, file);
 		}
 	}
 
@@ -320,6 +358,11 @@ namespace cxxclean
 				else
 				{
 					FileID ancestor = GetCommonAncestor(top, kid);
+					if (ancestor == top || ancestor == kid)
+					{
+						continue;
+					}
+
 					kids.erase(kid);
 					kids.insert(ancestor);
 

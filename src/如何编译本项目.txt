@@ -4,7 +4,7 @@ windows下使用vs编译本工具流程（参见 http://clang.llvm.org/get_start
 	http://llvm.org/svn/llvm-project/llvm/trunk
 
 2. 在llvm/tools下新建clang文件夹，使用svn将clang官方源码导出到该文件夹
-	http://llvm.org/svn/llvm-project/llvm/trunk
+	http://llvm.org/svn/llvm-project/cfe/trunk
 
 3. 按照下面步骤将本项目添加到clang项目中
 	3.1 在llvm\tools\clang\tools下新建cxx-clean-include文件夹

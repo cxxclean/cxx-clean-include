@@ -683,7 +683,7 @@ namespace cxx
 			FILE *file = fopen(s_log_path.c_str(), "w"); // 文件打开方式：如果原来有内容也会销毁
 			if (file)
 			{
-				static llvm::raw_fd_ostream fd_os(file->_file, true);
+				static llvm::raw_fd_ostream fd_os(_fileno(file), true);
 				o = &fd_os;
 			}
 			else

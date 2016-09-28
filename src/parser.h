@@ -124,10 +124,10 @@ namespace cxxclean
 		inline clang::SourceManager& GetSrcMgr() const { return *m_srcMgr; }
 
 		// 添加父文件关系
-		void AddParent(FileID child, FileID parent) { m_parents[child] = parent; }
+		void AddParent(FileID child, FileID parent);
 
 		// 添加包含文件记录
-		void AddInclude(FileID file, FileID beInclude) { m_includes[file].insert(beInclude); }
+		void AddInclude(FileID file, FileID beInclude);
 
 		// 添加#include的位置记录
 		void AddIncludeLoc(SourceLocation loc, SourceRange range);

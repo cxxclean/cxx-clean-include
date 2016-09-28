@@ -44,6 +44,8 @@ namespace cxxclean
 		explicit CxxCleanPreprocessor(ParsingFile *mainFile);
 
 	public:
+		void EndOfMainFile() override;
+
 		// 文件切换
 		void FileChanged(SourceLocation loc, FileChangeReason reason,
 		                 SrcMgr::CharacteristicKind FileType,
@@ -53,6 +55,8 @@ namespace cxxclean
 		void FileSkipped(const FileEntry &SkippedFile,
 		                 const Token &FilenameTok,
 		                 SrcMgr::CharacteristicKind FileType) override;
+
+		void FileSkippedWithFileID(FileID);
 
 		// 处理#include
 		void InclusionDirective(SourceLocation HashLoc /*#的位置*/, const Token &includeTok,
@@ -80,6 +84,7 @@ namespace cxxclean
 		// #ifndef
 		void Ifndef(SourceLocation loc, const Token &macroName, const MacroDefinition &definition) override;
 
+	private:
 		// 当前正在解析的cpp文件信息
 		ParsingFile *m_root;
 	};

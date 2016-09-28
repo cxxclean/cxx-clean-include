@@ -31,6 +31,10 @@ namespace cxxclean
 	{
 	}
 
+	void CxxCleanPreprocessor::EndOfMainFile()
+	{
+	}
+
 	// 文件切换
 	void CxxCleanPreprocessor::FileChanged(SourceLocation loc, FileChangeReason reason,
 	                                       SrcMgr::CharacteristicKind FileType,
@@ -41,36 +45,12 @@ namespace cxxclean
 		{
 			return;
 		}
-
+		
 		SourceManager &srcMgr	= m_root->GetSrcMgr();
 		FileID curFileID		= srcMgr.getFileID(loc);
 
-		if (curFileID.isInvalid())
-		{
-			return;
-		}
-
 		// 这里要注意，有的文件是会被FileChanged遗漏掉的，除非把HeaderSearch::ShouldEnterIncludeFile方法改为每次都返回true
 		m_root->AddFile(curFileID);
-
-		FileID parentID = srcMgr.getFileID(srcMgr.getIncludeLoc(curFileID));
-		if (parentID.isInvalid())
-		{
-			return;
-		}
-
-		if (m_root->IsForceIncluded(curFileID))
-		{
-			parentID = srcMgr.getMainFileID();
-		}
-
-		if (curFileID == parentID)
-		{
-			return;
-		}
-
-		m_root->AddParent(curFileID, parentID);
-		m_root->AddInclude(parentID, curFileID);
 	}
 
 	// 文件被跳过
@@ -78,10 +58,11 @@ namespace cxxclean
 	                                       const Token &FilenameTok,
 	                                       SrcMgr::CharacteristicKind FileType)
 	{
-		SourceManager &srcMgr		= m_root->GetSrcMgr();
-		FileID curFileID = srcMgr.getFileID(FilenameTok.getLocation());
+	}
 
-		m_root->AddFile(curFileID);
+	void CxxCleanPreprocessor::FileSkippedWithFileID(FileID fileID)
+	{
+		m_root->AddFile(fileID);
 	}
 
 	// 处理#include
@@ -848,7 +829,7 @@ namespace cxxclean
 	        cl::desc("clean modes, can use like [ -mode 1 ] or [ -mode 1+2 ], default is [ -mode 3 ]\n"
 	                 "mode 1. clean unused #include\n"
 	                 "mode 2. replace some #include to other #include\n"
-					 "mode 3. each file only #include files it need"
+	                 "mode 3. each file only #include files it need"
 	                ),
 	        cl::cat(g_optionCategory));
 
@@ -1236,7 +1217,7 @@ namespace cxxclean
 
 		if (g_cleanModes.getNumOccurrences() == 0)
 		{
-			// 默认： 
+			// 默认：
 			strModes = '0' + CleanMode_Need;
 		}
 		else
