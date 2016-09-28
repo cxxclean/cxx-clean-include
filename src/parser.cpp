@@ -347,7 +347,7 @@ namespace cxxclean
 				}
 				else if (IsAncestorBySame(top, kid))
 				{
-					LogInfoByLvl(LogLvl_3, "IsAncestorBySame(kid = " << GetDebugFileName(top) << ", ancestor = " << GetDebugFileName(kid) << ")");
+					LogInfoByLvl(LogLvl_3, "IsAncestorBySame(top = " << GetDebugFileName(top) << ", kid = " << GetDebugFileName(kid) << ")");
 
 					m_min[kid].insert(top);
 					kids.erase(kid);
@@ -357,8 +357,8 @@ namespace cxxclean
 				}
 				else
 				{
-					FileID ancestor = GetCommonAncestor(top, kid);
-					if (ancestor == top || ancestor == kid)
+					FileID ancestor = GetCommonAncestorBySame(top, kid);
+					if (ancestor == top || ancestor == kid || ancestor.isInvalid())
 					{
 						continue;
 					}
@@ -371,7 +371,6 @@ namespace cxxclean
 					m_min[ancestor].insert(kid);
 					m_min[ancestor].insert(top);
 
-					ReplaceMin(kid, ancestor);
 					ReplaceMin(top, ancestor);
 					return true;
 				}
@@ -499,16 +498,20 @@ namespace cxxclean
 			FileID top = itr.first;
 			const FileSet &children	= itr.second;
 
-			if (IsOuterFile(top))
-			{
-				continue;
-			}
+			top = GetTopOuterFileAncestor(top);
 
-			FileSet &userChildren	= m_userChildren[top];
+			FileSet userChildren;
 
 			for (FileID child : children)
 			{
 				userChildren.insert(GetTopOuterFileAncestor(child));
+			}
+
+			userChildren.erase(top);
+
+			if (!userChildren.empty())
+			{
+				m_userChildren[top].insert(userChildren.begin(), userChildren.end());
 			}
 		}
 
@@ -1269,6 +1272,24 @@ namespace cxxclean
 		}
 
 		return old;
+	}
+
+	FileID ParsingFile::GetCommonAncestorBySame(FileID a, FileID b) const
+	{
+		if (a == b)
+		{
+			return a;
+		}
+
+		for (FileID parent = GetParent(a); parent.isValid(); parent = GetParent(parent))
+		{
+			if (IsAncestorBySame(b, parent))
+			{
+				return parent;
+			}
+		}
+
+		return FileID();
 	}
 
 	// 生成文件替换列表
@@ -2279,7 +2300,7 @@ namespace cxxclean
 	// 当前位置使用目标类型（注：Type代表某个类型，但不含const、volatile、static等的修饰）
 	void ParsingFile::UseType(SourceLocation loc, const Type *t)
 	{
-		if (nullptr == t)
+		if (nullptr == t || loc.isInvalid())
 		{
 			return;
 		}
@@ -2591,6 +2612,61 @@ namespace cxxclean
 			// 找到类所在文件的祖先，要求该祖先必须是共同祖先的儿子
 			FileID ancestor = GetLvl2Ancestor(recordAtFile, common_ancestor);
 			if (GetParent(ancestor) != common_ancestor)
+			{
+				return SourceLocation();
+			}
+
+			// 找到祖先文件所对应的#include语句的位置
+			SourceLocation includeLoc	= m_srcMgr->getIncludeLoc(ancestor);
+			SourceRange line			= GetCurLine(includeLoc);
+			return line.getBegin();
+		}
+
+		// 不可能执行到这里
+		return SourceLocation();
+	}
+
+	// 返回插入前置声明所在行的开头
+	SourceLocation ParsingFile::GetMinInsertForwardLine(FileID at, const CXXRecordDecl &cxxRecord) const
+	{
+		// 该类所在的文件
+		FileID recordAtFile	= GetFileID(cxxRecord.getLocStart());
+
+		// 优先以更好的同名文件来取代
+		recordAtFile = GetBestSameFile(at, recordAtFile);
+
+		if (IsAncestorBySame(recordAtFile, at))
+		{
+			// 找到A的祖先，要求该祖先必须是B的儿子
+			FileID ancestor = GetLvl2AncestorBySame(recordAtFile, at);
+			if (ancestor.isInvalid())
+			{
+				return SourceLocation();
+			}
+
+			// 找到祖先文件所对应的#include语句的位置
+			SourceLocation includeLoc	= m_srcMgr->getIncludeLoc(ancestor);
+			SourceRange line			= GetCurLine(includeLoc);
+			return line.getBegin();
+		}
+		// 2. 类所在文件是当前文件的祖先
+		else if (IsAncestorBySame(at, recordAtFile))
+		{
+			return SourceLocation();
+		}
+		// 3. 类所在文件和当前文件没有直系关系
+		else
+		{
+			// 找到这2个文件的共同祖先
+			FileID common_ancestor = GetCommonAncestorBySame(recordAtFile, at);
+			if (common_ancestor.isInvalid())
+			{
+				return SourceLocation();
+			}
+
+			// 找到类所在文件的祖先，要求该祖先必须是共同祖先的儿子
+			FileID ancestor = GetLvl2AncestorBySame(recordAtFile, common_ancestor);
+			if (ancestor.isInvalid())
 			{
 				return SourceLocation();
 			}
@@ -3224,7 +3300,7 @@ namespace cxxclean
 		stringstream name;
 		stringstream ancestors;
 
-		name << "[[" << GetAbsoluteFileName(file) << "(ID = " << file.getHashValue() << ")";
+		name << "[" << GetAbsoluteFileName(file) << "](ID = " << file.getHashValue() << ")";
 
 		for (FileID parent = GetParent(file); parent.isValid(); )
 		{
@@ -3242,7 +3318,7 @@ namespace cxxclean
 			name << "(" << ancestors.str() << ")";
 		}
 
-		name << "]]";
+		name << "";
 
 		return name.str();
 	}
@@ -3370,34 +3446,25 @@ namespace cxxclean
 		FileManager &fileMgr	= srcMgr.getFileManager();
 
 		bool AllWritten = true;
-		for (Rewriter::buffer_iterator I = m_rewriter->buffer_begin(), E = m_rewriter->buffer_end(); I != E; ++I)
+		for (Rewriter::buffer_iterator itr = m_rewriter->buffer_begin(), end = m_rewriter->buffer_end(); itr != end; ++itr)
 		{
-			const FileEntry *entry				= srcMgr.getFileEntryForID(I->first);
-			const RewriteBuffer &rewriteBuffer	= I->second;
+			FileID fileID = itr->first;
 
-			LogInfoByLvl(LogLvl_2, "overwriting [" << entry->getName() << "]...");
+			const FileEntry *entry				= srcMgr.getFileEntryForID(fileID);
+			const RewriteBuffer &rewriteBuffer	= itr->second;
+
+			LogInfoByLvl(LogLvl_2, "overwriting " << GetDebugFileName(fileID) << " ...");
 
 			bool ok = CxxCleanReWriter::WriteToFile(rewriteBuffer, *entry);
 			if (!ok)
 			{
-				LogError("overwrite file[" << entry->getName() << "] failed!");
+				LogError("overwrite file" << GetDebugFileName(fileID) << " failed!");
 				AllWritten = false;
 			}
 			else
 			{
-				LogInfoByLvl(LogLvl_2, "overwriting [" << entry->getName() << "] success!");
+				LogInfoByLvl(LogLvl_2, "overwriting " << GetDebugFileName(fileID) << " success!");
 			}
-
-			/*
-			AtomicallyMovedFile File(srcMgr.getDiagnostics(), Entry->getName(), AllWritten);
-			if (File.ok())
-			{
-				rewriteBuffer.write(File.getStream());
-				fileMgr.modifyFileEntry(const_cast<FileEntry*>(Entry), rewriteBuffer.size(), Entry->getModificationTime());
-			}
-
-			*/
-			//fileMgr.invalidateCache(Entry);
 		}
 
 		return !AllWritten;

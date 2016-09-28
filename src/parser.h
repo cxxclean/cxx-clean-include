@@ -305,6 +305,8 @@ namespace cxxclean
 		// 获取2个孩子们最近的共同祖先
 		FileID GetCommonAncestor(FileID child_1, FileID child_2) const;
 
+		FileID GetCommonAncestorBySame(FileID a, FileID b) const;
+
 		// 获取指定位置所在行的文本
 		std::string GetSourceOfLine(SourceLocation loc) const;
 
@@ -403,6 +405,9 @@ namespace cxxclean
 
 		// 返回插入前置声明所在行的开头
 		SourceLocation GetInsertForwardLine(FileID at, const CXXRecordDecl &cxxRecord) const;
+
+		// 返回插入前置声明所在行的开头
+		SourceLocation GetMinInsertForwardLine(FileID at, const CXXRecordDecl &cxxRecord) const;
 
 		// 新增使用前置声明记录（对于不必要添加的前置声明将在之后进行清理）
 		void UseForward(SourceLocation loc, const CXXRecordDecl *cxxRecordDecl);
