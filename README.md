@@ -1,3 +1,6 @@
+2016-10-08 注意：当前正在试验新的清理方式，仍有问题，暂时不要使用（或者通过添加-mode 1+2参数改为采用更保守的清理方式）
+=====
+
 cxx-clean-include说明
 =====
 
@@ -123,10 +126,10 @@ cxx-clean-include提供以下选项：
 						       cxxclean -clean ./hello.vcproj （或 cxxclean -clean ./hello.vcxproj）
 						   该命令将清理hello项目中的所有c++文件
 
-  -mode=<string>  - 用于指定哪些清理类型应开启，默认为[-mode 1+2]，不同清理类型用+号连接，例如：[-mode 1+2+3]
+  -mode=<string>  - 用于指定哪些清理类型应开启，默认为[-mode 3]，不同清理类型用+号连接，例如：[-mode 1+2]
                         清理类型1. 清除多余的#include
 						清理类型2. 尝试替换#include
-						清理类型3. 尝试将一些#include转移到直接使用该#include的文件中						
+						清理类型3. 每个头文件仅包含自己所需要的头文件，并尽量用前置声明替代#include[本模式只能单独使用]
 
   -no             - 即no overwrite的首字母缩写, 当传入此参数时，本工具仅执行分析并打印分析结果，所有的c++文件将不会被改动
 
@@ -149,7 +152,7 @@ cxx-clean-include提供以下选项：
 
 注意：在使用cxx-clean-include清理c++文件前，最好先传入-print-project参数，确保打印出的允许被清理c++文件列表符合要求。
 
-## 源码对应的llvm版本：276522，clang版本：276517
+## 源码对应的llvm版本：282490，clang版本：282492
 
 ## 感谢
 

@@ -1,5 +1,7 @@
 windows下使用vs编译本工具流程（参见 http://clang.llvm.org/get_started.html 官方教程）
 
+所需工具：svn、cmake（3.6或3.6以上的版本）、visual studio 2015（2013也可以，但需要安装一个更新，否则无法编译通过）
+
 1. 新建llvm文件夹，使用svn将llvm官方源码导出到该文件夹
 	http://llvm.org/svn/llvm-project/llvm/trunk
 
