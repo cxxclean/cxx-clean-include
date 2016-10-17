@@ -256,12 +256,14 @@ namespace cxxclean
 		MergeTo(ProjectHistory::instance.m_files);
 	}
 
-	bool ParsingFile::ReplaceMin(FileID a, FileID b)
+	bool ParsingFile::AddMin(FileID a, FileID b)
 	{
 		if (a == b)
 		{
 			return false;
 		}
+
+		bool isAdd = false;
 
 		for (auto &itr : m_min)
 		{
@@ -273,21 +275,29 @@ namespace cxxclean
 				continue;
 			}
 
-			if (IsAncestor(top, b))
+			if (IsAncestorBySame(top, a))
 			{
 				continue;
 			}
 
+			//if (IsAncestorBySame(top, b) || IsAncestorBySame(top, a))
+			{
+				//continue;
+			}
+
 			if (kids.find(a) != kids.end())
 			{
-				LogInfoByLvl(LogLvl_3, "a = " << GetDebugFileName(a) << ", b = " << GetDebugFileName(b) << " at file = " << GetDebugFileName(top) << ")");
+				if (kids.find(b) == kids.end())
+				{
+					LogInfoByLvl(LogLvl_3, "a = " << GetDebugFileName(a) << ", b = " << GetDebugFileName(b) << " at file = " << GetDebugFileName(top) << ")");
+					kids.insert(b);
 
-				kids.erase(a);
-				kids.insert(b);
+					isAdd = true;
+				}				
 			}
 		}
 
-		return true;
+		return isAdd;
 	}
 
 	inline bool ParsingFile::IsMinUse(FileID a, FileID b) const
@@ -345,33 +355,13 @@ namespace cxxclean
 				{
 					continue;
 				}
-				else if (IsAncestorBySame(top, kid))
+				else// if (IsAncestorBySame(top, kid))
 				{
 					LogInfoByLvl(LogLvl_3, "IsAncestorBySame(top = " << GetDebugFileName(top) << ", kid = " << GetDebugFileName(kid) << ")");
 
-					m_min[kid].insert(top);
 					kids.erase(kid);
 
-					ReplaceMin(top, kid);
-					return true;
-				}
-				else
-				{
-					FileID ancestor = GetCommonAncestorBySame(top, kid);
-					if (ancestor == top || ancestor == kid || ancestor.isInvalid())
-					{
-						continue;
-					}
-
-					kids.erase(kid);
-					kids.insert(ancestor);
-
-					LogInfoByLvl(LogLvl_3, "GetCommonAncestor(" << GetDebugFileName(top) << ", " << GetDebugFileName(kid) << ") = " << GetDebugFileName(ancestor));
-
-					m_min[ancestor].insert(kid);
-					m_min[ancestor].insert(top);
-
-					ReplaceMin(top, ancestor);
+					AddMin(top, kid);
 					return true;
 				}
 			}
@@ -3300,7 +3290,14 @@ namespace cxxclean
 		stringstream name;
 		stringstream ancestors;
 
-		name << "[" << GetAbsoluteFileName(file) << "](ID = " << file.getHashValue() << ")";
+		string absoluteFileName = GetAbsoluteFileName(file);
+
+		if (!IsOuterFile(file))
+		{
+			absoluteFileName = pathtool::get_file_name(absoluteFileName);
+		}
+
+		name << "[" << absoluteFileName << "](ID = " << file.getHashValue() << ")";
 
 		for (FileID parent = GetParent(file); parent.isValid(); )
 		{

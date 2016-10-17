@@ -659,7 +659,7 @@ namespace cxxclean
 		// 是否应保留该位置引用的class、struct、union的前置声明
 		bool IsNeedMinClass(SourceLocation, const CXXRecordDecl &cxxRecord) const;
 
-		bool ReplaceMin(FileID a, FileID b);
+		bool AddMin(FileID a, FileID b);
 
 		bool ExpandMin();
 

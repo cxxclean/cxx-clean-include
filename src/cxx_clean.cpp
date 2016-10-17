@@ -982,7 +982,7 @@ namespace cxxclean
 
 		if (vs.m_version >= 2008)
 		{
-			tool.appendArgumentsAdjuster(getInsertArgumentAdjuster("-fms-compatibility-version=18", ArgumentInsertPosition::BEGIN));
+			//tool.appendArgumentsAdjuster(getInsertArgumentAdjuster("-fms-compatibility-version=18", ArgumentInsertPosition::BEGIN));
 		}
 
 		AddVsSearchDir(tool);
