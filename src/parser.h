@@ -294,13 +294,13 @@ namespace cxxclean
 		bool IsInclude(FileID a, FileID b) const;
 
 		// 从指定的文件列表中找到属于传入文件的后代
-		std::set<FileID> GetChildren(FileID ancestor, std::set<FileID> all_children/* 包括非ancestor孩子的文件 */);
+		FileSet GetChildren(FileID ancestor, FileSet all_children/* 包括非ancestor孩子的文件 */);
 
 		// 获取文件的深度（令主文件的高度为0）
 		int GetDepth(FileID child) const;
 
 		// 获取离孩子们最近的共同祖先
-		FileID GetCommonAncestor(const std::set<FileID> &children) const;
+		FileID GetCommonAncestor(const FileSet &children) const;
 
 		// 获取2个孩子们最近的共同祖先
 		FileID GetCommonAncestor(FileID child_1, FileID child_2) const;
@@ -390,7 +390,7 @@ namespace cxxclean
 		bool IsAncestor(const char* yound, FileID old) const;
 
 		// 是否为孩子文件的共同祖先
-		bool IsCommonAncestor(const std::set<FileID> &children, FileID old) const;
+		bool IsCommonAncestor(const FileSet &children, FileID old) const;
 
 		// 获取父文件（主文件没有父文件）
 		FileID GetParent(FileID child) const;
@@ -573,7 +573,7 @@ namespace cxxclean
 				如果hello.cpp依赖b.h，而b.h又依赖e.h，则在本例中，hello.cpp的依赖文件列表为：
 					hello.cpp、b.h、e.h
 		*/
-		void GetTopRelys(FileID top, std::set<FileID> &out) const;
+		void GetTopRelys(FileID top, FileSet &out) const;
 
 		// 当前文件之前是否已有文件声明了该class、struct、union
 		bool HasRecordBefore(FileID cur, const CXXRecordDecl &cxxRecord) const;
@@ -659,9 +659,7 @@ namespace cxxclean
 		// 是否应保留该位置引用的class、struct、union的前置声明
 		bool IsNeedMinClass(SourceLocation, const CXXRecordDecl &cxxRecord) const;
 
-		bool AddMin(FileID a, FileID b);
-
-		bool ExpandMin();
+		void GetUseChain(FileID top, FileSet &chain) const;
 
 		bool MergeMin();
 
@@ -685,9 +683,9 @@ namespace cxxclean
 
 		void GenerateMinUse();
 
-		void GetKidsBySame(FileID top, std::set<FileID> &kids) const;
+		void GetKidsBySame(FileID top, FileSet &kids) const;
 
-		void GetMin(FileID by, std::set<FileID> &out) const;
+		void GetMin(FileID by, FileSet &out) const;
 
 		bool HasMinKid(FileID top, FileID kid) const;
 
@@ -770,16 +768,13 @@ namespace cxxclean
 		// 3. 各文件应包含的后代文件列表：[文件ID] -> [该文件应包含的后代文件ID列表]
 		std::map<FileID, FileSet>					m_minKids;
 
-		// 4. 各文件中被跳过的#include：[文件ID] -> [该文件中被跳过的#include位置列表]（因为有的文件不需要重复包含，所以被clang跳过了，所以这些#include需要被删）
-		std::map<FileID, std::set<SourceLocation>>	m_skipIncludeLocs;
-
-		// 5. 各个项目外文件的祖先项目外文件：[文件ID] -> [对应的祖先外部文件ID]（比如，假设项目文件A中有#include <vector>，那么<vector>文件所包含的所有后代文件的祖先都是<vector>文件）
+		// 4. 各个项目外文件的祖先项目外文件：[文件ID] -> [对应的祖先外部文件ID]（比如，假设项目文件A中有#include <vector>，那么<vector>文件所包含的所有后代文件的祖先都是<vector>文件）
 		std::map<FileID, FileID>					m_outFileAncestor;
 
-		// 6. 项目内文件的引用关系：[项目内文件ID] -> [所引用的项目内文件ID列表 + 项目外文件ID列表]
+		// 5. 项目内文件的引用关系：[项目内文件ID] -> [所引用的项目内文件ID列表 + 项目外文件ID列表]
 		std::map<FileID, FileSet>					m_userUses;
 
-		// 7. 被强制包含的文件ID列表
+		// 6. 被强制包含的文件ID列表
 		FileSet										m_forceIncludes;
 
 

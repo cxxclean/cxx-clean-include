@@ -217,7 +217,7 @@ namespace cxxclean
 		// 2. 保留被反复包含的文件
 		for (auto itr = m_sameFiles.begin(); itr != m_sameFiles.end();)
 		{
-			const std::set<FileID> &sameFiles = itr->second;
+			const FileSet &sameFiles = itr->second;
 			if (sameFiles.size() <= 1)
 			{
 				m_sameFiles.erase(itr++);
@@ -256,50 +256,6 @@ namespace cxxclean
 		MergeTo(ProjectHistory::instance.m_files);
 	}
 
-	bool ParsingFile::AddMin(FileID a, FileID b)
-	{
-		if (a == b)
-		{
-			return false;
-		}
-
-		bool isAdd = false;
-
-		for (auto &itr : m_min)
-		{
-			FileID top = itr.first;
-			FileSet &kids = itr.second;
-
-			if (top == a || top == b)
-			{
-				continue;
-			}
-
-			if (IsAncestorBySame(top, a))
-			{
-				continue;
-			}
-
-			//if (IsAncestorBySame(top, b) || IsAncestorBySame(top, a))
-			{
-				//continue;
-			}
-
-			if (kids.find(a) != kids.end())
-			{
-				if (kids.find(b) == kids.end())
-				{
-					LogInfoByLvl(LogLvl_3, "a = " << GetDebugFileName(a) << ", b = " << GetDebugFileName(b) << " at file = " << GetDebugFileName(top) << ")");
-					kids.insert(b);
-
-					isAdd = true;
-				}				
-			}
-		}
-
-		return isAdd;
-	}
-
 	inline bool ParsingFile::IsMinUse(FileID a, FileID b) const
 	{
 		auto &itr = m_min.find(a);
@@ -317,120 +273,122 @@ namespace cxxclean
 		return m_includes.find(a) != m_includes.end();
 	}
 
-	bool ParsingFile::ExpandMin()
+	void ParsingFile::GetUseChain(FileID top, FileSet &chain) const
 	{
+		FileSet todo;
+		FileSet done;
+
+		todo.insert(top);
+
+		//------------------------------- 循环获取被依赖文件所依赖的其他文件 -------------------------------//
+		while (!todo.empty())
+		{
+			FileID cur = *todo.begin();
+			todo.erase(todo.begin());
+
+			if (done.find(cur) != done.end())
+			{
+				continue;
+			}
+
+			done.insert(cur);
+
+			// 1. 若当前文件不依赖其他文件，则跳过
+			auto & useItr = m_userUses.find(cur);
+			if (useItr == m_userUses.end())
+			{
+				continue;
+			}
+
+			// 2. todo集合 += 当前文件依赖的其他文件
+			const FileSet &useFiles = useItr->second;
+
+			for (const FileID &beuse : useFiles)
+			{
+				if (done.find(beuse) == done.end())
+				{
+					// 只扩展后代文件
+					if (IsAncestor(beuse, top))
+					{
+						todo.insert(beuse);
+					}
+				}
+			}
+		}
+
+		done.erase(top);
+		chain.insert(done.begin(), done.end());
+	}
+
+	bool ParsingFile::MergeMin()
+	{
+		bool smaller = false;
+
+		// 合并
 		for (auto &itr : m_min)
 		{
 			FileID top		= itr.first;
 			FileSet &kids	= itr.second;
 
-			if (IsAncestorForceInclude(top))
-			{
-				LogInfoByLvl(LogLvl_3, "IsAncestorForceInclude(" << GetDebugFileName(top) << ")");
-
-				m_min.erase(top);
-				return true;
-			}
-
-			for (FileID kid : kids)
-			{
-				if (kid == top)
-				{
-					kids.erase(kid);
-					return true;
-				}
-
-				FileID ancestorForceInclude = GetAncestorForceInclude(kid);
-				if (ancestorForceInclude.isValid() && ancestorForceInclude != kid)
-				{
-					LogInfoByLvl(LogLvl_3, "GetAncestorForceInclude(" << GetDebugFileName(kid) << ") = " << GetDebugFileName(ancestorForceInclude) << ")");
-
-					kids.erase(kid);
-					kids.insert(ancestorForceInclude);
-
-					return true;
-				}
-
-				if (IsAncestorBySame(kid, top))
-				{
-					continue;
-				}
-				else// if (IsAncestorBySame(top, kid))
-				{
-					LogInfoByLvl(LogLvl_3, "IsAncestorBySame(top = " << GetDebugFileName(top) << ", kid = " << GetDebugFileName(kid) << ")");
-
-					kids.erase(kid);
-
-					AddMin(top, kid);
-					return true;
-				}
-			}
-		}
-
-		return false;
-	}
-
-	bool ParsingFile::MergeMin()
-	{
-		bool any = false;
-
-		// 合并
-		for (auto &itr : m_min)
-		{
-			FileID top			= itr.first;
-			const FileSet &kids	= itr.second;
-
 			FileSet minKids = kids;
+			FileSet eraseList;
 
 			for (FileID kid : kids)
 			{
-				int deep1 = GetDeepth(kid);
-
 				for (FileID forceInclude : m_forceIncludes)
 				{
 					FileID same = GetBestSameFile(forceInclude, kid);
 					if (same != kid)
 					{
-						LogInfoByLvl(LogLvl_3, "GetBestSameFile(forceInclude = " << GetDebugFileName(forceInclude) << ", kid = " << GetDebugFileName(kid) << ")");
+						LogInfoByLvl(LogLvl_3, "force includes: erase [kid](forceInclude = " << GetDebugFileName(forceInclude) << ", kid = " << GetDebugFileName(kid) << ")");
 
-						minKids.erase(kid);
+						eraseList.insert(kid);
 						break;
 					}
 				}
 
+				minKids.erase(kid);
+
 				for (FileID other : minKids)
 				{
-					if (kid == other)
-					{
-						continue;
-					}
-
 					if (GetAbsoluteFileName(kid) == GetAbsoluteFileName(other))
 					{
-						LogInfoByLvl(LogLvl_3, "same same(kid = " << GetDebugFileName(kid) << ", other = " << GetDebugFileName(other) << ")");
+						LogInfoByLvl(LogLvl_3, "same file name: erase [other](kid = " << GetDebugFileName(kid) << ", other = " << GetDebugFileName(other) << ")");
 
-						minKids.erase(other);
+						eraseList.insert(other);
 						break;
 					}
 
 					if (HasMinKidBySameName(kid, other))
 					{
-						LogInfoByLvl(LogLvl_3, "HasMinKidBySameName(kid = " << GetDebugFileName(kid) << ", other = " << GetDebugFileName(other) << ")");
+						LogInfoByLvl(LogLvl_3, "[kid]'s child contains [other]: erase [other](kid = " << GetDebugFileName(kid) << ", other = " << GetDebugFileName(other) << ")");
 
-						minKids.erase(other);
+						eraseList.insert(other);
+						break;
+					}
+
+					if (HasMinKidBySameName(other, kid))
+					{
+						LogInfoByLvl(LogLvl_3, "[other]'s child contains [kid]: erase [kid](kid = " << GetDebugFileName(kid) << ", other = " << GetDebugFileName(other) << ")");
+
+						eraseList.insert(kid);
 						break;
 					}
 				}
 			}
 
-			if (minKids.size() < kids.size())
+			if (!eraseList.empty())
 			{
-				itr.second = minKids;
-				any = true;
+				for (FileID beErase : eraseList)
+				{
+					kids.erase(beErase);
+				}
+
+				smaller = true;
 			}
 		}
 
-		return any;
+		return smaller;
 	}
 
 	inline bool ParsingFile::IsUserFile(FileID file) const
@@ -509,7 +467,7 @@ namespace cxxclean
 		{
 			FileID top = itr.first;
 
-			std::set<FileID> &kids	= m_childrenBySame[top];
+			FileSet &kids	= m_childrenBySame[top];
 			GetKidsBySame(top, kids);
 		}
 	}
@@ -568,37 +526,22 @@ namespace cxxclean
 	{
 		m_min = m_userUses;
 
-		while (ExpandMin()) {}
-
 		for (auto &itr : m_min)
 		{
-			FileID by				= itr.first;
+			FileID top		= itr.first;
+			FileSet &kids	= itr.second;
+			kids.clear();
 
-			std::set<FileID> &kids	= m_minKids[by];
-			GetMin(by, kids);
+			GetUseChain(top, kids);
 		}
+
+		m_minKids = m_min;
 
 		// 2. 合并
 		while (MergeMin()) {}
-		//MergeMin();
-
-		// 3. 统计出哪些#include被跳过
-		auto includeLocs = m_includeLocs;
-		for (FileID file : m_files)
-		{
-			SourceLocation includeLoc = m_srcMgr->getIncludeLoc(file);
-			includeLocs.erase(includeLoc);
-		}
-
-		for (auto &itr : includeLocs)
-		{
-			SourceLocation loc = itr.first;
-			FileID file = GetFileID(loc);
-			m_skipIncludeLocs[file].insert(loc);
-		}
 	}
 
-	void ParsingFile::GetKidsBySame(FileID top, std::set<FileID> &kids) const
+	void ParsingFile::GetKidsBySame(FileID top, FileSet &kids) const
 	{
 		FileSet done;
 		FileSet todo;
@@ -661,7 +604,7 @@ namespace cxxclean
 		kids.insert(done.begin(), done.end());
 	}
 
-	void ParsingFile::GetMin(FileID top, std::set<FileID> &kids) const
+	void ParsingFile::GetMin(FileID top, FileSet &kids) const
 	{
 		// 查找top文件的引用记录
 		auto &topUseItr = m_min.find(top);
@@ -670,11 +613,11 @@ namespace cxxclean
 			return;
 		}
 
-		std::set<FileID> todo;
-		std::set<FileID> done;
+		FileSet todo;
+		FileSet done;
 
 		// 获取top文件所依赖的文件集
-		const std::set<FileID> &topUseFiles = topUseItr->second;
+		const FileSet &topUseFiles = topUseItr->second;
 		todo.insert(topUseFiles.begin(), topUseFiles.end());
 
 		//------------------------------- 循环获取被依赖文件所依赖的其他文件 -------------------------------//
@@ -704,7 +647,7 @@ namespace cxxclean
 			}
 
 			// 2. todo集合 += 当前文件依赖的其他文件
-			const std::set<FileID> &useFiles = useItr->second;
+			const FileSet &useFiles = useItr->second;
 
 			for (const FileID &beuse : useFiles)
 			{
@@ -773,7 +716,7 @@ namespace cxxclean
 			return FileID();
 		}
 
-		const std::set<FileID> &children = itr->second;		// 有用的后代文件
+		const FileSet &children = itr->second;		// 有用的后代文件
 
 		// 1. 无有用的后代文件 -> 直接跳过（正常情况不会发生）
 		if (children.empty())
@@ -914,7 +857,7 @@ namespace cxxclean
 
 	bool ParsingFile::ExpandRely(FileID top)
 	{
-		std::set<FileID> topRelys;
+		FileSet topRelys;
 		GetTopRelys(top, topRelys);
 
 		int oldSize = m_relys.size();
@@ -952,7 +895,7 @@ namespace cxxclean
 			return false;
 		}
 
-		const std::set<FileID> &sames = itr->second;
+		const FileSet &sames = itr->second;
 		for (FileID same : sames)
 		{
 			if (file == same)
@@ -983,7 +926,7 @@ namespace cxxclean
 			return false;
 		}
 
-		const std::set<FileID> &sames = itr->second;
+		const FileSet &sames = itr->second;
 		for (FileID same : sames)
 		{
 			if (kid == same)
@@ -1115,10 +1058,10 @@ namespace cxxclean
 	}
 
 	// 从指定的文件列表中找到属于传入文件的后代
-	std::set<FileID> ParsingFile::GetChildren(FileID ancestor, std::set<FileID> all_children/* 包括非ancestor孩子的文件 */)
+	ParsingFile::FileSet ParsingFile::GetChildren(FileID ancestor, FileSet all_children/* 包括非ancestor孩子的文件 */)
 	{
 		// 属于ancestor的后代文件列表
-		std::set<FileID> children;
+		FileSet children;
 
 		// 获取属于该文件的后代中被主文件使用的一部分
 		for (FileID child : all_children)
@@ -1134,7 +1077,7 @@ namespace cxxclean
 		return children;
 	}
 
-	void ParsingFile::GetTopRelys(FileID top, std::set<FileID> &out) const
+	void ParsingFile::GetTopRelys(FileID top, FileSet &out) const
 	{
 		// 查找主文件的引用记录
 		auto & topUseItr = m_uses.find(top);
@@ -1144,13 +1087,13 @@ namespace cxxclean
 			return;
 		}
 
-		std::set<FileID> todo;
-		std::set<FileID> done;
+		FileSet todo;
+		FileSet done;
 
 		done.insert(top);
 
 		// 获取主文件的依赖文件集
-		const std::set<FileID> &topUseFiles = topUseItr->second;
+		const FileSet &topUseFiles = topUseItr->second;
 		todo.insert(topUseFiles.begin(), topUseFiles.end());
 
 		//------------------------------- 循环获取被依赖文件所依赖的其他文件 -------------------------------//
@@ -1174,7 +1117,7 @@ namespace cxxclean
 			}
 
 			// 2. 将当前文件依赖的其他文件加入待处理集合中
-			const std::set<FileID> &useFiles = useItr->second;
+			const FileSet &useFiles = useItr->second;
 
 			for (const FileID &used : useFiles)
 			{
@@ -1204,7 +1147,7 @@ namespace cxxclean
 	}
 
 	// 获取离孩子们最近的共同祖先
-	FileID ParsingFile::GetCommonAncestor(const std::set<FileID> &children) const
+	FileID ParsingFile::GetCommonAncestor(const FileSet &children) const
 	{
 		FileID highest_child;
 		int min_depth = 0;
@@ -1372,7 +1315,7 @@ namespace cxxclean
 
 			bool findSameFileBefore = false;
 
-			const std::set<FileID> &sames = m_sameFiles.find(GetAbsoluteFileName(b))->second;
+			const FileSet &sames = m_sameFiles.find(GetAbsoluteFileName(b))->second;
 			for (FileID same : sames)
 			{
 				if (IsFileBeforeLoc(same, loc))
@@ -1932,7 +1875,7 @@ namespace cxxclean
 	}
 
 	// 是否为孩子文件的共同祖先
-	bool ParsingFile::IsCommonAncestor(const std::set<FileID> &children, FileID old) const
+	bool ParsingFile::IsCommonAncestor(const FileSet &children, FileID old) const
 	{
 		for (const FileID &child : children)
 		{
@@ -2194,7 +2137,7 @@ namespace cxxclean
 			return false;
 		}
 
-		const std::set<FileID> &includes = itr->second;
+		const FileSet &includes = itr->second;
 		return includes.find(a) != includes.end();
 	}
 
@@ -2251,13 +2194,13 @@ namespace cxxclean
 		if (HasSameFileByName(bFileName.c_str()))
 		{
 			// 先找到同名文件列表
-			const std::set<FileID> &sames = m_sameFiles.find(bFileName)->second;
+			const FileSet &sames = m_sameFiles.find(bFileName)->second;
 
 			// 1. 优先返回直接孩子文件
 			auto &includeItr = m_includes.find(a);
 			if (includeItr != m_includes.end())
 			{
-				const std::set<FileID> &includes = includeItr->second;
+				const FileSet &includes = includeItr->second;
 
 				for (FileID same :sames)
 				{
@@ -2272,7 +2215,7 @@ namespace cxxclean
 			auto &childrenItr = m_children.find(a);
 			if (childrenItr != m_children.end())
 			{
-				const std::set<FileID> &children = childrenItr->second;
+				const FileSet &children = childrenItr->second;
 
 				for (FileID same :sames)
 				{
@@ -3783,7 +3726,7 @@ namespace cxxclean
 			}
 		}
 
-		std::set<FileID> beUseList;
+		FileSet beUseList;
 		for (auto &itr : m_uses)
 		{
 			for (FileID beUse : itr.second)
@@ -3794,7 +3737,7 @@ namespace cxxclean
 
 		for (auto &itr : fixes)
 		{
-			std::set<FileID> &includes = itr.second;
+			FileSet &includes = itr.second;
 			auto copy = includes;
 
 			for (FileID beInclude : copy)
@@ -3811,7 +3754,7 @@ namespace cxxclean
 		for (auto &itr : fixes)
 		{
 			FileID by = itr.first;
-			std::set<FileID> &includes = itr.second;
+			FileSet &includes = itr.second;
 
 			for (FileID beInclude : includes)
 			{
@@ -3819,11 +3762,11 @@ namespace cxxclean
 			}
 		}
 
-		std::map<FileID, std::set<FileID>>	children;
+		std::map<FileID, FileSet>	children;
 		for (auto &itr : fixes)
 		{
 			FileID by = itr.first;
-			std::set<FileID> &includes = itr.second;
+			FileSet &includes = itr.second;
 
 			for (FileID beInclude : includes)
 			{
@@ -3909,7 +3852,7 @@ namespace cxxclean
 				continue;
 			}
 
-			const std::set<FileID> &be_uses = itr.second;
+			const FileSet &be_uses = itr.second;
 
 			div.AddRow("file = " + DebugBeIncludeText(file), 2);
 
@@ -3931,7 +3874,7 @@ namespace cxxclean
 
 		for (auto &itr : m_uses)
 		{
-			const std::set<FileID> &beuse_files = itr.second;
+			const FileSet &beuse_files = itr.second;
 
 			for (FileID beuse_file : beuse_files)
 			{
@@ -4415,24 +4358,6 @@ namespace cxxclean
 			delLine.text	= GetSourceOfLine(lineRange.getBegin());
 		}
 
-		auto skipIncludesItr = m_skipIncludeLocs.find(top);
-		if (skipIncludesItr != m_skipIncludeLocs.end())
-		{
-			const std::set<SourceLocation> &skips = skipIncludesItr->second;
-
-			for (SourceLocation skip : skips)
-			{
-				int line				= GetLineNo(skip);
-				SourceRange skipLine = GetCurFullLine(skip);
-
-				DelLine &delLine	= history.m_delLines[line];
-
-				delLine.beg		= m_srcMgr->getFileOffset(skipLine.getBegin());
-				delLine.end		= m_srcMgr->getFileOffset(skipLine.getEnd());
-				delLine.text	= GetSourceOfLine(skipLine.getBegin());
-			}
-		}
-
 		// 2.
 		for (auto &itr : replaces)
 		{
@@ -4820,7 +4745,7 @@ namespace cxxclean
 			auto childItr = m_relyChildren.find(replaceFile);
 			if (childItr != m_relyChildren.end())
 			{
-				const std::set<FileID> &relys = childItr->second;
+				const FileSet &relys = childItr->second;
 
 				for (FileID rely : relys)
 				{
@@ -5357,7 +5282,7 @@ namespace cxxclean
 		for (auto &itr : m_sameFiles)
 		{
 			const std::string &fileName			= itr.first;
-			const std::set<FileID> sameFiles	= itr.second;
+			const FileSet sameFiles	= itr.second;
 
 			div.AddRow("fileName = " + fileName, 2);
 
