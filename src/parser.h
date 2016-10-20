@@ -284,6 +284,9 @@ namespace cxxclean
 		// 该文件是否被包含多次
 		inline bool HasSameFileByName(const char *file) const;
 
+		// 2个文件是否文件名一样
+		inline bool IsSameName(FileID a, FileID b) const;
+
 		// 该文件名是否被包含多次
 		inline bool HasSameFile(FileID file) const;
 
@@ -688,6 +691,8 @@ namespace cxxclean
 		void GetMin(FileID by, FileSet &out) const;
 
 		bool HasMinKid(FileID top, FileID kid) const;
+
+		void TakeOneReplace(ReplaceLine &replaceLine, FileID from, FileID to) const;
 
 		// 取出记录，使得各文件仅包含自己所需要的头文件
 		void TakeNeed(FileID top, FileHistory &out) const;

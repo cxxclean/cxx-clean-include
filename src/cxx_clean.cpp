@@ -908,7 +908,7 @@ namespace cxxclean
 
 		HtmlLog::instance.BeginLog();
 
-		if (Project::instance.m_logLvl >= LogLvl_3)
+		if (Project::instance.m_logLvl >= LogLvl_5)
 		{
 			Project::instance.Print();
 		}

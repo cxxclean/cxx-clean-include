@@ -196,6 +196,12 @@ namespace cxxclean
 		return m_sameFiles.find(file) != m_sameFiles.end();
 	}
 
+	// 2个文件是否文件名一样
+	inline bool ParsingFile::IsSameName(FileID a, FileID b) const
+	{
+		return (GetAbsoluteFileName(a) == GetAbsoluteFileName(b));
+	}
+
 	// 该文件名是否被包含多次
 	inline bool ParsingFile::HasSameFile(FileID file) const
 	{
@@ -308,7 +314,7 @@ namespace cxxclean
 				if (done.find(beuse) == done.end())
 				{
 					// 只扩展后代文件
-					if (IsAncestor(beuse, top))
+					if (IsAncestorBySame(beuse, top))
 					{
 						todo.insert(beuse);
 					}
@@ -351,7 +357,7 @@ namespace cxxclean
 
 				for (FileID other : minKids)
 				{
-					if (GetAbsoluteFileName(kid) == GetAbsoluteFileName(other))
+					if (IsSameName(kid, other))
 					{
 						LogInfoByLvl(LogLvl_3, "same file name: erase [other](kid = " << GetDebugFileName(kid) << ", other = " << GetDebugFileName(other) << ")");
 
@@ -369,7 +375,7 @@ namespace cxxclean
 
 					if (HasMinKidBySameName(other, kid))
 					{
-						LogInfoByLvl(LogLvl_3, "[other]'s child contains [kid]: erase [kid](kid = " << GetDebugFileName(kid) << ", other = " << GetDebugFileName(other) << ")");
+						LogInfoByLvl(LogLvl_3, "[other]'s child contains [kid]: erase [kid](other = " << GetDebugFileName(other) << ", kid = " << GetDebugFileName(kid) << ")");
 
 						eraseList.insert(kid);
 						break;
@@ -1638,8 +1644,8 @@ namespace cxxclean
 	// 获取文件对应的#include含范围
 	SourceRange ParsingFile::GetIncludeRange(FileID file) const
 	{
-		SourceLocation include_loc	= m_srcMgr->getIncludeLoc(file);
-		return GetCurFullLine(include_loc);
+		SourceLocation includeLoc	= m_srcMgr->getIncludeLoc(file);
+		return GetCurFullLine(includeLoc);
 	}
 
 	// 是否是换行符
@@ -1796,12 +1802,12 @@ namespace cxxclean
 	// 第2个文件是否是第1个文件的祖先
 	bool ParsingFile::IsAncestor(FileID young, FileID old) const
 	{
-		for (FileID parent = GetParent(young); parent.isValid(); parent = GetParent(parent))
+		// 搜索后代文件
+		auto &itr = m_children.find(old);
+		if (itr != m_children.end())
 		{
-			if (parent == old)
-			{
-				return true;
-			}
+			const FileSet &children = itr->second;
+			return children.find(young) != children.end();
 		}
 
 		return false;
@@ -3084,7 +3090,7 @@ namespace cxxclean
 			{
 				if (!CanClean(child))
 				{
-					continue;
+					//continue;
 				}
 
 				div.AddRow("child = " + DebugBeIncludeText(child), 3);
@@ -3098,28 +3104,32 @@ namespace cxxclean
 	string ParsingFile::DebugBeIncludeText(FileID file) const
 	{
 		string fileName = GetAbsoluteFileName(file);
-		std::string text;
 
 		if (file == m_srcMgr->getMainFileID())
 		{
-			text = strtool::get_text(cn_main_file_debug_text,
-			                         htmltool::get_file_html(fileName).c_str(),
-			                         file.getHashValue(),
-			                         htmltool::get_number_html(GetDeepth(file)).c_str());
+			return strtool::get_text(
+			           cn_main_file_debug_text,
+			           htmltool::get_file_html(fileName).c_str(),
+			           file.getHashValue(),
+			           htmltool::get_number_html(GetDeepth(file)).c_str()
+			       );
 		}
 		else
 		{
-			SourceLocation loc				= m_srcMgr->getIncludeLoc(file);
-			PresumedLoc parentPresumedLoc	= m_srcMgr->getPresumedLoc(loc);
-			string includeToken				= GetIncludeLine(file);
-			string parentFileName			= pathtool::get_absolute_path(parentPresumedLoc.getFilename());
-
 			stringstream ancestors;
 
-			for (FileID parent = GetParent(file); parent.isValid();)
+			for (FileID parent = GetParent(file), child = file; parent.isValid();)
 			{
-				ancestors << htmltool::get_min_file_name_html(GetAbsoluteFileName(parent));
+				string includeLineText = strtool::get_text(
+				                             cn_file_include_line,
+				                             htmltool::get_min_file_name_html(GetAbsoluteFileName(parent)).c_str(),
+				                             strtool::itoa(GetIncludeLineNo(child)).c_str(),
+				                             htmltool::get_include_html(GetIncludeLine(child)).c_str()
+				                         );
 
+				ancestors << includeLineText;
+
+				child = parent;
 				parent = GetParent(parent);
 				if (parent.isValid())
 				{
@@ -3127,23 +3137,17 @@ namespace cxxclean
 				}
 			}
 
-			if (includeToken.empty())
-			{
-				includeToken = "empty";
-			}
-
-			text = strtool::get_text(cn_file_debug_text,
-			                         htmltool::get_file_html(fileName).c_str(),
-			                         file.getHashValue(),
-			                         htmltool::get_number_html(GetDeepth(file)).c_str(),
-			                         htmltool::get_file_html(parentFileName).c_str(),
-			                         htmltool::get_number_html(GetLineNo(loc)).c_str(),
-			                         htmltool::get_include_html(includeToken).c_str(),
-			                         ancestors.str().c_str()
-			                        );
+			return strtool::get_text(
+			           cn_file_debug_text,
+			           IsOuterFile(file) ? cn_outer_file_flag : "",
+			           htmltool::get_file_html(fileName).c_str(),
+			           file.getHashValue(),
+			           htmltool::get_number_html(GetDeepth(file)).c_str(),
+			           ancestors.str().c_str()
+			       );
 		}
 
-		return text;
+		return "";
 	}
 
 	// 获取该文件的被直接包含信息，返回内容包括：该文件名、被父文件#include的行号、被父文件#include的原始文本串
@@ -3240,13 +3244,15 @@ namespace cxxclean
 			absoluteFileName = pathtool::get_file_name(absoluteFileName);
 		}
 
-		name << "[" << absoluteFileName << "](ID = " << file.getHashValue() << ")";
+		name << "[" << absoluteFileName << "]";
 
-		for (FileID parent = GetParent(file); parent.isValid(); )
+		for (FileID parent = GetParent(file), child = file; parent.isValid(); )
 		{
 			ancestors << pathtool::get_file_name(GetAbsoluteFileName(parent));
+			ancestors << "=" << GetIncludeLineNo(child);
 
-			parent = GetParent(parent);
+			child = parent;
+			parent = GetParent(child);
 			if (parent.isValid())
 			{
 				ancestors << ",";
@@ -3257,8 +3263,6 @@ namespace cxxclean
 		{
 			name << "(" << ancestors.str() << ")";
 		}
-
-		name << "";
 
 		return name.str();
 	}
@@ -4264,6 +4268,29 @@ namespace cxxclean
 		history.m_isSkip			= IsPrecompileHeader(file);
 	}
 
+	void ParsingFile::TakeOneReplace(ReplaceLine &replaceLine, FileID from, FileID to) const
+	{
+		// 1. 该行的旧文本
+		SourceRange	includeRange	= GetIncludeRange(from);
+		replaceLine.oldFile			= GetAbsoluteFileName(from);
+		replaceLine.oldText			= GetIncludeFullLine(from);
+		replaceLine.beg				= m_srcMgr->getFileOffset(includeRange.getBegin());
+		replaceLine.end				= m_srcMgr->getFileOffset(includeRange.getEnd());
+		replaceLine.isSkip			= IsSkip(from);	// 记载是否是强制包含
+
+		// 2. 该行可被替换成什么
+		ReplaceTo &replaceTo	= replaceLine.replaceTo;
+
+		// 记录[旧#include、新#include]
+		replaceTo.oldText		= GetIncludeFullLine(to);
+		replaceTo.newText		= GetRelativeIncludeStr(GetParent(from), to);
+
+		// 记录[所处的文件、所处行号]
+		replaceTo.line			= GetIncludeLineNo(to);
+		replaceTo.fileName		= GetAbsoluteFileName(to);
+		replaceTo.inFile		= GetAbsoluteFileName(GetParent(to));
+	}
+
 	// 取出记录，使得各文件仅包含自己所需要的头文件
 	void ParsingFile::TakeNeed(FileID top, FileHistory &history) const
 	{
@@ -4276,6 +4303,9 @@ namespace cxxclean
 			return;
 		}
 
+		//--------------- 一、先分析文件中哪些#include行需要被删除、替换，及需要新增哪些#include ---------------//
+
+		// 最终应包含的文件列表
 		FileSet kids;
 
 		auto itr = m_min.find(top);
@@ -4288,48 +4318,57 @@ namespace cxxclean
 			LogInfoByLvl(LogLvl_3, "not in m_min = " << GetDebugFileName(top));
 		}
 
-		FileSet includes	= includeItr->second;
-		FileSet remainKids	= kids;
+		// 旧的包含文件列表
+		FileSet oldIncludes	= includeItr->second;
+
+		// 新的包含文件列表
+		FileSet newIncludes	= kids;
+
+		// 应添加
 		FileSet adds;
+
+		// 应删除
 		FileSet dels;
 
+		// 应替换，<被替换，应替换到>
 		std::map<FileID, FileID> replaces;
 
+		// 1. 找到新、旧文件包含列表中[id相同、或文件名相同的文件]，一对对消除
 		for (FileID kid : kids)
 		{
 			bool isSame = false;
 
-			if (includes.find(kid) != includes.end())
+			if (oldIncludes.find(kid) != oldIncludes.end())
 			{
-				isSame = true;
+				oldIncludes.erase(kid);
+				newIncludes.erase(kid);
 			}
 			else
 			{
-				for (FileID beInclude : includes)
+				const std::string kidName = GetAbsoluteFileName(kid);
+
+				for (FileID beInclude : oldIncludes)
 				{
-					if (GetAbsoluteFileName(beInclude) == GetAbsoluteFileName(kid))
+					if (kidName == GetAbsoluteFileName(beInclude))
 					{
-						isSame = true;
+						oldIncludes.erase(beInclude);
+						newIncludes.erase(kid);
 						break;
 					}
 				}
 			}
-
-			if (isSame)
-			{
-				includes.erase(kid);
-				remainKids.erase(kid);
-			}
 		}
 
-		for (FileID beInclude : includes)
+		// 2. 找到新、旧文件包含列表中[存在祖先后代关系的文件]，一对对记入替换表中
+		for (FileID beInclude : oldIncludes)
 		{
-			for (FileID kid : remainKids)
+			for (FileID kid : newIncludes)
 			{
-				if (IsAncestor(kid, beInclude))
+				FileID lv2Ancestor = GetLvl2AncestorBySame(kid, beInclude);
+				if (lv2Ancestor.isValid())
 				{
 					replaces[beInclude] = kid;
-					remainKids.erase(kid);
+					newIncludes.erase(kid);
 
 					break;
 				}
@@ -4338,14 +4377,17 @@ namespace cxxclean
 
 		for (auto &itr : replaces)
 		{
-			FileID replaceFrom = itr.first;
-			includes.erase(replaceFrom);
+			FileID toBeReplaced = itr.first;
+			oldIncludes.erase(toBeReplaced);
 		}
 
-		dels = includes;
-		adds = remainKids;
+		// 3. 最后，新旧文件列表可能还剩余一些文件，处理方法是：直接删掉旧的、添加新的
+		dels = oldIncludes;
+		adds = newIncludes;
 
-		// 1.
+		//--------------- 二、开始取出分析结果 ---------------//
+
+		// 1. 取出删除#include记录
 		for (FileID del : dels)
 		{
 			SourceRange lineRange	= GetIncludeRange(del);
@@ -4358,42 +4400,19 @@ namespace cxxclean
 			delLine.text	= GetSourceOfLine(lineRange.getBegin());
 		}
 
-		// 2.
+		// 2. 取出替换#include记录
 		for (auto &itr : replaces)
 		{
 			FileID from	= itr.first;
 			FileID to	= itr.second;
 
-			bool isBeForceIncluded		= IsForceIncluded(from);
-
-			// 1. 该行的旧文本
-			SourceLocation include_loc	= m_srcMgr->getIncludeLoc(from);
-			SourceRange	lineRange		= GetCurFullLine(include_loc);
-			int line					= (isBeForceIncluded ? 0 : GetLineNo(include_loc));
+			int line					= GetIncludeLineNo(from);
 
 			ReplaceLine &replaceLine	= history.m_replaces[line];
-			replaceLine.oldFile			= GetAbsoluteFileName(from);
-			replaceLine.oldText			= GetIncludeFullLine(from);
-			replaceLine.beg				= m_srcMgr->getFileOffset(lineRange.getBegin());
-			replaceLine.end				= m_srcMgr->getFileOffset(lineRange.getEnd());
-			replaceLine.isSkip			= isBeForceIncluded || IsPrecompileHeader(from);	// 记载是否是强制包含
-
-			// 2. 该行可被替换成什么
-			ReplaceTo &replaceTo	= replaceLine.replaceTo;
-
-			SourceLocation deep_include_loc	= m_srcMgr->getIncludeLoc(to);
-
-			// 记录[旧#include、新#include]
-			replaceTo.oldText		= GetIncludeFullLine(to);
-			replaceTo.newText		= GetRelativeIncludeStr(GetParent(from), to);
-
-			// 记录[所处的文件、所处行号]
-			replaceTo.line			= GetLineNo(deep_include_loc);
-			replaceTo.fileName		= GetAbsoluteFileName(to);
-			replaceTo.inFile		= GetAbsoluteFileName(GetFileID(deep_include_loc));
+			TakeOneReplace(replaceLine, from, to);
 		}
 
-		// 3.
+		// 3. 取出新增前置声明记录
 		for (auto &itr : m_useRecords)
 		{
 			SourceLocation loc = itr.first;
@@ -4442,48 +4461,51 @@ namespace cxxclean
 			}
 		}
 
-		// 4.
-		FileID firstInclude;
-		int firstIncludeLine = 0;
-
-		for (FileID include : includes)
+		// 4. 取出新增#include记录
+		if (!adds.empty())
 		{
-			int line = GetIncludeLineNo(include);
-			if ((firstIncludeLine == 0 || line < firstIncludeLine) && line > 0)
-			{
-				firstIncludeLine	= line;
-				firstInclude		= include;
-			}
-		}
+			FileID firstInclude;
+			int firstIncludeLine = 0;
 
-		for (FileID add : adds)
-		{
-			FileID lv2 = GetLvl2AncestorBySame(add, top);
-			if (lv2.isInvalid())
+			for (FileID include : oldIncludes)
 			{
-				LogErrorByLvl(LogLvl_3, "lv2.isInvalid(): " << GetDebugFileName(add) << ", " << GetDebugFileName(top));
-				continue;
+				int line = GetIncludeLineNo(include);
+				if ((firstIncludeLine == 0 || line < firstIncludeLine) && line > 0)
+				{
+					firstIncludeLine	= line;
+					firstInclude		= include;
+				}
 			}
 
-			if (IsForceIncluded(lv2))
+			for (FileID add : adds)
 			{
-				lv2 = firstInclude;
+				FileID lv2 = GetLvl2AncestorBySame(add, top);
+				if (lv2.isInvalid())
+				{
+					LogErrorByLvl(LogLvl_3, "lv2.isInvalid(): " << GetDebugFileName(add) << ", " << GetDebugFileName(top));
+					continue;
+				}
+
+				if (IsForceIncluded(lv2))
+				{
+					lv2 = firstInclude;
+				}
+
+				int line = GetIncludeLineNo(lv2);
+
+				AddLine &addLine = history.m_adds[line];
+				if (addLine.offset <= 0)
+				{
+					addLine.offset	= m_srcMgr->getFileOffset(GetIncludeRange(lv2).getEnd());
+					addLine.oldText	= GetIncludeFullLine(lv2);
+				}
+
+				BeAdd beAdd;
+				beAdd.fileName	= GetAbsoluteFileName(add);
+				beAdd.text		= GetRelativeIncludeStr(top, add);
+
+				addLine.adds.push_back(beAdd);
 			}
-
-			int line = GetIncludeLineNo(lv2);
-
-			AddLine &addLine = history.m_adds[line];
-			if (addLine.offset <= 0)
-			{
-				addLine.offset	= m_srcMgr->getFileOffset(GetIncludeRange(lv2).getEnd());
-				addLine.oldText	= GetIncludeFullLine(lv2);
-			}
-
-			BeAdd beAdd;
-			beAdd.fileName	= GetAbsoluteFileName(add);
-			beAdd.text		= GetRelativeIncludeStr(top, add);
-
-			addLine.adds.push_back(beAdd);
 		}
 	}
 
@@ -4702,47 +4724,25 @@ namespace cxxclean
 		// 依次取出每行#include的替换信息[行号 -> 被替换成的#include列表]
 		for (auto &itr : childernReplaces)
 		{
-			FileID oldFile		= itr.first;
-			FileID replaceFile	= itr.second;
+			FileID from	= itr.first;
+			FileID to	= itr.second;
 
-			bool isBeForceIncluded		= IsForceIncluded(oldFile);
-
-			// 1. 该行的旧文本
-			SourceLocation include_loc	= m_srcMgr->getIncludeLoc(oldFile);
-			SourceRange	lineRange		= GetCurFullLine(include_loc);
-			int line					= (isBeForceIncluded ? 0 : GetLineNo(include_loc));
-
+			int line					= GetIncludeLineNo(from);
 			ReplaceLine &replaceLine	= history.m_replaces[line];
-			replaceLine.oldFile			= GetAbsoluteFileName(oldFile);
-			replaceLine.oldText			= GetIncludeFullLine(oldFile);
-			replaceLine.beg				= m_srcMgr->getFileOffset(lineRange.getBegin());
-			replaceLine.end				= m_srcMgr->getFileOffset(lineRange.getEnd());
-			replaceLine.isSkip			= isBeForceIncluded || IsPrecompileHeader(oldFile);	// 记载是否是强制包含
+			TakeOneReplace(replaceLine, from, to);
 
-			// 2. 该行可被替换成什么
-			ReplaceTo &replaceTo	= replaceLine.replaceTo;
+			// 2. 该行依赖于其他文件的哪些行
+			ReplaceTo &replaceTo			= replaceLine.replaceTo;
 
-			SourceLocation deep_include_loc	= m_srcMgr->getIncludeLoc(replaceFile);
-
-			// 记录[旧#include、新#include]
-			replaceTo.oldText		= GetIncludeFullLine(replaceFile);
-			replaceTo.newText		= GetRelativeIncludeStr(GetParent(oldFile), replaceFile);
-
-			// 记录[所处的文件、所处行号]
-			replaceTo.line			= GetLineNo(deep_include_loc);
-			replaceTo.fileName		= GetAbsoluteFileName(replaceFile);
-			replaceTo.inFile		= GetAbsoluteFileName(GetFileID(deep_include_loc));
-
-			// 3. 该行依赖于其他文件的哪些行
-			std::string replaceParentName	= GetAbsoluteFileName(GetParent(replaceFile));
-			int replaceLineNo				= GetIncludeLineNo(replaceFile);
+			std::string replaceParentName	= GetAbsoluteFileName(GetParent(to));
+			int replaceLineNo				= GetIncludeLineNo(to);
 
 			if (Project::CanClean(replaceParentName))
 			{
 				replaceTo.m_rely[replaceParentName].insert(replaceLineNo);
 			}
 
-			auto childItr = m_relyChildren.find(replaceFile);
+			auto childItr = m_relyChildren.find(to);
 			if (childItr != m_relyChildren.end())
 			{
 				const FileSet &relys = childItr->second;
