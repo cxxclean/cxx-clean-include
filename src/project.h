@@ -40,10 +40,10 @@ namespace cxxclean
 	{
 	public:
 		Project()
-			: m_isCleanAll(false)
+			: m_canCleanAll(false)
 			, m_onlyHas1File(false)
 			, m_isOverWrite(false)
-			, m_need2Step(false)
+			, m_isOnlyNeed1Step(false)
 			, m_logLvl(LogLvl_0)
 			, m_printIdx(0)
 		{
@@ -61,6 +61,9 @@ namespace cxxclean
 
 		// 指定的清理选项是否开启
 		static bool IsCleanModeOpen(CleanMode);
+
+		// 当前是否允许清理
+		bool CanCleanNow();
 
 		// 生成允许清理文件列表
 		void GenerateAllowCleanList();
@@ -93,11 +96,11 @@ namespace cxxclean
 		// 是否只有一个文件（当只有一个文件时，只需要解析一次）
 		bool						m_onlyHas1File;
 
-		// 是否仅需要解析整个项目2遍，由其他参数决定，true是需要解析2遍、false是只要解析1遍
-		bool						m_need2Step;
+		// 当前项目是否仅需要解析1遍，由其他参数决定，含义：true仅解析1遍、false需要解析2遍
+		bool						m_isOnlyNeed1Step;
 
 		// 命令行选项：是否允许清理项目内的c++文件，建议为true（false表示仅清理cpp文件）
-		bool						m_isCleanAll;
+		bool						m_canCleanAll;
 
 		// 命令行选项：是否覆盖原来的c++文件（当本选项被关闭时，项目内的c++文件不会有任何改动）
 		bool						m_isOverWrite;

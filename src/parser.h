@@ -140,7 +140,7 @@ namespace cxxclean
 
 		// 开始分析
 		void Analyze();
-		
+
 		// 是否包含了任意文件
 		inline bool HasAnyInclude(FileID a) const;
 
@@ -420,7 +420,7 @@ namespace cxxclean
 
 		// 打印各文件的孩子文件
 		void PrintChildren();
-		
+
 		// 是否允许清理该c++文件（若不允许清理，则文件内容不会有任何变化）
 		bool CanClean(FileID file) const;
 
@@ -459,11 +459,11 @@ namespace cxxclean
 		string GetQuotedIncludeStr(const string& absoluteFilePath) const;
 
 		// 替换指定范围文本
-		void ReplaceText(FileID file, int beg, int end, string text);
+		void ReplaceText(FileID file, int beg, int end, const char* text);
 
 		// 将文本插入到指定位置之前
 		// 例如：假设有"abcdefg"文本，则在c处插入123的结果将是："ab123cdefg"
-		void InsertText(FileID file, int loc, string text);
+		void InsertText(FileID file, int loc, const char* text);
 
 		// 移除指定范围文本，若移除文本后该行变为空行，则将该空行一并移除
 		void RemoveText(FileID file, int beg, int end);
@@ -489,9 +489,6 @@ namespace cxxclean
 		// 清理主文件
 		void CleanMainFile();
 
-		// 修正
-		void Fix();
-
 		// 打印头文件搜索路径
 		void PrintHeaderSearchPath() const;
 
@@ -508,7 +505,7 @@ namespace cxxclean
 
 		// 取出对当前cpp文件的分析结果
 		void TakeHistorys(FileHistoryMap &out) const;
-		
+
 		// 该文件是否是预编译头文件
 		bool IsPrecompileHeader(FileID file) const;
 
@@ -541,9 +538,9 @@ namespace cxxclean
 
 		// 打印各文件内的using namespace
 		void PrintUsingNamespace() const;
-		
+
 		//================== 模式2所需的接口（见project.h中的CleanMode） ==================//
-		
+
 		// 根据主文件的依赖关系，生成相关文件的依赖文件集
 		void GenerateRely();
 
@@ -583,7 +580,7 @@ namespace cxxclean
 
 		// 是否应保留当前位置引用的class、struct、union的前置声明
 		bool IsNeedClass(SourceLocation, const CXXRecordDecl &cxxRecord) const;
-		
+
 		// 生成文件替换列表
 		void GenerateReplace();
 
@@ -637,7 +634,7 @@ namespace cxxclean
 
 		// 该文件是否可被替换
 		bool IsReplaced(FileID file) const;
-		
+
 		// 打印主文件的依赖文件集
 		void PrintTopRely() const;
 
@@ -649,7 +646,7 @@ namespace cxxclean
 
 
 		//================== 模式3所需的接口（见project.h中的CleanMode） ==================//
-		
+
 		// 根据当前文件，查找第2层的祖先（令root为第一层），若当前文件的父文件即为主文件，则返回当前文件
 		FileID GetLvl2AncestorBySame(FileID kid, FileID top) const;
 
@@ -687,8 +684,6 @@ namespace cxxclean
 		void GenerateMinUse();
 
 		void GetKidsBySame(FileID top, FileSet &kids) const;
-
-		void GetMin(FileID by, FileSet &out) const;
 
 		bool HasMinKid(FileID top, FileID kid) const;
 
@@ -763,7 +758,7 @@ namespace cxxclean
 
 		// 模式3分析结果：各文件的最小包含文件列表：[文件ID] -> [该文件仅应直接包含的文件ID列表]
 		std::map<FileID, FileSet>					m_min;
-		
+
 		// 1. 各文件的后代文件（仅用户文件）：[文件ID] -> [该文件包含的全部后代文件ID（仅用户文件）]
 		std::map<FileID, FileSet>					m_userChildren;
 

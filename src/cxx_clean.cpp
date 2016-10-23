@@ -45,7 +45,7 @@ namespace cxxclean
 		{
 			return;
 		}
-		
+
 		SourceManager &srcMgr	= m_root->GetSrcMgr();
 		FileID curFileID		= srcMgr.getFileID(loc);
 
@@ -760,8 +760,7 @@ namespace cxxclean
 
 		if (ProjectHistory::instance.m_isFirst)
 		{
-			bool only1Step = !Project::instance.m_need2Step;
-			if (only1Step)
+			if (Project::instance.m_isOnlyNeed1Step)
 			{
 				LogRaw("cleaning file: ");
 			}
@@ -789,12 +788,7 @@ namespace cxxclean
 			m_root->Print();
 		}
 
-		bool can_clean = false;
-		can_clean |= Project::instance.m_onlyHas1File;;
-		can_clean |= !Project::instance.m_isCleanAll;
-		can_clean |= !ProjectHistory::instance.m_isFirst;
-
-		if (can_clean)
+		if (Project::instance.CanCleanNow())
 		{
 			m_root->Clean();
 		}
@@ -1114,7 +1108,7 @@ namespace cxxclean
 		VsProject &vs				= VsProject::instance;
 		Project &project			= Project::instance;
 
-		project.m_isCleanAll		= !g_onlyCleanCpp;
+		project.m_canCleanAll		= !g_onlyCleanCpp;
 		project.m_isOverWrite		= !g_noOverWrite;
 		project.m_workingDir		= pathtool::get_current_path();
 		project.m_cpps				= m_sourceList;
@@ -1185,7 +1179,8 @@ namespace cxxclean
 			project.m_onlyHas1File = true;
 		}
 
-		Project::instance.m_need2Step = Project::instance.m_isCleanAll && !Project::instance.m_onlyHas1File && Project::instance.m_isOverWrite;
+		project.m_isOnlyNeed1Step = (project.m_onlyHas1File || project.IsCleanModeOpen(CleanMode_Need) ||
+		                             !project.m_canCleanAll || !project.m_isOverWrite);
 		return true;
 	}
 

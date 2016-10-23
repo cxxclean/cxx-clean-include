@@ -40,6 +40,11 @@ namespace strtool
 		return (c == '\\' || c == '/');
 	}
 
+	inline bool is_empty(const char *str)
+	{
+		return (str == nullptr) || (str[0] == 0x00);
+	}
+
 	std::string itoa(int n);
 
 	int atoi(const char*);

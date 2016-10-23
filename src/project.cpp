@@ -93,6 +93,13 @@ namespace cxxclean
 		return instance.m_cleanModes[mode - 1];
 	}
 
+	// 当前是否允许清理
+	bool Project::CanCleanNow()
+	{
+		bool can_clean = (m_isOnlyNeed1Step || !ProjectHistory::instance.m_isFirst);
+		return can_clean;
+	}
+
 	// 该文件是否允许被清理
 	bool Project::CanClean(const char* filename)
 	{

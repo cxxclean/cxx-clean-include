@@ -70,10 +70,10 @@ int main(int argc, const char **argv)
 	cxxclean::ProjectHistory::instance.Fix();
 	cxxclean::ProjectHistory::instance.Print();
 
-	// 2. 开始清理
-	if (cxxclean::Project::instance.m_need2Step)
+	// 2. 第2遍开始清理
+	if (!cxxclean::Project::instance.m_isOnlyNeed1Step)
 	{
-		cxxclean::ProjectHistory::instance.m_isFirst		= false;
+		cxxclean::ProjectHistory::instance.m_isFirst	= false;
 		cxxclean::ProjectHistory::instance.g_fileNum	= 0;
 
 		Run(optionParser);

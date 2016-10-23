@@ -504,7 +504,7 @@ namespace cxxclean
 		}
 
 		// 若开启深度清理选项
-		if (project.m_isCleanAll)
+		if (project.m_canCleanAll)
 		{
 			// 允许清理vs项目内的所有成员文件（包括头文件）
 			project.m_allowCleanList = m_all;
