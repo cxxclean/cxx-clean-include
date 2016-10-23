@@ -406,12 +406,6 @@ namespace cxxclean
 		// 从指定位置起，跳过之后的注释，直到获得下一个token
 		bool LexSkipComment(SourceLocation Loc, Token &Result);
 
-		// 返回插入前置声明所在行的开头
-		SourceLocation GetInsertForwardLine(FileID at, const CXXRecordDecl &cxxRecord) const;
-
-		// 返回插入前置声明所在行的开头
-		SourceLocation GetMinInsertForwardLine(FileID at, const CXXRecordDecl &cxxRecord) const;
-
 		// 新增使用前置声明记录（对于不必要添加的前置声明将在之后进行清理）
 		void UseForward(SourceLocation loc, const CXXRecordDecl *cxxRecordDecl);
 
@@ -602,6 +596,9 @@ namespace cxxclean
 		// 合并可替换的#include
 		void MergeReplaceLine(const FileHistory &newFile, FileHistory &oldFile) const;
 
+		// 返回插入前置声明所在行的开头
+		SourceLocation GetInsertForwardLine(FileID at, const CXXRecordDecl &cxxRecord) const;
+
 		// 将某些文件中的一些行标记为不可修改
 		void SkipRelyLines(const FileSkipLineMap&) const;
 
@@ -684,6 +681,9 @@ namespace cxxclean
 		void GenerateMinUse();
 
 		void GetKidsBySame(FileID top, FileSet &kids) const;
+
+		// 返回插入前置声明所在行的开头
+		SourceLocation GetMinInsertForwardLine(FileID at, const CXXRecordDecl &cxxRecord) const;
 
 		bool HasMinKid(FileID top, FileID kid) const;
 

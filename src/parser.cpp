@@ -1312,31 +1312,61 @@ namespace cxxclean
 		FileID useFile		= GetFileID(loc);
 
 		// 类所在的文件
-		FileID recordAtFile	= GetFileID(cxxRecord.getLocStart());
-		recordAtFile = GetTopOuterFileAncestor(recordAtFile);
+		//FileID recordAtFile	= GetFileID(cxxRecord.getLocStart());
 
-		// 1. 若b未被引用，则肯定要加前置声明
-		if (HasMinKidBySameName(useFile, recordAtFile))
+		auto IsAnyKidHasRecord = [&](FileID file) -> bool
+		{
+			FileID outerAncestor = GetTopOuterFileAncestor(file);
+			return HasMinKidBySameName(useFile, outerAncestor);
+		};
+
+		auto IsAnyRecordBeInclude = [&]() -> bool
+		{
+			// 如果本文件内该位置之前已有前置声明则不再处理
+			const TagDecl *first = cxxRecord.getFirstDecl();
+			for (const TagDecl *next : first->redecls())
+			{
+				FileID recordAtFile = GetFileID(next->getLocation());
+				if (IsAnyKidHasRecord(recordAtFile))
+				{
+					return true;
+				}
+			}
+
+			return false;
+		};
+
+		if (IsAnyRecordBeInclude())
 		{
 			return false;
 		}
 
-		SourceLocation insertLoc = GetInsertForwardLine(useFile, cxxRecord);
-		if (insertLoc.isInvalid())
+		/*
+		if (IsAnyKidHasRecord(recordAtFile))
 		{
 			return false;
 		}
 
-		FileID insertAtFile	= GetFileID(insertLoc);
-		if (!CanClean(insertAtFile))
+		auto sameItr = m_sameFiles.find(GetAbsoluteFileName(recordAtFile));
+		if (sameItr != m_sameFiles.end())
 		{
-			return false;
+			const FileSet &sames = sameItr->second;
+			for (FileID same : sames)
+			{
+				if (IsAnyKidHasRecord(same))
+				{
+					return false;
+				}
+			}
 		}
-
-		if (HasMinKidBySameName(insertAtFile, recordAtFile))
+		else
 		{
-			return false;
+			if (IsAnyKidHasRecord(recordAtFile))
+			{
+				return false;
+			}
 		}
+		*/
 
 		return true;
 	}
@@ -1404,6 +1434,7 @@ namespace cxxclean
 				}
 				else
 				{
+					LogErrorByLvl(LogLvl_3, "IsNeedMinClass = true: " << GetDebugFileName(GetFileID(loc)) << "," << GetRecordName(*cxxRecordDecl));
 					++recordItr;
 				}
 			}
@@ -2026,12 +2057,20 @@ namespace cxxclean
 		}
 
 		SourceLocation usingLoc = GetSpellingLoc(d->getUsingLoc());
+		if (usingLoc.isInvalid())
+		{
+			return;
+		}
 
 		m_usingNamespaces[usingLoc] = firstNs;
 
 		for (const NamespaceDecl *ns : firstNs->redecls())
 		{
 			SourceLocation nsLoc	= GetSpellingLoc(ns->getLocStart());
+			if (nsLoc.isInvalid())
+			{
+				continue;
+			}
 
 			if (m_srcMgr->isBeforeInTranslationUnit(nsLoc, usingLoc))
 			{
@@ -4275,7 +4314,7 @@ namespace cxxclean
 
 			for (const CXXRecordDecl *cxxRecord : cxxRecords)
 			{
-				SourceLocation insertLoc = GetInsertForwardLine(file, *cxxRecord);
+				SourceLocation insertLoc = GetMinInsertForwardLine(file, *cxxRecord);
 				if (insertLoc.isInvalid())
 				{
 					LogErrorByLvl(LogLvl_2, "insertLoc.isInvalid(), " << GetDebugFileName(file) << ", record = " << GetRecordName(*cxxRecord));
