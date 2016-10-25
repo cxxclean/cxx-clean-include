@@ -41,9 +41,29 @@ namespace cxxclean
 		}
 	}
 
+	// set减去set
+	template <typename T, typename Hash>
+	void Erase(std::unordered_set<T, Hash> &a, const std::unordered_set<T, Hash> &b)
+	{
+		for (const T &t : b)
+		{
+			a.erase(t);
+		}
+	}
+
 	// set减去map
 	template <typename Key, typename Val>
 	void Erase(std::set<Key> &a, const std::map<Key, Val> &b)
+	{
+		for (const auto &itr : b)
+		{
+			a.erase(itr.first);
+		}
+	}
+
+	// set减去map
+	template <typename Key, typename Val, typename Hash>
+	void Erase(std::unordered_set<Key, Hash> &a, const std::map<Key, Val> &b)
 	{
 		for (const auto &itr : b)
 		{
@@ -486,8 +506,9 @@ namespace cxxclean
 		for (auto &itr : m_userChildren)
 		{
 			FileID top = itr.first;
+			const std::string topName = GetAbsoluteFileName(top);
 
-			FileSet &kids	= m_childrenBySame[top];
+			FileSet &kids	= m_childrenBySame[topName];
 			GetKidsBySame(top, kids);
 		}
 	}
@@ -1306,18 +1327,12 @@ namespace cxxclean
 	}
 
 	// 是否应保留该位置引用的class、struct、union的前置声明
-	bool ParsingFile::IsNeedMinClass(SourceLocation loc, const CXXRecordDecl &cxxRecord) const
+	bool ParsingFile::IsNeedMinClass(FileID by, const CXXRecordDecl &cxxRecord) const
 	{
-		// 使用前置声明的文件
-		FileID useFile		= GetFileID(loc);
-
-		// 类所在的文件
-		//FileID recordAtFile	= GetFileID(cxxRecord.getLocStart());
-
 		auto IsAnyKidHasRecord = [&](FileID file) -> bool
 		{
 			FileID outerAncestor = GetTopOuterFileAncestor(file);
-			return HasMinKidBySameName(useFile, outerAncestor);
+			return HasMinKidBySameName(by, outerAncestor);
 		};
 
 		auto IsAnyRecordBeInclude = [&]() -> bool
@@ -1341,33 +1356,6 @@ namespace cxxclean
 			return false;
 		}
 
-		/*
-		if (IsAnyKidHasRecord(recordAtFile))
-		{
-			return false;
-		}
-
-		auto sameItr = m_sameFiles.find(GetAbsoluteFileName(recordAtFile));
-		if (sameItr != m_sameFiles.end())
-		{
-			const FileSet &sames = sameItr->second;
-			for (FileID same : sames)
-			{
-				if (IsAnyKidHasRecord(same))
-				{
-					return false;
-				}
-			}
-		}
-		else
-		{
-			if (IsAnyKidHasRecord(recordAtFile))
-			{
-				return false;
-			}
-		}
-		*/
-
 		return true;
 	}
 
@@ -1375,16 +1363,16 @@ namespace cxxclean
 	void ParsingFile::GenerateForwardClass()
 	{
 		// 1. 清除一些不必要保留的前置声明
-		for (auto &itr = m_useRecords.begin(); itr != m_useRecords.end();)
+		for (auto &itr = m_locUseRecords.begin(); itr != m_locUseRecords.end();)
 		{
-			SourceLocation loc								= itr->first;
-			std::set<const CXXRecordDecl*> &old_forwards	= itr->second;
+			SourceLocation loc		= itr->first;
+			RecordSet &old_forwards	= itr->second;
 
 			FileID file = GetFileID(loc);
 
 			if (!IsRely(file))
 			{
-				m_useRecords.erase(itr++);
+				m_locUseRecords.erase(itr++);
 				continue;
 			}
 
@@ -1400,7 +1388,7 @@ namespace cxxclean
 
 			if (can_forwards.empty())
 			{
-				m_useRecords.erase(itr++);
+				m_locUseRecords.erase(itr++);
 				continue;
 			}
 
@@ -1418,34 +1406,137 @@ namespace cxxclean
 	// 生成新增前置声明列表
 	void ParsingFile::GenerateMinForwardClass()
 	{
+		m_minUseRecords = m_fileUseRecords;
+
 		// 1. 清除一些不必要保留的前置声明
-		for (auto &itr = m_useRecords.begin(); itr != m_useRecords.end();)
+		for (auto &itr = m_minUseRecords.begin(); itr != m_minUseRecords.end();)
 		{
-			SourceLocation loc						= itr->first;
-			std::set<const CXXRecordDecl*> &records	= itr->second;
+			FileID by			= itr->first;
+			RecordSet &records	= itr->second;
 
 			for (auto &recordItr = records.begin(); recordItr != records.end();)
 			{
-				const CXXRecordDecl* cxxRecordDecl = *recordItr;
+				const CXXRecordDecl* record = *recordItr;
 
-				if (!IsNeedMinClass(loc, *cxxRecordDecl))
+				if (!IsNeedMinClass(by, *record))
 				{
 					records.erase(recordItr++);
 				}
 				else
 				{
-					LogErrorByLvl(LogLvl_3, "IsNeedMinClass = true: " << GetDebugFileName(GetFileID(loc)) << "," << GetRecordName(*cxxRecordDecl));
+					LogErrorByLvl(LogLvl_3, "IsNeedMinClass = true: " << GetDebugFileName(by) << "," << GetRecordName(*record));
 					++recordItr;
 				}
 			}
 
 			if (records.empty())
 			{
-				m_useRecords.erase(itr++);
+				m_minUseRecords.erase(itr++);
 				continue;
 			}
 
 			++itr;
+		}
+
+		// 2.
+		MinimizeForwardClass();
+	}
+
+	// 裁剪前置声明列表
+	void ParsingFile::MinimizeForwardClass()
+	{
+		FileSet all;
+
+		for (auto &itr : m_fileUseRecords)
+		{
+			FileID by = itr.first;
+			all.insert(by);
+		}
+		for (auto &itr : m_min)
+		{
+			FileID by = itr.first;
+			all.insert(by);
+		}
+
+		FileUseRecordsMap bigRecordMap;
+
+		for (FileID by : all)
+		{
+			GetUseRecordsInKids(by, m_minUseRecords, bigRecordMap[by]);
+		}
+
+		for (auto &itr : bigRecordMap)
+		{
+			FileID by = itr.first;
+			RecordSet small = itr.second;	// 这里故意深拷贝
+
+			auto &useItr = m_min.find(by);
+			if (useItr != m_min.end())
+			{
+				const FileSet &useList = useItr->second;
+
+				for (FileID beUse : useList)
+				{
+					auto &recordItr = bigRecordMap.find(beUse);
+					if (recordItr != bigRecordMap.end())
+					{
+						const RecordSet &records = recordItr->second;
+						Erase(small, records);
+					}
+				}
+			}
+
+			m_minUseRecords[by] = small;
+		}
+	}
+
+	void ParsingFile::GetUseRecordsInKids(FileID top, const FileUseRecordsMap &recordMap, RecordSet &records)
+	{
+		FileSet todo;
+		FileSet done;
+
+		todo.insert(top);
+
+		//------------------------------- 循环获取被依赖文件所依赖的其他文件 -------------------------------//
+		while (!todo.empty())
+		{
+			FileID cur = *todo.begin();
+			todo.erase(todo.begin());
+
+			if (done.find(cur) != done.end())
+			{
+				continue;
+			}
+
+			done.insert(cur);
+
+			// 1. 若当前文件不依赖其他文件，则跳过
+			auto &useItr = m_min.find(cur);
+			if (useItr == m_min.end())
+			{
+				continue;
+			}
+
+			// 2. todo集合 += 当前文件依赖的其他文件
+			const FileSet &useFiles = useItr->second;
+
+			for (const FileID &beuse : useFiles)
+			{
+				if (done.find(beuse) == done.end())
+				{
+					todo.insert(beuse);
+				}
+			}
+		}
+
+		for (FileID file : done)
+		{
+			auto &recordsItr = recordMap.find(file);
+			if (recordsItr != recordMap.end())
+			{
+				const RecordSet &recordSet = recordsItr->second;
+				records.insert(recordSet.begin(), recordSet.end());
+			}
 		}
 	}
 
@@ -1842,31 +1933,13 @@ namespace cxxclean
 	// 第2个文件是否是第1个文件的祖先（考虑同名文件）
 	bool ParsingFile::IsAncestorBySame(FileID young, FileID old) const
 	{
-		auto itr = m_childrenBySame.find(old);
+		std::string oldName = GetAbsoluteFileName(old);
+
+		auto itr = m_childrenBySame.find(oldName);
 		if (itr != m_childrenBySame.end())
 		{
 			const FileSet &kids = itr->second;
 			return kids.find(young) != kids.end();
-		}
-
-		if (IsAncestor(young, old))
-		{
-			return true;
-		}
-		else
-		{
-			auto sameYoungItr = m_sameFiles.find(GetAbsoluteFileName(young));
-			if (sameYoungItr != m_sameFiles.end())
-			{
-				const FileSet &sameYoungs = sameYoungItr->second;
-				for (FileID sameYoung : sameYoungs)
-				{
-					if (IsAncestor(sameYoung, old))
-					{
-						return true;
-					}
-				}
-			}
 		}
 
 		return false;
@@ -2650,17 +2723,21 @@ namespace cxxclean
 				if (file == recordAtFile && !next->isThisDeclarationADefinition())
 				{
 					LogInfoByLvl(LogLvl_3, "skip record = [" <<  GetRecordName(*cxxRecord) << "], record file = " << GetDebugFileName(file));
-
 					return;
 				}
 			}
 
 			// 添加文件所使用的前置声明记录
-			m_useRecords[loc].insert(cxxRecord);
+			if (Project::instance.m_logLvl >= LogLvl_3)
+			{
+				m_locUseRecords[loc].insert(cxxRecord);
+			}
+
+			m_fileUseRecords[file].insert(cxxRecord);
 		}
 		else
 		{
-			// 如果该位置之前已有前置声明则不再加前置声明，尽量避免生成额外的前置声明
+			// 优先引用该位置之前的前置声明则，尽量避免引用完整的class定义
 			const TagDecl *first = cxxRecord->getFirstDecl();
 			for (const TagDecl *next : first->redecls())
 			{
@@ -3082,9 +3159,9 @@ namespace cxxclean
 
 		for (auto &itr : m_childrenBySame)
 		{
-			FileID parent = itr.first;
+			const std::string &parent = itr.first;
 
-			div.AddRow("file = " + DebugBeIncludeText(parent), 2);
+			div.AddRow("file = " + htmltool::get_file_html(parent), 2);
 
 			for (FileID child : itr.second)
 			{
@@ -3833,7 +3910,8 @@ namespace cxxclean
 			PrintUse();
 			PrintUsedNames();
 			PrintSameFile();
-			PrintForwardDecl();
+			PrintFinalForwardDecl();
+			PrintUseRecord();
 		}
 
 		if (verbose >= LogLvl_4)
@@ -4190,7 +4268,7 @@ namespace cxxclean
 	void ParsingFile::TakeNeed(FileID top, FileHistory &history) const
 	{
 		InitHistory(top, history);
-		history.m_isSkip			= false;
+		history.m_isSkip = false;
 
 		auto includeItr = m_includes.find(top);
 		if (includeItr == m_includes.end())
@@ -4210,7 +4288,7 @@ namespace cxxclean
 		}
 		else
 		{
-			LogInfoByLvl(LogLvl_3, "not in m_min = " << GetDebugFileName(top));
+			LogInfoByLvl(LogLvl_3, "not in m_min, don't need any include [top] = " << GetDebugFileName(top));
 		}
 
 		// 旧的包含文件列表
@@ -4304,20 +4382,33 @@ namespace cxxclean
 		}
 
 		// 3. 取出新增前置声明记录
-		for (auto &itr : m_useRecords)
-		{
-			SourceLocation loc = itr.first;
-			const std::set<const CXXRecordDecl*> &cxxRecords = itr.second;
+		FileID firstInclude;
+		int firstIncludeLine = 0;
 
-			FileID file = GetFileID(loc);
-			string fileName = GetAbsoluteFileName(file);
+		// 找到本文件第一个#include的位置
+		for (FileID include : oldIncludes)
+		{
+			int line = GetIncludeLineNo(include);
+			if ((firstIncludeLine == 0 || line < firstIncludeLine) && line > 0)
+			{
+				firstIncludeLine	= line;
+				firstInclude		= include;
+			}
+		}
+
+		auto &useRecordItr = m_minUseRecords.find(top);
+		if (useRecordItr != m_minUseRecords.end())
+		{
+			const RecordSet &cxxRecords = useRecordItr->second;
+
+			string fileName = GetAbsoluteFileName(top);
 
 			for (const CXXRecordDecl *cxxRecord : cxxRecords)
 			{
-				SourceLocation insertLoc = GetMinInsertForwardLine(file, *cxxRecord);
+				SourceLocation insertLoc = GetIncludeRange(firstInclude).getEnd(); // GetMinInsertForwardLine(file, *cxxRecord);
 				if (insertLoc.isInvalid())
 				{
-					LogErrorByLvl(LogLvl_2, "insertLoc.isInvalid(), " << GetDebugFileName(file) << ", record = " << GetRecordName(*cxxRecord));
+					LogErrorByLvl(LogLvl_2, "insertLoc.isInvalid(), " << GetDebugFileName(top) << ", record = " << GetRecordName(*cxxRecord));
 					continue;
 				}
 
@@ -4344,7 +4435,7 @@ namespace cxxclean
 				forwardLine.oldText = GetSourceOfLine(insertLoc);
 				forwardLine.classes.insert(cxxRecordName);
 
-				SourceLocation fileStart = m_srcMgr->getLocForStartOfFile(GetFileID(insertLoc));
+				SourceLocation fileStart = m_srcMgr->getLocForStartOfFile(top);
 				if (fileStart.getLocWithOffset(forwardLine.offset) != insertLoc)
 				{
 					LogError("fileStart.getLocWithOffset(forwardLine.m_offsetAtFile) != insertLoc");
@@ -4355,19 +4446,6 @@ namespace cxxclean
 		// 4. 取出新增#include记录
 		if (!adds.empty())
 		{
-			FileID firstInclude;
-			int firstIncludeLine = 0;
-
-			for (FileID include : oldIncludes)
-			{
-				int line = GetIncludeLineNo(include);
-				if ((firstIncludeLine == 0 || line < firstIncludeLine) && line > 0)
-				{
-					firstIncludeLine	= line;
-					firstInclude		= include;
-				}
-			}
-
 			for (FileID add : adds)
 			{
 				FileID lv2 = GetLvl2AncestorBySame(add, top);
@@ -4502,7 +4580,7 @@ namespace cxxclean
 	// 将新增的前置声明按文件进行存放
 	void ParsingFile::TakeForwardClass(FileHistoryMap &out) const
 	{
-		if (m_useRecords.empty())
+		if (m_locUseRecords.empty())
 		{
 			return;
 		}
@@ -4513,7 +4591,7 @@ namespace cxxclean
 		for (auto &itr : forwards)
 		{
 			FileID file							= itr.first;
-			const UseRecordsMap &locToRecords	= itr.second;
+			const LocUseRecordsMap &locToRecords	= itr.second;
 
 			string fileName		= GetAbsoluteFileName(file);
 
@@ -4573,7 +4651,7 @@ namespace cxxclean
 	// 将文件前置声明记录按文件进行归类
 	void ParsingFile::SplitForwardByFile(UseRecordsByFileMap &forwards) const
 	{
-		for (auto &itr : m_useRecords)
+		for (auto &itr : m_locUseRecords)
 		{
 			SourceLocation loc		= itr.first;
 			FileID file				= GetFileID(loc);
@@ -4974,18 +5052,18 @@ namespace cxxclean
 	}
 
 	// 打印可转为前置声明的类指针或引用记录
-	void ParsingFile::PrintForwardDecl() const
+	void ParsingFile::PrintUseRecord() const
 	{
-		UseRecordsByFileMap forwards;
-		SplitForwardByFile(forwards);
+		UseRecordsByFileMap recordMap;
+		SplitForwardByFile(recordMap);
 
 		HtmlDiv &div = HtmlLog::instance.m_newDiv;
-		div.AddRow(AddPrintIdx() + ". maybe can forward decl list: file count = " + htmltool::get_number_html(forwards.size()), 1);
+		div.AddRow(AddPrintIdx() + ". use record decl list: file count = " + htmltool::get_number_html(recordMap.size()), 1);
 
-		for (auto &itr : forwards)
+		for (auto &itr : recordMap)
 		{
 			FileID file = itr.first;
-			const UseRecordsMap &locToRecords = itr.second;
+			const LocUseRecordsMap &locToRecords = itr.second;
 
 			div.AddRow("fileName = " + DebugBeIncludeText(file), 2);
 
@@ -5003,6 +5081,33 @@ namespace cxxclean
 
 				div.AddRow("");
 			}
+		}
+	}
+
+	// 打印最终的前置声明记录
+	void ParsingFile::PrintFinalForwardDecl() const
+	{
+		if (m_minUseRecords.empty())
+		{
+			return;
+		}
+
+		HtmlDiv &div = HtmlLog::instance.m_newDiv;
+		div.AddRow(AddPrintIdx() + ". final forward class list: file count = " + htmltool::get_number_html(m_minUseRecords.size()), 1);
+
+		for (auto &itr : m_minUseRecords)
+		{
+			FileID by = itr.first;
+			const RecordSet &records = itr.second;
+
+			div.AddRow("fileName = " + DebugBeIncludeText(by), 2);
+
+			for (const CXXRecordDecl *record : records)
+			{
+				div.AddRow("add forward class = " + GetRecordName(*record), 3);
+			}
+
+			div.AddRow("");
 		}
 	}
 

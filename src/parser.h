@@ -17,6 +17,7 @@
 #include <clang/Basic/SourceManager.h>
 
 #include "history.h"
+#include <unordered_set>
 
 using namespace std;
 using namespace clang;
@@ -63,13 +64,28 @@ namespace cxxclean
 		// [文件] -> [该文件中哪些文件可被替换]
 		typedef std::map<FileID, ChildrenReplaceMap> ReplaceFileMap;
 
+		// class、struct、union集合
+		typedef std::set<const CXXRecordDecl*> RecordSet;
+
 		// [位置] -> [使用的class、struct引用或指针]
-		typedef std::map<SourceLocation, std::set<const CXXRecordDecl*>> UseRecordsMap;
+		typedef std::map<SourceLocation, RecordSet> LocUseRecordsMap;
+
+		// [文件] -> [使用的class、struct引用或指针]
+		typedef std::map<FileID, RecordSet> FileUseRecordsMap;
 
 		// [文件] -> [该文件所使用的class、struct、union指针或引用]
-		typedef std::map<FileID, UseRecordsMap> UseRecordsByFileMap;
+		typedef std::map<FileID, LocUseRecordsMap> UseRecordsByFileMap;
+
+		struct NodeHash
+		{
+			std::size_t operator () (const FileID &file) const
+			{
+				return file.getHashValue();
+			}
+		};
 
 		// 文件集
+		//typedef std::unordered_set<FileID, NodeHash> FileSet;
 		typedef std::set<FileID> FileSet;
 
 		// 用于调试：引用的名称
@@ -519,7 +535,10 @@ namespace cxxclean
 		void PrintUsedNames() const;
 
 		// 打印可转为前置声明的类指针或引用记录
-		void PrintForwardDecl() const;
+		void PrintUseRecord() const;
+
+		// 打印最终的前置声明记录
+		void PrintFinalForwardDecl() const;
 
 		// 打印允许被清理的所有文件列表
 		void PrintAllFile() const;
@@ -580,10 +599,7 @@ namespace cxxclean
 
 		// 生成新增前置声明列表
 		void GenerateForwardClass();
-
-		// 生成新增前置声明列表
-		void GenerateMinForwardClass();
-
+		
 		// 将当前cpp文件产生的待清理记录与之前其他cpp文件产生的待清理记录合并
 		void MergeTo(FileHistoryMap &old) const;
 
@@ -654,7 +670,7 @@ namespace cxxclean
 		bool HasMinKidBySameName(FileID top, FileID kid) const;
 
 		// 是否应保留该位置引用的class、struct、union的前置声明
-		bool IsNeedMinClass(SourceLocation, const CXXRecordDecl &cxxRecord) const;
+		bool IsNeedMinClass(FileID, const CXXRecordDecl &cxxRecord) const;
 
 		void GetUseChain(FileID top, FileSet &chain) const;
 
@@ -679,6 +695,14 @@ namespace cxxclean
 		void GenerateUserUse();
 
 		void GenerateMinUse();
+
+		// 生成新增前置声明列表
+		void GenerateMinForwardClass();
+
+		// 裁剪前置声明列表
+		void MinimizeForwardClass();
+
+		void GetUseRecordsInKids(FileID top, const FileUseRecordsMap &recordMap, RecordSet &records);
 
 		void GetKidsBySame(FileID top, FileSet &kids) const;
 
@@ -730,7 +754,7 @@ namespace cxxclean
 		FileHistoryMap								m_historys;
 
 
-		//================== 模式1和2的数据（见project.h中的CleanMode）：仅删除多余头文件（不考虑生成前置声明） ==================//
+		//================== 模式1和2（见project.h中的CleanMode）：仅删除多余头文件（不考虑生成前置声明） ==================//
 
 		// 模式1分析结果：全部没用到的#include位置（用于查询某#include是否应被清除，之所以不使用FileID因为某些重复#include会被自动跳过，导致并未生成FileID）
 		std::set<SourceLocation>					m_unusedLocs;
@@ -753,17 +777,16 @@ namespace cxxclean
 		// 5. 各文件中可被置换的#include列表：[文件ID] -> [该文件中哪些文件可被替换成为其他的哪些文件]
 		ReplaceFileMap								m_splitReplaces;
 
-
-		//================== 模式3的数据（见project.h中的CleanMode）：每个文件尽量只包含自己用到的文件（将自动生成前置声明） ==================//
+		//================== 模式3（见project.h中的CleanMode）：每个文件尽量只包含自己用到的文件（将自动生成前置声明） ==================//
 
 		// 模式3分析结果：各文件的最小包含文件列表：[文件ID] -> [该文件仅应直接包含的文件ID列表]
 		std::map<FileID, FileSet>					m_min;
 
 		// 1. 各文件的后代文件（仅用户文件）：[文件ID] -> [该文件包含的全部后代文件ID（仅用户文件）]
-		std::map<FileID, FileSet>					m_userChildren;
+		std::map<FileID, FileSet>					m_userChildren;		
 
-		// 2. 各文件的后代文件（已对同名文件进行处理）：[文件ID] -> [该文件包含的全部后代文件ID（已对同名文件进行处理）]
-		std::map<FileID, FileSet>					m_childrenBySame;
+		// 2. 各文件的后代文件（已对同名文件进行处理）：[文件名] -> [该文件包含的全部后代文件ID（已对同名文件进行处理）]
+		std::map<std::string, FileSet>				m_childrenBySame;
 
 		// 3. 各文件应包含的后代文件列表：[文件ID] -> [该文件应包含的后代文件ID列表]
 		std::map<FileID, FileSet>					m_minKids;
@@ -776,6 +799,9 @@ namespace cxxclean
 
 		// 6. 被强制包含的文件ID列表
 		FileSet										m_forceIncludes;
+		
+		// 7. 每个文件最终应新增的前置声明
+		FileUseRecordsMap							m_minUseRecords;
 
 
 		//================== 一些通用的临时数据 ==================//
@@ -798,8 +824,11 @@ namespace cxxclean
 		// 6. 头文件搜索路径列表
 		std::vector<HeaderSearchDir>				m_headerSearchPaths;
 
-		// 7. 每个位置所使用的class、struct、union指针或引用的记录，用于生成前置声明（注意：只关注指针或引用）：[位置] -> [所使用的class、struct、union指针或引用]
-		UseRecordsMap								m_useRecords;
+		// 7.1 每个位置所使用的class、struct指针或引用，用于生成前置声明（注意：只关注指针或引用）：[位置] -> [所使用的class、struct、union指针或引用]
+		LocUseRecordsMap							m_locUseRecords;
+
+		// 7.2 每个文件所使用的class、struct指针或引用，用于生成前置声明（注意：只关注指针或引用）：[位置] -> [所使用的class、struct、union指针或引用]
+		FileUseRecordsMap							m_fileUseRecords;
 
 		// 8. using namespace记录：[using namespace的位置] -> [对应的namespace定义]
 		map<SourceLocation, const NamespaceDecl*>	m_usingNamespaces;
