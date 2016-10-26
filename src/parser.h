@@ -824,10 +824,13 @@ namespace cxxclean
 		// 6. 头文件搜索路径列表
 		std::vector<HeaderSearchDir>				m_headerSearchPaths;
 
-		// 7.1 每个位置所使用的class、struct指针或引用，用于生成前置声明（注意：只关注指针或引用）：[位置] -> [所使用的class、struct、union指针或引用]
+		// 7.1 每个位置所使用的class、struct（指针、引用），用于生成前置声明：[位置] -> [所使用的class、struct、union指针或引用]
 		LocUseRecordsMap							m_locUseRecords;
 
-		// 7.2 每个文件所使用的class、struct指针或引用，用于生成前置声明（注意：只关注指针或引用）：[位置] -> [所使用的class、struct、union指针或引用]
+		// 7.2 每个文件所使用的class、struct（指针、引用），用于生成前置声明：[位置] -> [所使用的class、struct、union指针或引用]
+		FileUseRecordsMap							m_fileUseRecordPointers;
+
+		// 7.3 每个文件所使用的class、struct（非指针、非引用），用于避免生成多余的前置声明
 		FileUseRecordsMap							m_fileUseRecords;
 
 		// 8. using namespace记录：[using namespace的位置] -> [对应的namespace定义]

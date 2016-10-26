@@ -374,6 +374,12 @@ namespace cxxclean
 			FileID top		= itr.first;
 			FileSet &kids	= itr.second;
 
+			if (kids.empty())
+			{
+				m_min.erase(top);
+				return true;
+			}
+
 			FileSet minKids = kids;
 			FileSet eraseList;
 
@@ -565,15 +571,16 @@ namespace cxxclean
 
 	void ParsingFile::GenerateMinUse()
 	{
-		m_min = m_userUses;
-
-		for (auto &itr : m_min)
+		for (auto &itr : m_userUses)
 		{
-			FileID top		= itr.first;
-			FileSet &kids	= itr.second;
-			kids.clear();
-
+			FileID top = itr.first;
+			FileSet kids;
 			GetUseChain(top, kids);
+
+			if (!kids.empty())
+			{
+				m_min[top] = kids;
+			}
 		}
 
 		m_minKids = m_min;
@@ -1329,10 +1336,22 @@ namespace cxxclean
 	// 是否应保留该位置引用的class、struct、union的前置声明
 	bool ParsingFile::IsNeedMinClass(FileID by, const CXXRecordDecl &cxxRecord) const
 	{
-		auto IsAnyKidHasRecord = [&](FileID file) -> bool
+		auto IsAnyKidHasRecord = [&](FileID byFile, FileID recordAt) -> bool
 		{
-			FileID outerAncestor = GetTopOuterFileAncestor(file);
-			return HasMinKidBySameName(by, outerAncestor);
+			if (IsAncestorForceInclude(recordAt))
+			{
+				LogInfoByLvl(LogLvl_3, "record is force included: skip record = [" <<  GetRecordName(cxxRecord) << "], by = " << GetDebugFileName(byFile) << ", record file = " << GetDebugFileName(recordAt));
+				return true;
+			}
+
+			if (IsSameName(byFile, recordAt))
+			{
+				LogInfoByLvl(LogLvl_3, "record is at same file: skip record = [" <<  GetRecordName(cxxRecord) << "], by = " << GetDebugFileName(byFile) << ", record file = " << GetDebugFileName(recordAt));
+				return true;
+			}
+
+			FileID outerAncestor = GetTopOuterFileAncestor(recordAt);
+			return HasMinKidBySameName(byFile, outerAncestor);
 		};
 
 		auto IsAnyRecordBeInclude = [&]() -> bool
@@ -1342,10 +1361,12 @@ namespace cxxclean
 			for (const TagDecl *next : first->redecls())
 			{
 				FileID recordAtFile = GetFileID(next->getLocation());
-				if (IsAnyKidHasRecord(recordAtFile))
+				if (IsAnyKidHasRecord(by, recordAtFile))
 				{
 					return true;
 				}
+
+				LogErrorByLvl(LogLvl_3, "[IsAnyKidHasRecord = false]: by = " << GetDebugFileName(by) <<  ", file = " << GetDebugFileName(recordAtFile) << ", record = " << next->getNameAsString());
 			}
 
 			return false;
@@ -1406,9 +1427,22 @@ namespace cxxclean
 	// 生成新增前置声明列表
 	void ParsingFile::GenerateMinForwardClass()
 	{
-		m_minUseRecords = m_fileUseRecords;
-
 		// 1. 清除一些不必要保留的前置声明
+		for (auto &itr : m_fileUseRecordPointers)
+		{
+			FileID by			= itr.first;
+			RecordSet &records	= itr.second;
+
+			auto &beUseItr = m_fileUseRecords.find(by);
+			if (beUseItr != m_fileUseRecords.end())
+			{
+				const RecordSet &beUseRecords = beUseItr->second;
+				Erase(records, beUseRecords);
+			}
+		}
+
+		m_minUseRecords = m_fileUseRecordPointers;
+
 		for (auto &itr = m_minUseRecords.begin(); itr != m_minUseRecords.end();)
 		{
 			FileID by			= itr->first;
@@ -1447,7 +1481,7 @@ namespace cxxclean
 	{
 		FileSet all;
 
-		for (auto &itr : m_fileUseRecords)
+		for (auto &itr : m_fileUseRecordPointers)
 		{
 			FileID by = itr.first;
 			all.insert(by);
@@ -2701,39 +2735,21 @@ namespace cxxclean
 			return;
 		}
 
-		FileID file = GetFileID(loc);
-		if (file.isInvalid())
+		FileID by = GetFileID(loc);
+		if (by.isInvalid())
 		{
 			return;
 		}
 
 		if (Project::IsCleanModeOpen(CleanMode_Need))
 		{
-			// 如果本文件内该位置之前已有前置声明则不再处理
-			const TagDecl *first = cxxRecord->getFirstDecl();
-			for (const TagDecl *next : first->redecls())
-			{
-				if (m_srcMgr->isBeforeInTranslationUnit(loc, next->getLocation()))
-				{
-					break;
-				}
-
-				FileID recordAtFile = GetFileID(next->getLocation());
-
-				if (file == recordAtFile && !next->isThisDeclarationADefinition())
-				{
-					LogInfoByLvl(LogLvl_3, "skip record = [" <<  GetRecordName(*cxxRecord) << "], record file = " << GetDebugFileName(file));
-					return;
-				}
-			}
-
 			// 添加文件所使用的前置声明记录
+			m_fileUseRecordPointers[by].insert(cxxRecord);
+
 			if (Project::instance.m_logLvl >= LogLvl_3)
 			{
 				m_locUseRecords[loc].insert(cxxRecord);
 			}
-
-			m_fileUseRecords[file].insert(cxxRecord);
 		}
 		else
 		{
@@ -3030,10 +3046,21 @@ namespace cxxclean
 			return;
 		}
 
+		FileID by = GetFileID(loc);
+		if (by.isInvalid())
+		{
+			return;
+		}
+
 		if (isa<ClassTemplateSpecializationDecl>(record))
 		{
 			const ClassTemplateSpecializationDecl *d = cast<ClassTemplateSpecializationDecl>(record);
 			UseTemplateArgumentList(loc, &d->getTemplateArgs());
+		}
+		if (isa<CXXRecordDecl>(record))
+		{
+			const CXXRecordDecl *cxxRecord = cast<CXXRecordDecl>(record);
+			m_fileUseRecords[by].insert(cxxRecord);
 		}
 
 		Use(loc, record->getLocStart(), GetRecordName(*record).c_str());

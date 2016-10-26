@@ -43,7 +43,7 @@ void Run(const cxxclean::CxxCleanOptionsParser &optionParser)
 	tool.appendArgumentsAdjuster(getInsertArgumentAdjuster("-Wno-everything",			ArgumentInsertPosition::BEGIN));	// 禁用任何警告，比-w级别高
 	tool.appendArgumentsAdjuster(getInsertArgumentAdjuster("-ferror-limit=5",			ArgumentInsertPosition::BEGIN));	// 限制单个cpp产生的编译错误数，超过则不再编译
 	tool.appendArgumentsAdjuster(getInsertArgumentAdjuster("-fpermissive",				ArgumentInsertPosition::BEGIN));	// 对不某些不符合标准的行为，允许编译通过，即对标准做降级处理
-	
+
 	DiagnosticOptions diagnosticOptions;
 	diagnosticOptions.ShowOptionNames = 1;
 	tool.setDiagnosticConsumer(new cxxclean::CxxcleanDiagnosticConsumer(&diagnosticOptions)); // 注意：这里用new没关系，会被释放
@@ -64,6 +64,8 @@ int main(int argc, const char **argv)
 		return 0;
 	}
 
+	Log("-- now = " << timetool::get_now() << " --!");
+
 	// 1. 分析每个文件，并打印统计日志
 	Run(optionParser);
 
@@ -79,6 +81,7 @@ int main(int argc, const char **argv)
 		Run(optionParser);
 	}
 
+	Log("-- now = " << timetool::get_now() << " --!");
 	Log("-- finished --!");
 	return 0;
 }
