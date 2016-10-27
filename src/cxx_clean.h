@@ -52,9 +52,7 @@ namespace cxxclean
 		                 FileID prevFileID = FileID()) override;
 
 		// 文件被跳过
-		void FileSkipped(const FileEntry &SkippedFile,
-		                 const Token &FilenameTok,
-		                 SrcMgr::CharacteristicKind FileType) override;
+		void FileSkipped(const FileEntry &SkippedFile, const Token &FilenameTok, SrcMgr::CharacteristicKind FileType) override;
 
 		void FileSkippedWithFileID(FileID);
 
@@ -94,9 +92,6 @@ namespace cxxclean
 	{
 	public:
 		explicit CxxCleanASTVisitor(ParsingFile *rootFile);
-
-		// 用于调试：打印语句的信息
-		void PrintStmt(Stmt *s);
 
 		// 访问单条语句
 		bool VisitStmt(Stmt *s);
@@ -167,9 +162,6 @@ namespace cxxclean
 		void BeginSourceFile(const LangOptions &LO, const Preprocessor *PP) override;
 
 		virtual void EndSourceFile() override;
-
-		// 是否是严重编译错误（暂时用不到）
-		bool IsFatalError(int errid);
 
 		// 当一个错误发生时，会调用此函数，在这个函数里记录编译错误和错误号
 		virtual void HandleDiagnostic(DiagnosticsEngine::Level diagLevel, const Diagnostic &info) override;

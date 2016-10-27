@@ -27,7 +27,7 @@
 #include "project.h"
 #include "html_log.h"
 
-ParsingFile* ParsingFile::g_atFile = nullptr;
+ParsingFile* ParsingFile::g_nowFile = nullptr;
 
 namespace cxxclean
 {
@@ -77,7 +77,7 @@ namespace cxxclean
 		m_compiler	= &compiler;
 		m_srcMgr	= &compiler.getSourceManager();
 		m_printIdx	= 0;
-		g_atFile	= this;
+		g_nowFile	= this;
 
 		clang::HeaderSearch &headerSearch = m_compiler->getPreprocessor().getHeaderSearchInfo();
 		m_headerSearchPaths = TakeHeaderSearchPaths(headerSearch);
@@ -85,7 +85,7 @@ namespace cxxclean
 
 	ParsingFile::~ParsingFile()
 	{
-		g_atFile = nullptr;
+		g_nowFile = nullptr;
 	}
 
 	// 添加父文件关系
@@ -104,13 +104,6 @@ namespace cxxclean
 		{
 			m_includes[file].insert(beInclude);
 		}
-	}
-
-	// 添加#include的位置记录
-	void ParsingFile::AddIncludeLoc(SourceLocation loc, SourceRange range)
-	{
-		SourceRange spellingRange(GetExpasionLoc(range.getBegin()), GetExpasionLoc(range.getEnd()));
-		m_includeLocs[GetExpasionLoc(loc)] = range;
 	}
 
 	// 添加成员文件
@@ -144,33 +137,28 @@ namespace cxxclean
 	}
 
 	// 获取头文件搜索路径
-	vector<ParsingFile::HeaderSearchDir> ParsingFile::TakeHeaderSearchPaths(clang::HeaderSearch &headerSearch) const
+	vector<ParsingFile::HeaderSearchDir> ParsingFile::TakeHeaderSearchPaths(const clang::HeaderSearch &headerSearch) const
 	{
+		typedef clang::HeaderSearch::search_dir_iterator search_iterator;
+
 		IncludeDirMap dirs;
 
-		// 获取系统头文件搜索路径
-		for (clang::HeaderSearch::search_dir_iterator
-		        itr = headerSearch.system_dir_begin(), end = headerSearch.system_dir_end();
-		        itr != end; ++itr)
+		auto AddIncludeDir = [&](search_iterator beg, search_iterator end, SrcMgr::CharacteristicKind includeKind)
 		{
-			if (const DirectoryEntry* entry = itr->getDir())
+			// 获取系统头文件搜索路径
+			for (auto itr = beg; itr != end; ++itr)
 			{
-				const string path = pathtool::fix_path(entry->getName());
-				dirs.insert(make_pair(path, SrcMgr::C_System));
+				if (const DirectoryEntry* entry = itr->getDir())
+				{
+					const string path = pathtool::fix_path(entry->getName());
+					dirs.insert(make_pair(path, includeKind));
+				}
 			}
-		}
+		};
 
-		// 获取用户头文件搜索路径
-		for (clang::HeaderSearch::search_dir_iterator
-		        itr = headerSearch.search_dir_begin(), end = headerSearch.search_dir_end();
-		        itr != end; ++itr)
-		{
-			if (const DirectoryEntry* entry = itr->getDir())
-			{
-				const string path = pathtool::fix_path(entry->getName());
-				dirs.insert(make_pair(path, SrcMgr::C_User));
-			}
-		}
+		// 获取系统头文件搜索路径
+		AddIncludeDir(headerSearch.system_dir_begin(), headerSearch.system_dir_end(), SrcMgr::C_System);
+		AddIncludeDir(headerSearch.search_dir_begin(), headerSearch.search_dir_end(), SrcMgr::C_User);
 
 		return SortHeaderSearchPath(dirs);
 	}
@@ -256,7 +244,7 @@ namespace cxxclean
 		{
 			for (FileID child = file, parent; (parent = GetParent(child)).isValid(); child = parent)
 			{
-				m_children[parent].insert(file);
+				m_kids[parent].insert(file);
 			}
 		}
 
@@ -298,23 +286,6 @@ namespace cxxclean
 
 		TakeHistorys(m_historys);
 		MergeTo(ProjectHistory::instance.m_files);
-	}
-
-	inline bool ParsingFile::IsMinUse(FileID a, FileID b) const
-	{
-		auto &itr = m_min.find(a);
-		if (itr == m_min.end())
-		{
-			return false;
-		}
-
-		auto &useList = itr->second;
-		return useList.find(b) != useList.end();
-	}
-
-	inline bool ParsingFile::HasAnyInclude(FileID a) const
-	{
-		return m_includes.find(a) != m_includes.end();
 	}
 
 	void ParsingFile::GetUseChain(FileID top, FileSet &chain) const
@@ -487,7 +458,7 @@ namespace cxxclean
 
 	void ParsingFile::GenerateKidBySame()
 	{
-		for (auto &itr : m_children)
+		for (auto &itr : m_kids)
 		{
 			FileID top = itr.first;
 			const FileSet &children	= itr.second;
@@ -505,16 +476,16 @@ namespace cxxclean
 
 			if (!userChildren.empty())
 			{
-				m_userChildren[top].insert(userChildren.begin(), userChildren.end());
+				m_userKids[top].insert(userChildren.begin(), userChildren.end());
 			}
 		}
 
-		for (auto &itr : m_userChildren)
+		for (auto &itr : m_userKids)
 		{
 			FileID top = itr.first;
 			const std::string topName = GetAbsoluteFileName(top);
 
-			FileSet &kids	= m_childrenBySame[topName];
+			FileSet &kids	= m_kidsBySame[topName];
 			GetKidsBySame(top, kids);
 		}
 	}
@@ -574,13 +545,7 @@ namespace cxxclean
 		for (auto &itr : m_userUses)
 		{
 			FileID top = itr.first;
-			FileSet kids;
-			GetUseChain(top, kids);
-
-			if (!kids.empty())
-			{
-				m_min[top] = kids;
-			}
+			GetUseChain(top, m_min[top]);
 		}
 
 		m_minKids = m_min;
@@ -616,8 +581,8 @@ namespace cxxclean
 					todo.insert(file);
 				}
 
-				auto childrenItr = m_userChildren.find(file);
-				if (childrenItr != m_userChildren.end())
+				auto childrenItr = m_userKids.find(file);
+				if (childrenItr != m_userKids.end())
 				{
 					const FileSet &children = childrenItr->second;
 
@@ -988,22 +953,16 @@ namespace cxxclean
 		}
 
 		// 1. 先生成有效#include列表
-		std::map<SourceLocation, SourceRange> validIncludeLocs;
+		std::set<SourceLocation> includeLocs;
 		for (FileID file : m_files)
 		{
-			SourceLocation beIncludeLoc = m_srcMgr->getIncludeLoc(file);
-
-			auto itr = m_includeLocs.find(beIncludeLoc);
-			if (itr != m_includeLocs.end())
-			{
-				validIncludeLocs.insert(std::make_pair(beIncludeLoc, itr->second));
-			}
+			SourceLocation includeLoc = m_srcMgr->getIncludeLoc(file);
+			includeLocs.insert(includeLoc);
 		}
 
 		// 2. 判断每个#include是否被使用到
-		for (auto & locItr : validIncludeLocs)
+		for (SourceLocation loc : includeLocs)
 		{
-			SourceLocation loc = locItr.first;
 			FileID file = GetFileID(loc);
 
 			if (!IsRely(file))
@@ -1025,52 +984,6 @@ namespace cxxclean
 				m_unusedLocs.erase(m_srcMgr->getIncludeLoc(beusedFile));
 			}
 		}
-	}
-
-	// 文件a是否使用到文件b
-	bool ParsingFile::IsUse(FileID a, FileID b) const
-	{
-		auto &itr = m_uses.find(a);
-		if (itr == m_uses.end())
-		{
-			return false;
-		}
-
-		auto &useList = itr->second;
-		return useList.find(b) != useList.end();
-	}
-
-	// 文件a是否直接包含文件b
-	bool ParsingFile::IsInclude(FileID a, FileID b) const
-	{
-		auto &itr = m_includes.find(a);
-		if (itr == m_includes.end())
-		{
-			return false;
-		}
-
-		auto &includeList = itr->second;
-		return includeList.find(b) != includeList.end();
-	}
-
-	// 从指定的文件列表中找到属于传入文件的后代
-	ParsingFile::FileSet ParsingFile::GetChildren(FileID ancestor, FileSet all_children/* 包括非ancestor孩子的文件 */)
-	{
-		// 属于ancestor的后代文件列表
-		FileSet children;
-
-		// 获取属于该文件的后代中被主文件使用的一部分
-		for (FileID child : all_children)
-		{
-			if (!IsAncestor(child, ancestor))
-			{
-				continue;
-			}
-
-			children.insert(child);
-		}
-
-		return children;
 	}
 
 	void ParsingFile::GetTopRelys(FileID top, FileSet &out) const
@@ -1384,7 +1297,7 @@ namespace cxxclean
 	void ParsingFile::GenerateForwardClass()
 	{
 		// 1. 清除一些不必要保留的前置声明
-		for (auto &itr = m_locUseRecords.begin(); itr != m_locUseRecords.end();)
+		for (auto &itr = m_locUseRecordPointers.begin(); itr != m_locUseRecordPointers.end();)
 		{
 			SourceLocation loc		= itr->first;
 			RecordSet &old_forwards	= itr->second;
@@ -1393,7 +1306,7 @@ namespace cxxclean
 
 			if (!IsRely(file))
 			{
-				m_locUseRecords.erase(itr++);
+				m_locUseRecordPointers.erase(itr++);
 				continue;
 			}
 
@@ -1409,7 +1322,7 @@ namespace cxxclean
 
 			if (can_forwards.empty())
 			{
-				m_locUseRecords.erase(itr++);
+				m_locUseRecordPointers.erase(itr++);
 				continue;
 			}
 
@@ -1628,16 +1541,6 @@ namespace cxxclean
 		return beg;
 	}
 
-	// 获取该范围源码的信息：文本、所在文件名、行号
-	std::string ParsingFile::DebugRangeText(SourceRange range) const
-	{
-		std::stringstream text;
-		text << "[" << htmltool::get_include_html(GetSourceOfRange(range)) << "] in [";
-		text << htmltool::get_file_html(GetAbsoluteFileName(GetFileID(range.getBegin())));
-		text << "] line = " << htmltool::get_number_html(GetLineNo(range.getBegin()));
-		return text.str();
-	}
-
 	// 获取指定位置所在行的文本
 	std::string ParsingFile::GetSourceOfLine(SourceLocation loc) const
 	{
@@ -1646,6 +1549,11 @@ namespace cxxclean
 
 	SourceRange ParsingFile::GetCurLine(SourceLocation loc) const
 	{
+		if (loc.isInvalid())
+		{
+			return SourceRange();
+		}
+
 		SourceLocation fileBeginLoc = m_srcMgr->getLocForStartOfFile(GetFileID(loc));
 		SourceLocation fileEndLoc	= m_srcMgr->getLocForEndOfFile(GetFileID(loc));
 
@@ -1761,7 +1669,7 @@ namespace cxxclean
 	// 获取文件对应的#include含范围
 	SourceRange ParsingFile::GetIncludeRange(FileID file) const
 	{
-		SourceLocation includeLoc	= m_srcMgr->getIncludeLoc(file);
+		SourceLocation includeLoc = m_srcMgr->getIncludeLoc(file);
 		return GetCurFullLine(includeLoc);
 	}
 
@@ -1772,35 +1680,10 @@ namespace cxxclean
 		return text == "\r" || text == "";
 	}
 
-	/*
-		获取对应于传入文件ID的#include文本
-		例如：
-			假设有b.cpp，内容如下
-				1. #include "./a.h"
-				2. #include "a.h"
-
-			其中第1行和第2行包含的a.h是虽然同一个文件，但FileID是不一样的
-
-			现传入第一行a.h的FileID，则结果将返回
-				#include "./a.h"
-	*/
-	std::string ParsingFile::GetIncludeLine(FileID file) const
+	// 获取文件对应的#include所在的行（不含换行符）
+	std::string ParsingFile::GetBeIncludeLineText(FileID file) const
 	{
 		SourceLocation loc = m_srcMgr->getIncludeLoc(file);
-		return GetSourceOfLine(loc);
-	}
-
-	// 获取文件对应的#include所在的整行
-	std::string ParsingFile::GetIncludeFullLine(FileID file) const
-	{
-		SourceLocation loc = m_srcMgr->getIncludeLoc(file);
-
-		auto &itr = m_includeLocs.find(loc);
-		if (itr == m_includeLocs.end())
-		{
-			return "";
-		}
-
 		return GetSourceOfLine(loc);
 	}
 
@@ -1920,8 +1803,8 @@ namespace cxxclean
 	bool ParsingFile::IsAncestor(FileID young, FileID old) const
 	{
 		// 搜索后代文件
-		auto &itr = m_children.find(old);
-		if (itr != m_children.end())
+		auto &itr = m_kids.find(old);
+		if (itr != m_kids.end())
 		{
 			const FileSet &children = itr->second;
 			return children.find(young) != children.end();
@@ -1969,8 +1852,8 @@ namespace cxxclean
 	{
 		std::string oldName = GetAbsoluteFileName(old);
 
-		auto itr = m_childrenBySame.find(oldName);
-		if (itr != m_childrenBySame.end())
+		auto itr = m_kidsBySame.find(oldName);
+		if (itr != m_kidsBySame.end())
 		{
 			const FileSet &kids = itr->second;
 			return kids.find(young) != kids.end();
@@ -2283,8 +2166,8 @@ namespace cxxclean
 		}
 
 		// 2. 否则，搜索后代文件
-		auto &itr = m_children.find(a);
-		if (itr == m_children.end())
+		auto &itr = m_kids.find(a);
+		if (itr == m_kids.end())
 		{
 			for (FileID child : itr->second)
 			{
@@ -2325,8 +2208,8 @@ namespace cxxclean
 			}
 
 			// 2. 否则，搜索后代文件
-			auto &childrenItr = m_children.find(a);
-			if (childrenItr != m_children.end())
+			auto &childrenItr = m_kids.find(a);
+			if (childrenItr != m_kids.end())
 			{
 				const FileSet &children = childrenItr->second;
 
@@ -2672,61 +2555,6 @@ namespace cxxclean
 		return SourceLocation();
 	}
 
-	// 返回插入前置声明所在行的开头
-	SourceLocation ParsingFile::GetMinInsertForwardLine(FileID at, const CXXRecordDecl &cxxRecord) const
-	{
-		// 该类所在的文件
-		FileID recordAtFile	= GetFileID(cxxRecord.getLocStart());
-
-		// 优先以更好的同名文件来取代
-		recordAtFile = GetBestSameFile(at, recordAtFile);
-
-		if (IsAncestorBySame(recordAtFile, at))
-		{
-			// 找到A的祖先，要求该祖先必须是B的儿子
-			FileID ancestor = GetLvl2AncestorBySame(recordAtFile, at);
-			if (ancestor.isInvalid())
-			{
-				return SourceLocation();
-			}
-
-			// 找到祖先文件所对应的#include语句的位置
-			SourceLocation includeLoc	= m_srcMgr->getIncludeLoc(ancestor);
-			SourceRange line			= GetCurLine(includeLoc);
-			return line.getBegin();
-		}
-		// 2. 类所在文件是当前文件的祖先
-		else if (IsAncestorBySame(at, recordAtFile))
-		{
-			return SourceLocation();
-		}
-		// 3. 类所在文件和当前文件没有直系关系
-		else
-		{
-			// 找到这2个文件的共同祖先
-			FileID common_ancestor = GetCommonAncestorBySame(recordAtFile, at);
-			if (common_ancestor.isInvalid())
-			{
-				return SourceLocation();
-			}
-
-			// 找到类所在文件的祖先，要求该祖先必须是共同祖先的儿子
-			FileID ancestor = GetLvl2AncestorBySame(recordAtFile, common_ancestor);
-			if (ancestor.isInvalid())
-			{
-				return SourceLocation();
-			}
-
-			// 找到祖先文件所对应的#include语句的位置
-			SourceLocation includeLoc	= m_srcMgr->getIncludeLoc(ancestor);
-			SourceRange line			= GetCurLine(includeLoc);
-			return line.getBegin();
-		}
-
-		// 不可能执行到这里
-		return SourceLocation();
-	}
-
 	// 新增使用前置声明记录（对于不必要添加的前置声明将在之后进行清理）
 	void ParsingFile::UseForward(SourceLocation loc, const CXXRecordDecl *cxxRecord)
 	{
@@ -2748,7 +2576,7 @@ namespace cxxclean
 
 			if (Project::instance.m_logLvl >= LogLvl_3)
 			{
-				m_locUseRecords[loc].insert(cxxRecord);
+				m_locUseRecordPointers[loc].insert(cxxRecord);
 			}
 		}
 		else
@@ -3114,10 +2942,10 @@ namespace cxxclean
 	}
 
 	// 打印各文件的孩子文件
-	void ParsingFile::PrintChildren()
+	void ParsingFile::PrintKids()
 	{
 		int num = 0;
-		for (auto &itr : m_children)
+		for (auto &itr : m_kids)
 		{
 			FileID parent = itr.first;
 
@@ -3131,9 +2959,9 @@ namespace cxxclean
 		}
 
 		HtmlDiv &div = HtmlLog::instance.m_newDiv;
-		div.AddRow(AddPrintIdx() + ". list of children : file count = " + strtool::itoa(num), 1);
+		div.AddRow(AddPrintIdx() + ". list of kids : file count = " + strtool::itoa(num), 1);
 
-		for (auto &itr : m_children)
+		for (auto &itr : m_kids)
 		{
 			FileID parent = itr.first;
 
@@ -3151,7 +2979,7 @@ namespace cxxclean
 					continue;
 				}
 
-				div.AddRow("child = " + DebugBeIncludeText(child), 3);
+				div.AddRow("kid = " + DebugBeIncludeText(child), 3);
 			}
 
 			div.AddRow("");
@@ -3159,12 +2987,12 @@ namespace cxxclean
 	}
 
 	// 打印各文件的孩子文件
-	void ParsingFile::PrintUserChildren()
+	void ParsingFile::PrintUserKids()
 	{
 		HtmlDiv &div = HtmlLog::instance.m_newDiv;
-		div.AddRow(AddPrintIdx() + ". list of user children : file count = " + strtool::itoa(m_userChildren.size()), 1);
+		div.AddRow(AddPrintIdx() + ". list of user kids : file count = " + strtool::itoa(m_userKids.size()), 1);
 
-		for (auto &itr : m_userChildren)
+		for (auto &itr : m_userKids)
 		{
 			FileID parent = itr.first;
 
@@ -3172,19 +3000,19 @@ namespace cxxclean
 
 			for (FileID child : itr.second)
 			{
-				div.AddRow("user child = " + DebugBeIncludeText(child), 3);
+				div.AddRow("user kid = " + DebugBeIncludeText(child), 3);
 			}
 
 			div.AddRow("");
 		}
 	}
 
-	void ParsingFile::PrintSameChildren()
+	void ParsingFile::PrintKidsBySame()
 	{
 		HtmlDiv &div = HtmlLog::instance.m_newDiv;
-		div.AddRow(AddPrintIdx() + ". list of children by same name : file count = " + strtool::itoa(m_childrenBySame.size()), 1);
+		div.AddRow(AddPrintIdx() + ". list of kids by same name : file count = " + strtool::itoa(m_kidsBySame.size()), 1);
 
-		for (auto &itr : m_childrenBySame)
+		for (auto &itr : m_kidsBySame)
 		{
 			const std::string &parent = itr.first;
 
@@ -3192,12 +3020,7 @@ namespace cxxclean
 
 			for (FileID child : itr.second)
 			{
-				if (!CanClean(child))
-				{
-					//continue;
-				}
-
-				div.AddRow("child = " + DebugBeIncludeText(child), 3);
+				div.AddRow("kid by same = " + DebugBeIncludeText(child), 3);
 			}
 
 			div.AddRow("");
@@ -3228,7 +3051,7 @@ namespace cxxclean
 				                             cn_file_include_line,
 				                             htmltool::get_min_file_name_html(GetAbsoluteFileName(parent)).c_str(),
 				                             strtool::itoa(GetIncludeLineNo(child)).c_str(),
-				                             htmltool::get_include_html(GetIncludeLine(child)).c_str()
+				                             htmltool::get_include_html(GetBeIncludeLineText(child)).c_str()
 				                         );
 
 				ancestors << includeLineText;
@@ -3252,25 +3075,6 @@ namespace cxxclean
 		}
 
 		return "";
-	}
-
-	// 获取该文件的被直接包含信息，返回内容包括：该文件名、被父文件#include的行号、被父文件#include的原始文本串
-	string ParsingFile::DebugBeDirectIncludeText(FileID file) const
-	{
-		string fileName			= GetFileName(file);
-		string includeToken		= GetIncludeLine(file);
-
-		if (includeToken.empty())
-		{
-			includeToken = "empty";
-		}
-
-		std::stringstream text;
-		text << "{line = " << htmltool::get_number_html(GetIncludeLineNo(file)) << " [" << htmltool::get_include_html(includeToken) << "]";
-		text << "} -> ";
-		text << "[" << htmltool::get_file_html(fileName) << "]";
-
-		return text.str();
 	}
 
 	// 获取该位置所在行的信息：所在行的文本、所在文件名、行号
@@ -3376,7 +3180,7 @@ namespace cxxclean
 	{
 		// 若第2个文件的被包含串原本就是#include <xxx>的格式，则返回原本的#include串
 		{
-			string rawInclude2 = GetIncludeLine(f2);
+			string rawInclude2 = GetBeIncludeLineText(f2);
 			if (rawInclude2.empty())
 			{
 				return "";
@@ -3444,7 +3248,7 @@ namespace cxxclean
 	}
 
 	// 将清理结果回写到c++源文件，返回：true回写文件时发生错误 false回写成功
-	// （本接口拷贝自Rewriter::overwriteChangedFiles，唯一的不同是回写成功时会删除文件缓存）
+	// （本接口参考了Rewriter::overwriteChangedFiles）
 	bool ParsingFile::Overwrite()
 	{
 		class CxxCleanReWriter
@@ -3861,42 +3665,12 @@ namespace cxxclean
 
 			for (FileID be_used_file : be_uses)
 			{
-				div.AddRow("old include = " + htmltool::get_include_html(GetIncludeFullLine(be_used_file)), 3, 45);
+				div.AddRow("old include = " + htmltool::get_include_html(GetBeIncludeLineText(be_used_file)), 3, 45);
 				div.AddGrid("-> relative include = " + htmltool::get_include_html(GetRelativeIncludeStr(file, be_used_file)));
 			}
 
 			div.AddRow("");
 		}
-	}
-
-	// 用于调试跟踪：打印是否有文件的被包含串被遗漏
-	void ParsingFile::PrintNotFoundIncludeLocForDebug()
-	{
-		HtmlDiv &div = HtmlLog::instance.m_newDiv;
-		div.AddRow(AddPrintIdx() + ". not found include loc:", 1);
-
-		for (auto &itr : m_uses)
-		{
-			const FileSet &beuse_files = itr.second;
-
-			for (FileID beuse_file : beuse_files)
-			{
-				if (beuse_file == m_srcMgr->getMainFileID())
-				{
-					continue;
-				}
-
-				SourceLocation loc = m_srcMgr->getIncludeLoc(beuse_file);
-				if (m_includeLocs.find(loc) == m_includeLocs.end())
-				{
-					div.AddRow("not found = " + DebugBeIncludeText(beuse_file), 2);
-					div.AddRow("old text = " + DebugLocText(loc), 2);
-					continue;
-				}
-			}
-		}
-
-		div.AddRow("");
 	}
 
 	// 打印索引 + 1
@@ -3946,8 +3720,8 @@ namespace cxxclean
 			if (Project::IsCleanModeOpen(CleanMode_Need))
 			{
 				PrintOutFileAncestor();
-				PrintUserChildren();
-				PrintSameChildren();
+				PrintUserKids();
+				PrintKidsBySame();
 			}
 			else
 			{
@@ -3961,14 +3735,9 @@ namespace cxxclean
 			PrintHeaderSearchPath();
 			PrintRelativeInclude();
 			PrintParent();
-			PrintChildren();
+			PrintKids();
 			PrintNamespace();
 			PrintUsingNamespace();
-		}
-
-		if (verbose >= LogLvl_5)
-		{
-			PrintNotFoundIncludeLocForDebug();
 		}
 
 		HtmlLog::instance.AddDiv(div);
@@ -4273,7 +4042,7 @@ namespace cxxclean
 		// 1. 该行的旧文本
 		SourceRange	includeRange	= GetIncludeRange(from);
 		replaceLine.oldFile			= GetAbsoluteFileName(from);
-		replaceLine.oldText			= GetIncludeFullLine(from);
+		replaceLine.oldText			= GetBeIncludeLineText(from);
 		replaceLine.beg				= m_srcMgr->getFileOffset(includeRange.getBegin());
 		replaceLine.end				= m_srcMgr->getFileOffset(includeRange.getEnd());
 		replaceLine.isSkip			= IsSkip(from);	// 记载是否是强制包含
@@ -4282,7 +4051,7 @@ namespace cxxclean
 		ReplaceTo &replaceTo	= replaceLine.replaceTo;
 
 		// 记录[旧#include、新#include]
-		replaceTo.oldText		= GetIncludeFullLine(to);
+		replaceTo.oldText		= GetBeIncludeLineText(to);
 		replaceTo.newText		= GetRelativeIncludeStr(GetParent(from), to);
 
 		// 记录[所处的文件、所处行号]
@@ -4493,7 +4262,7 @@ namespace cxxclean
 				if (addLine.offset <= 0)
 				{
 					addLine.offset	= m_srcMgr->getFileOffset(GetIncludeRange(lv2).getEnd());
-					addLine.oldText	= GetIncludeFullLine(lv2);
+					addLine.oldText	= GetBeIncludeLineText(lv2);
 				}
 
 				BeAdd beAdd;
@@ -4607,7 +4376,7 @@ namespace cxxclean
 	// 将新增的前置声明按文件进行存放
 	void ParsingFile::TakeForwardClass(FileHistoryMap &out) const
 	{
-		if (m_locUseRecords.empty())
+		if (m_locUseRecordPointers.empty())
 		{
 			return;
 		}
@@ -4678,7 +4447,7 @@ namespace cxxclean
 	// 将文件前置声明记录按文件进行归类
 	void ParsingFile::SplitForwardByFile(UseRecordsByFileMap &forwards) const
 	{
-		for (auto &itr : m_locUseRecords)
+		for (auto &itr : m_locUseRecordPointers)
 		{
 			SourceLocation loc		= itr.first;
 			FileID file				= GetFileID(loc);
@@ -4954,23 +4723,6 @@ namespace cxxclean
 		}
 
 		return false;
-	}
-
-	// 获取属于本项目的允许被清理的文件数
-	int ParsingFile::GetCanCleanFileCount() const
-	{
-		int num = 0;
-		for (FileID file : m_relys)
-		{
-			if (!CanClean(file))
-			{
-				continue;
-			}
-
-			++num;
-		}
-
-		return num;
 	}
 
 	// 打印主文件的依赖文件集

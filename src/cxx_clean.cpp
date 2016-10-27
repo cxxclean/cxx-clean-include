@@ -28,12 +28,9 @@ namespace cxxclean
 	// 预处理器，当#define、#if、#else等预处理关键字被预处理时使用本预处理器
 	CxxCleanPreprocessor::CxxCleanPreprocessor(ParsingFile *rootFile)
 		: m_root(rootFile)
-	{
-	}
+	{}
 
-	void CxxCleanPreprocessor::EndOfMainFile()
-	{
-	}
+	void CxxCleanPreprocessor::EndOfMainFile() {}
 
 	// 文件切换
 	void CxxCleanPreprocessor::FileChanged(SourceLocation loc, FileChangeReason reason,
@@ -46,8 +43,7 @@ namespace cxxclean
 			return;
 		}
 
-		SourceManager &srcMgr	= m_root->GetSrcMgr();
-		FileID curFileID		= srcMgr.getFileID(loc);
+		FileID curFileID		= m_root->GetSrcMgr().getFileID(loc);
 
 		// 这里要注意，有的文件是会被FileChanged遗漏掉的，除非把HeaderSearch::ShouldEnterIncludeFile方法改为每次都返回true
 		m_root->AddFile(curFileID);
@@ -57,8 +53,7 @@ namespace cxxclean
 	void CxxCleanPreprocessor::FileSkipped(const FileEntry &SkippedFile,
 	                                       const Token &FilenameTok,
 	                                       SrcMgr::CharacteristicKind FileType)
-	{
-	}
+	{}
 
 	void CxxCleanPreprocessor::FileSkippedWithFileID(FileID fileID)
 	{
@@ -67,30 +62,9 @@ namespace cxxclean
 
 	// 处理#include
 	void CxxCleanPreprocessor::InclusionDirective(SourceLocation HashLoc /*#的位置*/, const Token &includeTok,
-	        StringRef fileName, bool isAngled/*是否被<>包含，否则是被""包围*/, CharSourceRange filenameRange,
-	        const FileEntry *file, StringRef searchPath, StringRef relativePath, const clang::Module *Imported)
-	{
-		// 注：当编译时采用-include<c++头文件>选项，但却又找不到该头文件时，将导致file无效，但这里不影响
-		if (nullptr == file)
-		{
-			return;
-		}
-
-		FileID curFileID = m_root->GetSrcMgr().getFileID(HashLoc);
-		if (curFileID.isInvalid())
-		{
-			return;
-		}
-
-		SourceRange range(HashLoc, filenameRange.getEnd());
-
-		if (filenameRange.getBegin() == filenameRange.getEnd())
-		{
-			cxx::log() << "InclusionDirective filenameRange.getBegin() == filenameRange.getEnd()\n";
-		}
-
-		m_root->AddIncludeLoc(filenameRange.getBegin(), range);
-	}
+		StringRef fileName, bool isAngled/*是否被<>包含，否则是被""包围*/, CharSourceRange filenameRange,
+		const FileEntry *file, StringRef searchPath, StringRef relativePath, const clang::Module *Imported)
+	{}
 
 	// 定义宏，如#if defined DEBUG
 	void CxxCleanPreprocessor::Defined(const Token &macroName, const MacroDefinition &definition, SourceRange range)
@@ -99,9 +73,7 @@ namespace cxxclean
 	}
 
 	// 处理#define
-	void CxxCleanPreprocessor::MacroDefined(const Token &macroName, const MacroDirective *direct)
-	{
-	}
+	void CxxCleanPreprocessor::MacroDefined(const Token &macroName, const MacroDirective *direct) {}
 
 	// 宏被#undef
 	void CxxCleanPreprocessor::MacroUndefined(const Token &macroName, const MacroDefinition &definition)
@@ -116,17 +88,6 @@ namespace cxxclean
 	                                        const MacroArgs *args)
 	{
 		m_root->UseMacro(range.getBegin(), definition, macroName, args);
-
-		/*
-		SourceManager &srcMgr = m_root->GetSrcMgr();
-		if (srcMgr.isInMainFile(range.getBegin()))
-		{
-			SourceRange spellingRange(srcMgr.getSpellingLoc(range.getBegin()), srcMgr.getSpellingLoc(range.getEnd()));
-
-			cxx::log() << "<pre>text = " << m_root->GetSourceOfRange(range) << "</pre>\n";
-			cxx::log() << "<pre>macroName = " << macroName.getIdentifierInfo()->getName().str() << "</pre>\n";
-		}
-		*/
 	}
 
 	// #ifdef
@@ -143,32 +104,12 @@ namespace cxxclean
 
 	CxxCleanASTVisitor::CxxCleanASTVisitor(ParsingFile *rootFile)
 		: m_root(rootFile)
-	{
-	}
-
-	// 用于调试：打印语句的信息
-	void CxxCleanASTVisitor::PrintStmt(Stmt *s)
-	{
-		SourceLocation loc = s->getLocStart();
-
-		cxx::log() << "<pre>source = " << m_root->DebugRangeText(s->getSourceRange()) << "</pre>\n";
-		cxx::log() << "<pre>";
-		s->dump(cxx::log());
-		cxx::log() << "</pre>";
-	}
+	{}
 
 	// 访问单条语句
 	bool CxxCleanASTVisitor::VisitStmt(Stmt *s)
 	{
 		SourceLocation loc = s->getLocStart();
-
-		/*
-		if (m_root->GetSrcMgr().isInMainFile(loc))
-		{
-			cxx::log() << "<pre>------------ VisitStmt ------------:</pre>\n";
-			PrintStmt(s);
-		}
-		*/
 
 		// 参见：http://clang.llvm.org/doxygen/classStmt.html
 		if (isa<CastExpr>(s))
@@ -195,17 +136,6 @@ namespace cxxclean
 			default:
 				m_root->UseVarType(loc, castType);
 			}
-
-			/*
-			if (m_root->GetSrcMgr().isInMainFile(loc))
-			{
-				cxx::log() << "<pre>------------ CastExpr ------------:</pre>\n";
-				cxx::log() << "<pre>";
-				cxx::log() << castExpr->getCastKindName();
-				cxx::log() << "</pre>";
-			}
-			*/
-
 		}
 		else if (isa<CXXMemberCallExpr>(s))
 		{
@@ -227,11 +157,6 @@ namespace cxxclean
 			{
 				ValueDecl *valueDecl = cast<ValueDecl>(calleeDecl);
 				m_root->UseValueDecl(loc, valueDecl);
-
-				{
-					//cxx::log() << "<pre>------------ CallExpr: NamedDecl ------------:</pre>\n";
-					//PrintStmt(s);
-				}
 			}
 		}
 		else if (isa<DeclRefExpr>(s))
@@ -484,7 +409,6 @@ namespace cxxclean
 			}
 		}
 
-		// ModifyFunc(f);
 		return true;
 	}
 
@@ -668,8 +592,7 @@ namespace cxxclean
 	CxxcleanDiagnosticConsumer::CxxcleanDiagnosticConsumer(DiagnosticOptions *diags)
 		: m_log(m_errorTip)
 		, TextDiagnosticPrinter(m_log, diags, false)
-	{
-	}
+	{}
 
 	void CxxcleanDiagnosticConsumer::Clear()
 	{
@@ -691,23 +614,8 @@ namespace cxxclean
 	{
 		TextDiagnosticPrinter::EndSourceFile();
 
-		CompileErrorHistory &errHistory = ParsingFile::g_atFile->GetCompileErrorHistory();
+		CompileErrorHistory &errHistory = ParsingFile::g_nowFile->GetCompileErrorHistory();
 		errHistory.errNum				= NumErrors;
-	}
-
-	// 是否是严重编译错误
-	bool CxxcleanDiagnosticConsumer::IsFatalError(int errid)
-	{
-		if (errid == clang::diag::err_expected_lparen_after_type)
-		{
-			// 这个是unsigned int(0)类型的错误
-			// int n =  unsigned int(0);
-			//          ~~~~~~~~ ^
-			// error: expected '(' for function-style cast or type construction
-			return true;
-		}
-
-		return false;
 	}
 
 	// 当一个错误发生时，会调用此函数，在这个函数里记录编译错误和错误号
@@ -720,7 +628,7 @@ namespace cxxclean
 
 		TextDiagnosticPrinter::HandleDiagnostic(diagLevel, info);
 
-		CompileErrorHistory &errHistory = ParsingFile::g_atFile->GetCompileErrorHistory();
+		CompileErrorHistory &errHistory = ParsingFile::g_nowFile->GetCompileErrorHistory();
 
 		int errId = info.getID();
 		if (errId == diag::fatal_too_many_errors)
@@ -739,7 +647,7 @@ namespace cxxclean
 
 		int errNum = errHistory.errTips.size() + 1;
 
-		if (diagLevel >= DiagnosticIDs::Fatal || IsFatalError(errId))
+		if (diagLevel >= DiagnosticIDs::Fatal)
 		{
 			errHistory.fatalErrorIds.insert(errId);
 
@@ -828,10 +736,7 @@ namespace cxxclean
 	        cl::cat(g_optionCategory));
 
 	static cl::opt<string>	g_src			("src",
-	        cl::desc("target c++ source file to be cleaned, must have valid path, if this option was valued, only the target c++ file will be cleaned\n"
-	                 "this option can be used with -clean option, for example, you can use: \n"
-	                 "    cxxclean -clean hello.vcproj -src ./hello.cpp\n"
-	                 "it will only clean hello.cpp and using hello.vcproj configuration"
+	        cl::desc("target c++ source file to be cleaned"
 	                ),
 	        cl::cat(g_optionCategory));
 
@@ -868,22 +773,10 @@ namespace cxxclean
 
 		cl::ParseCommandLineOptions(argc, argv, nullptr);
 
-		if (!ParseVerboseOption())
-		{
-			return false;
-		}
-
-		if (!ParseCleanModeOption())
-		{
-			return false;
-		}
-
-		if (!ParseSrcOption())
-		{
-			return false;
-		}
-
-		if (!ParseCleanOption())
+		if (!ParseVerboseOption()
+			|| !ParseCleanModeOption()
+			|| !ParseSrcOption()
+			|| !ParseCleanOption())
 		{
 			return false;
 		}
@@ -949,7 +842,7 @@ namespace cxxclean
 
 		for (const std::string &dir	: vsconfig.searchDirs)
 		{
-			std::string arg			= "-I" + dir;
+			const std::string arg = "-I" + dir;
 
 			ArgumentsAdjuster argAdjuster = getInsertArgumentAdjuster(arg.c_str(), ArgumentInsertPosition::BEGIN);
 			tool.appendArgumentsAdjuster(argAdjuster);
@@ -957,7 +850,7 @@ namespace cxxclean
 
 		for (const std::string &force_include : vsconfig.forceIncludes)
 		{
-			std::string arg						= "-include" + force_include;
+			const std::string arg = "-include" + force_include;
 
 			ArgumentsAdjuster argAdjuster = getInsertArgumentAdjuster(arg.c_str(), ArgumentInsertPosition::BEGIN);
 			tool.appendArgumentsAdjuster(argAdjuster);
@@ -965,7 +858,7 @@ namespace cxxclean
 
 		for (auto &predefine : vsconfig.preDefines)
 		{
-			std::string arg = "-D" + predefine;
+			const std::string arg = "-D" + predefine;
 
 			ArgumentsAdjuster argAdjuster = getInsertArgumentAdjuster(arg.c_str(), ArgumentInsertPosition::BEGIN);
 			tool.appendArgumentsAdjuster(argAdjuster);
@@ -991,9 +884,7 @@ namespace cxxclean
 		std::string vsInstallDir;
 
 #if defined(LLVM_ON_WIN32)
-		DiagnosticsEngine engine(
-		    IntrusiveRefCntPtr<clang::DiagnosticIDs>(new DiagnosticIDs()), nullptr,
-		    nullptr, false);
+		DiagnosticsEngine engine(IntrusiveRefCntPtr<clang::DiagnosticIDs>(new DiagnosticIDs()), nullptr, nullptr, false);
 
 		clang::driver::Driver d("", "", engine);
 		llvm::opt::InputArgList args(nullptr, nullptr);
@@ -1125,8 +1016,6 @@ namespace cxxclean
 					Log("parse vs project<" << clean_option << "> failed!");
 					return false;
 				}
-
-				// cxx::log() << "parse vs project<" << clean_option << "> succeed!\n";
 
 				HtmlLog::instance.SetHtmlTitle(strtool::get_text(cn_project, clean_option.c_str()));
 				HtmlLog::instance.SetBigTitle(strtool::get_text(cn_project, htmltool::get_file_html(clean_option).c_str()));

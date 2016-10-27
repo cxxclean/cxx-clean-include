@@ -76,16 +76,7 @@ namespace cxxclean
 		// [文件] -> [该文件所使用的class、struct、union指针或引用]
 		typedef std::map<FileID, LocUseRecordsMap> UseRecordsByFileMap;
 
-		struct NodeHash
-		{
-			std::size_t operator () (const FileID &file) const
-			{
-				return file.getHashValue();
-			}
-		};
-
 		// 文件集
-		//typedef std::unordered_set<FileID, NodeHash> FileSet;
 		typedef std::set<FileID> FileSet;
 
 		// 用于调试：引用的名称
@@ -110,9 +101,7 @@ namespace cxxclean
 		struct NamespaceInfo
 		{
 			NamespaceInfo()
-				: ns(nullptr)
-			{
-			}
+				: ns(nullptr) {}
 
 			std::string			name;		// 命名空间的声明，如：namespace A{ namespace B { namespace C {} } }
 			const NamespaceDecl	*ns;		// 命名空间的定义
@@ -125,8 +114,7 @@ namespace cxxclean
 			HeaderSearchDir(const string& dir, SrcMgr::CharacteristicKind dirType)
 				: m_dir(dir)
 				, m_dirType(dirType)
-			{
-			}
+			{}
 
 			string						m_dir;
 			SrcMgr::CharacteristicKind	m_dirType;
@@ -145,9 +133,6 @@ namespace cxxclean
 		// 添加包含文件记录
 		void AddInclude(FileID file, FileID beInclude);
 
-		// 添加#include的位置记录
-		void AddIncludeLoc(SourceLocation loc, SourceRange range);
-
 		// 添加成员文件
 		void AddFile(FileID file);
 
@@ -156,9 +141,6 @@ namespace cxxclean
 
 		// 开始分析
 		void Analyze();
-
-		// 是否包含了任意文件
-		inline bool HasAnyInclude(FileID a) const;
 
 		// 计算文件深度
 		int GetDeepth(FileID file) const;
@@ -251,7 +233,7 @@ namespace cxxclean
 		void Clean();
 
 		// 将清理结果回写到c++源文件，返回：true回写文件时发生错误 false回写成功
-		// （本接口拷贝自Rewriter::overwriteChangedFiles，唯一的不同是回写成功时会删除文件缓存）
+		// （本接口参考了Rewriter::overwriteChangedFiles）
 		bool Overwrite();
 
 		// 打印索引 + 1
@@ -268,9 +250,6 @@ namespace cxxclean
 
 		// 获取指定位置的文本
 		const char* GetSourceAtLoc(SourceLocation loc) const;
-
-		// 获取该范围源码的信息：文本、所在文件名、行号
-		std::string DebugRangeText(SourceRange range) const;
 
 		// 该文件是否是被-include强制包含
 		bool IsForceIncluded(FileID file) const;
@@ -289,7 +268,7 @@ namespace cxxclean
 
 	private:
 		// 获取头文件搜索路径
-		std::vector<HeaderSearchDir> TakeHeaderSearchPaths(clang::HeaderSearch &headerSearch) const;
+		std::vector<HeaderSearchDir> TakeHeaderSearchPaths(const clang::HeaderSearch &headerSearch) const;
 
 		// 将头文件搜索路径根据长度由长到短排列
 		std::vector<HeaderSearchDir> SortHeaderSearchPath(const IncludeDirMap& include_dirs_map) const;
@@ -305,15 +284,6 @@ namespace cxxclean
 
 		// 该文件名是否被包含多次
 		inline bool HasSameFile(FileID file) const;
-
-		// 文件a是否使用到文件b
-		bool IsUse(FileID a, FileID b) const;
-
-		// 文件a是否直接包含文件b
-		bool IsInclude(FileID a, FileID b) const;
-
-		// 从指定的文件列表中找到属于传入文件的后代
-		FileSet GetChildren(FileID ancestor, FileSet all_children/* 包括非ancestor孩子的文件 */);
 
 		// 获取文件的深度（令主文件的高度为0）
 		int GetDepth(FileID child) const;
@@ -378,21 +348,15 @@ namespace cxxclean
 		bool IsNewLineWord(SourceLocation loc) const;
 
 		/*
-			获取对应于传入文件ID的#include文本
-			例如：
-				假设有b.cpp，内容如下
+			获取文件对应的#include所在的行（不含换行符）
+			注意：
+				假设有一个cpp文件的内容如下，其中第1行和第2行包含的a.h是虽然同一个文件，但FileID是不一样的
 					1. #include "./a.h"
 					2. #include "a.h"
 
-				其中第1行和第2行包含的a.h是虽然同一个文件，但FileID是不一样的
-
-				现传入第一行a.h的FileID，则结果将返回
-					#include "./a.h"
+				现传入第一行a.h对应的FileID，则结果 = #include "./a.h"
 		*/
-		std::string GetIncludeLine(FileID file) const;
-
-		// 获取文件对应的#include所在的整行
-		std::string GetIncludeFullLine(FileID file) const;
+		std::string GetBeIncludeLineText(FileID file) const;
 
 		inline void UseName(FileID file, FileID beusedFile, const char* name = nullptr, int line = 0);
 
@@ -429,16 +393,13 @@ namespace cxxclean
 		void PrintParent();
 
 		// 打印各文件的孩子文件
-		void PrintChildren();
+		void PrintKids();
 
 		// 是否允许清理该c++文件（若不允许清理，则文件内容不会有任何变化）
 		bool CanClean(FileID file) const;
 
 		// 获取该文件的被包含信息，返回内容包括：该文件名、父文件名、被父文件#include的行号、被父文件#include的原始文本串
 		string DebugBeIncludeText(FileID file) const;
-
-		// 获取该文件的被直接包含信息，返回内容包括：该文件名、被父文件#include的行号、被父文件#include的原始文本串
-		string DebugBeDirectIncludeText(FileID file) const;
 
 		// 获取该位置所在行的信息：所在行的文本、所在文件名、行号
 		string DebugLocText(SourceLocation loc) const;
@@ -448,9 +409,6 @@ namespace cxxclean
 
 		// 是否有必要打印该文件
 		bool IsNeedPrintFile(FileID) const;
-
-		// 获取属于本项目的允许被清理的文件数
-		int GetCanCleanFileCount() const;
 
 		// 获取拼写位置
 		SourceLocation GetSpellingLoc(SourceLocation loc) const;
@@ -504,9 +462,6 @@ namespace cxxclean
 
 		// 用于调试：打印各文件引用的文件集相对于该文件的#include文本
 		void PrintRelativeInclude() const;
-
-		// 用于调试跟踪：打印是否有文件的被包含串被遗漏
-		void PrintNotFoundIncludeLocForDebug();
 
 		// 文件格式是否是windows格式，换行符为[\r\n]，类Unix下为[\n]
 		bool IsWindowsFormat(FileID) const;
@@ -599,7 +554,7 @@ namespace cxxclean
 
 		// 生成新增前置声明列表
 		void GenerateForwardClass();
-		
+
 		// 将当前cpp文件产生的待清理记录与之前其他cpp文件产生的待清理记录合并
 		void MergeTo(FileHistoryMap &old) const;
 
@@ -676,8 +631,6 @@ namespace cxxclean
 
 		bool MergeMin();
 
-		inline bool IsMinUse(FileID a, FileID b) const;
-
 		inline bool IsUserFile(FileID file) const;
 
 		inline bool IsOuterFile(FileID file) const;
@@ -706,9 +659,6 @@ namespace cxxclean
 
 		void GetKidsBySame(FileID top, FileSet &kids) const;
 
-		// 返回插入前置声明所在行的开头
-		SourceLocation GetMinInsertForwardLine(FileID at, const CXXRecordDecl &cxxRecord) const;
-
 		bool HasMinKid(FileID top, FileID kid) const;
 
 		void TakeOneReplace(ReplaceLine &replaceLine, FileID from, FileID to) const;
@@ -723,10 +673,10 @@ namespace cxxclean
 		FileID GetAncestorForceInclude(FileID file) const;
 
 		// 打印各文件的孩子文件
-		void PrintUserChildren();
+		void PrintUserKids();
 
 		// 打印
-		void PrintSameChildren();
+		void PrintKidsBySame();
 
 		// 打印被包含多次的文件
 		void PrintSameFile() const;
@@ -745,7 +695,7 @@ namespace cxxclean
 
 	public:
 		// 当前正在解析的文件
-		static ParsingFile *g_atFile;
+		static ParsingFile *g_nowFile;
 
 	private:
 		//================== 最终分析结果 ==================//
@@ -783,10 +733,10 @@ namespace cxxclean
 		std::map<FileID, FileSet>					m_min;
 
 		// 1. 各文件的后代文件（仅用户文件）：[文件ID] -> [该文件包含的全部后代文件ID（仅用户文件）]
-		std::map<FileID, FileSet>					m_userChildren;		
+		std::map<FileID, FileSet>					m_userKids;
 
 		// 2. 各文件的后代文件（已对同名文件进行处理）：[文件名] -> [该文件包含的全部后代文件ID（已对同名文件进行处理）]
-		std::map<std::string, FileSet>				m_childrenBySame;
+		std::map<std::string, FileSet>				m_kidsBySame;
 
 		// 3. 各文件应包含的后代文件列表：[文件ID] -> [该文件应包含的后代文件ID列表]
 		std::map<FileID, FileSet>					m_minKids;
@@ -799,7 +749,7 @@ namespace cxxclean
 
 		// 6. 被强制包含的文件ID列表
 		FileSet										m_forceIncludes;
-		
+
 		// 7. 每个文件最终应新增的前置声明
 		FileUseRecordsMap							m_minUseRecords;
 
@@ -815,37 +765,34 @@ namespace cxxclean
 		// 3. 所有文件ID
 		FileSet										m_files;
 
-		// 4. 所有#include的位置对应的范围： [#include "xxxx.h"中第一个双引号或<符号的位置] -> [#include整个文本串的范围]
-		std::map<SourceLocation, SourceRange>		m_includeLocs;
-
-		// 5. 父文件关系：[文件ID] -> [父文件ID]
+		// 4. 父文件关系：[文件ID] -> [父文件ID]
 		std::map<FileID, FileID>					m_parents;
 
-		// 6. 头文件搜索路径列表
+		// 5. 头文件搜索路径列表
 		std::vector<HeaderSearchDir>				m_headerSearchPaths;
 
-		// 7.1 每个位置所使用的class、struct（指针、引用），用于生成前置声明：[位置] -> [所使用的class、struct、union指针或引用]
-		LocUseRecordsMap							m_locUseRecords;
+		// 6.1 每个位置所使用的class、struct（指针、引用），用于生成前置声明：[位置] -> [所使用的class、struct、union指针或引用]
+		LocUseRecordsMap							m_locUseRecordPointers;
 
-		// 7.2 每个文件所使用的class、struct（指针、引用），用于生成前置声明：[位置] -> [所使用的class、struct、union指针或引用]
+		// 6.2 每个文件所使用的class、struct（指针、引用），用于生成前置声明：[文件] -> [所使用的class、struct、union指针或引用]
 		FileUseRecordsMap							m_fileUseRecordPointers;
 
-		// 7.3 每个文件所使用的class、struct（非指针、非引用），用于避免生成多余的前置声明
+		// 6.3 每个文件所使用的class、struct（非指针、非引用），用于避免生成多余的前置声明
 		FileUseRecordsMap							m_fileUseRecords;
 
-		// 8. using namespace记录：[using namespace的位置] -> [对应的namespace定义]
+		// 7. using namespace记录：[using namespace的位置] -> [对应的namespace定义]
 		map<SourceLocation, const NamespaceDecl*>	m_usingNamespaces;
 
-		// 9. 各文件的后代：[文件ID] -> [该文件包含的全部后代文件ID]
-		std::map<FileID, FileSet>					m_children;
+		// 8. 各文件的后代：[文件ID] -> [该文件包含的全部后代文件ID]
+		std::map<FileID, FileSet>					m_kids;
 
-		// 10. 仅用于打印：各文件所使用的类名、函数名、宏名等的名称记录：[文件ID] -> [该文件所使用的其他文件中的类名、函数名、宏名、变量名等]
+		// 9. 仅用于打印：各文件所使用的类名、函数名、宏名等的名称记录：[文件ID] -> [该文件所使用的其他文件中的类名、函数名、宏名、变量名等]
 		std::map<FileID, std::vector<UseNameInfo>>	m_useNames;
 
-		// 11. 仅用于打印：各文件内声明的命名空间记录：[文件] -> [该文件内的命名空间记录]
+		// 10. 仅用于打印：各文件内声明的命名空间记录：[文件] -> [该文件内的命名空间记录]
 		std::map<FileID, std::set<std::string>>		m_namespaces;
 
-		// 12. 同一个文件名对应的不同文件ID：[文件名] -> [同名文件ID列表]
+		// 11. 同一个文件名对应的不同文件ID：[文件名] -> [同名文件ID列表]
 		std::map<std::string, FileSet>				m_sameFiles;
 
 	private:

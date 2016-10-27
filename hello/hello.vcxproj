@@ -108,6 +108,7 @@
     <ClInclude Include="p_same_file.h" />
     <ClInclude Include="q.h" />
     <ClInclude Include="q_using_class.h" />
+    <ClInclude Include="r_3.h" />
     <ClInclude Include="test.h" />
     <ClInclude Include="type.h" />
   </ItemGroup>
@@ -130,6 +131,7 @@
     <ClCompile Include="o_nested_class.cpp" />
     <ClCompile Include="p_same_file.cpp" />
     <ClCompile Include="q_using_class.cpp" />
+    <ClCompile Include="r_same_forward.cpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

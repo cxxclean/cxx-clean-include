@@ -28,8 +28,7 @@ namespace cxxclean
 		DelLine()
 			: beg(0)
 			, end(0)
-		{
-		}
+		{}
 
 		int							beg;				// 起始偏移
 		int							end;				// 结束偏移
@@ -41,8 +40,7 @@ namespace cxxclean
 	{
 		ForwardLine()
 			: offset(0)
-		{
-		}
+		{}
 
 		int							offset;				// 本行首在文件内的偏移量
 		string						oldText;			// 本行原来的文本
@@ -61,8 +59,7 @@ namespace cxxclean
 	{
 		AddLine()
 			: offset(0)
-		{
-		}
+		{}
 
 		int							offset;				// 本行首在文件内的偏移量
 		string						oldText;			// 本行原来的文本
@@ -74,8 +71,7 @@ namespace cxxclean
 	{
 		ReplaceTo()
 			: line(0)
-		{
-		}
+		{}
 
 		string						fileName;			// 该#include对应的文件
 		string						inFile;				// 该#include被哪个文件包含
@@ -92,8 +88,7 @@ namespace cxxclean
 			: isSkip(false)
 			, beg(0)
 			, end(0)
-		{
-		}
+		{}
 
 		bool						isSkip;				// 记录本条替换是否应被跳过，因为有些#include是被-include参数所引入的，并无法被替换，但仍然有打印的必要
 		int							beg;				// 起始偏移
@@ -109,8 +104,7 @@ namespace cxxclean
 		CompileErrorHistory()
 			: errNum(0)
 			, hasTooManyError(false)
-		{
-		}
+		{}
 
 		// 是否有严重编译错误或编译错误数过多
 		bool HaveFatalError() const
@@ -137,8 +131,7 @@ namespace cxxclean
 			, m_beUseCount(0)
 			, m_isWindowFormat(false)
 			, m_isSkip(false)
-		{
-		}
+		{}
 
 		// 打印本文件的清理历史
 		void Print(int id /* 文件序号 */, bool isPrintCompiliError = true) const;
@@ -212,13 +205,11 @@ namespace cxxclean
 			: m_isFirst(true)
 			, m_printIdx(0)
 			, g_fileNum(0)
-		{
-		}
+		{}
 
 	public:
 		void OnCleaned(const string &file)
 		{
-			// cxx::log() << "on_cleaned file: " << file << " ...\n";
 			m_cleanedFiles.insert(file);
 		}
 
@@ -251,7 +242,7 @@ namespace cxxclean
 		void PrintSkip() const;
 
 	public:
-		static ProjectHistory	instance;
+		static ProjectHistory instance;
 
 	public:
 		// 当前是第几次分析所有源文件

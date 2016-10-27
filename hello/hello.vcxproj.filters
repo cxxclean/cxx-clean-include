@@ -43,6 +43,7 @@
     <ClInclude Include="p2.h" />
     <ClInclude Include="q.h" />
     <ClInclude Include="q_using_class.h" />
+    <ClInclude Include="r_3.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="hello.cpp" />
@@ -63,5 +64,6 @@
     <ClCompile Include="o_nested_class.cpp" />
     <ClCompile Include="p_same_file.cpp" />
     <ClCompile Include="q_using_class.cpp" />
+    <ClCompile Include="r_same_forward.cpp" />
   </ItemGroup>
 </Project>
