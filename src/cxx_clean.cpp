@@ -30,8 +30,6 @@ namespace cxxclean
 		: m_root(rootFile)
 	{}
 
-	void CxxCleanPreprocessor::EndOfMainFile() {}
-
 	// 文件切换
 	void CxxCleanPreprocessor::FileChanged(SourceLocation loc, FileChangeReason reason,
 	                                       SrcMgr::CharacteristicKind FileType,
@@ -43,28 +41,17 @@ namespace cxxclean
 			return;
 		}
 
-		FileID curFileID		= m_root->GetSrcMgr().getFileID(loc);
+		FileID curFileID = m_root->GetSrcMgr().getFileID(loc);
 
 		// 这里要注意，有的文件是会被FileChanged遗漏掉的，除非把HeaderSearch::ShouldEnterIncludeFile方法改为每次都返回true
 		m_root->AddFile(curFileID);
 	}
 
 	// 文件被跳过
-	void CxxCleanPreprocessor::FileSkipped(const FileEntry &SkippedFile,
-	                                       const Token &FilenameTok,
-	                                       SrcMgr::CharacteristicKind FileType)
-	{}
-
 	void CxxCleanPreprocessor::FileSkippedWithFileID(FileID fileID)
 	{
 		m_root->AddFile(fileID);
 	}
-
-	// 处理#include
-	void CxxCleanPreprocessor::InclusionDirective(SourceLocation HashLoc /*#的位置*/, const Token &includeTok,
-		StringRef fileName, bool isAngled/*是否被<>包含，否则是被""包围*/, CharSourceRange filenameRange,
-		const FileEntry *file, StringRef searchPath, StringRef relativePath, const clang::Module *Imported)
-	{}
 
 	// 定义宏，如#if defined DEBUG
 	void CxxCleanPreprocessor::Defined(const Token &macroName, const MacroDefinition &definition, SourceRange range)
@@ -82,10 +69,7 @@ namespace cxxclean
 	}
 
 	// 宏扩展
-	void CxxCleanPreprocessor::MacroExpands(const Token &macroName,
-	                                        const MacroDefinition &definition,
-	                                        SourceRange range,
-	                                        const MacroArgs *args)
+	void CxxCleanPreprocessor::MacroExpands(const Token &macroName, const MacroDefinition &definition, SourceRange range, const MacroArgs *args)
 	{
 		m_root->UseMacro(range.getBegin(), definition, macroName, args);
 	}
@@ -115,9 +99,7 @@ namespace cxxclean
 		if (isa<CastExpr>(s))
 		{
 			CastExpr *castExpr = cast<CastExpr>(s);
-
 			QualType castType = castExpr->getType();
-
 			CastKind castKind = castExpr->getCastKind();
 
 			switch (castKind)
@@ -708,9 +690,7 @@ namespace cxxclean
 	// 创建抽象语法树解析器
 	std::unique_ptr<ASTConsumer> CxxCleanAction::CreateASTConsumer(CompilerInstance &compiler, StringRef file)
 	{
-		m_rewriter.setSourceMgr(compiler.getSourceManager(), compiler.getLangOpts());
-
-		m_root = new ParsingFile(m_rewriter, compiler);
+		m_root = new ParsingFile(compiler);
 
 		HtmlLog::instance.m_newDiv.Clear();
 
@@ -721,14 +701,14 @@ namespace cxxclean
 	static llvm::cl::OptionCategory g_optionCategory("cxx-clean-include category");
 
 	static cl::opt<string>	g_cleanOption	("clean",
-	        cl::desc("you can use this option to:\n"
-	                 "    1. clean directory, for example: -clean ../hello/\n"
-	                 "    2. clean visual studio project(version 2005 or upper): for example: -clean ./hello.vcproj or -clean ./hello.vcxproj\n"
+	        cl::desc("format:\n"
+	                 "    1. clean directory: -clean ../hello/\n"
+	                 "    2. clean visual studio project(version 2005 or upper): -clean ./hello.vcproj or -clean ./hello.vcxproj\n"
 	                ),
 	        cl::cat(g_optionCategory));
 
 	static cl::opt<string>	g_cleanModes	("mode",
-	        cl::desc("clean modes, can use like [ -mode 1 ] or [ -mode 1+2 ], default is [ -mode 3 ]\n"
+	        cl::desc("clean modes, default is [ -mode 3 ], other modes: [ -mode 1 ] or [ -mode 2 ] or [ -mode 1+2 ], \n"
 	                 "mode 1. clean unused #include\n"
 	                 "mode 2. replace some #include to other #include\n"
 	                 "mode 3. each file only #include files it need"
@@ -736,12 +716,11 @@ namespace cxxclean
 	        cl::cat(g_optionCategory));
 
 	static cl::opt<string>	g_src			("src",
-	        cl::desc("target c++ source file to be cleaned"
-	                ),
+	        cl::desc("target c++ source file to be cleaned"),
 	        cl::cat(g_optionCategory));
 
 	static cl::opt<bool>	g_noOverWrite	("no",
-	        cl::desc("means no overwrite, if this option is checked, all of the c++ file will not be changed"),
+	        cl::desc("means no overwrite, all c++ file will not be changed"),
 	        cl::cat(g_optionCategory));
 
 	static cl::opt<bool>	g_onlyCleanCpp	("onlycpp",
@@ -749,7 +728,7 @@ namespace cxxclean
 	        cl::cat(g_optionCategory));
 
 	static cl::opt<bool>	g_printVsConfig	("print-vs",
-	        cl::desc("print vs configuration, for example, print header search path, print c++ file list, print predefine macro and so on"),
+	        cl::desc("print vs configuration"),
 	        cl::cat(g_optionCategory));
 
 	static cl::opt<int>		g_logLevel		("v",
@@ -773,10 +752,7 @@ namespace cxxclean
 
 		cl::ParseCommandLineOptions(argc, argv, nullptr);
 
-		if (!ParseVerboseOption()
-			|| !ParseCleanModeOption()
-			|| !ParseSrcOption()
-			|| !ParseCleanOption())
+		if (!ParseLogOption() || !ParseCleanModeOption() || !ParseSrcOption() || !ParseCleanOption())
 		{
 			return false;
 		}
@@ -794,12 +770,7 @@ namespace cxxclean
 		}
 
 		HtmlLog::instance.BeginLog();
-
-		if (Project::instance.m_logLvl >= LogLvl_5)
-		{
-			Project::instance.Print();
-		}
-
+		Project::instance.Print();
 		return true;
 	}
 
@@ -830,6 +801,13 @@ namespace cxxclean
 		return new FixedCompilationDatabase(directory, strippedArgs);
 	}
 
+	// 添加clang参数
+	void CxxCleanOptionsParser::AddArgument(ClangTool &tool, const char *arg) const
+	{
+		ArgumentsAdjuster argAdjuster = getInsertArgumentAdjuster(arg, ArgumentInsertPosition::BEGIN);
+		tool.appendArgumentsAdjuster(argAdjuster);
+	}
+
 	// 根据vs工程文件里调整clang的参数
 	bool CxxCleanOptionsParser::AddCleanVsArgument(const VsProject &vs, ClangTool &tool) const
 	{
@@ -843,33 +821,27 @@ namespace cxxclean
 		for (const std::string &dir	: vsconfig.searchDirs)
 		{
 			const std::string arg = "-I" + dir;
-
-			ArgumentsAdjuster argAdjuster = getInsertArgumentAdjuster(arg.c_str(), ArgumentInsertPosition::BEGIN);
-			tool.appendArgumentsAdjuster(argAdjuster);
+			AddArgument(tool, arg.c_str());
 		}
 
 		for (const std::string &force_include : vsconfig.forceIncludes)
 		{
 			const std::string arg = "-include" + force_include;
-
-			ArgumentsAdjuster argAdjuster = getInsertArgumentAdjuster(arg.c_str(), ArgumentInsertPosition::BEGIN);
-			tool.appendArgumentsAdjuster(argAdjuster);
+			AddArgument(tool, arg.c_str());
 		}
 
 		for (auto &predefine : vsconfig.preDefines)
 		{
 			const std::string arg = "-D" + predefine;
-
-			ArgumentsAdjuster argAdjuster = getInsertArgumentAdjuster(arg.c_str(), ArgumentInsertPosition::BEGIN);
-			tool.appendArgumentsAdjuster(argAdjuster);
+			AddArgument(tool, arg.c_str());
 		}
 
-		tool.appendArgumentsAdjuster(getInsertArgumentAdjuster("-fms-extensions", ArgumentInsertPosition::BEGIN));
-		tool.appendArgumentsAdjuster(getInsertArgumentAdjuster("-fms-compatibility", ArgumentInsertPosition::BEGIN));
+		AddArgument(tool, "-fms-extensions");
+		AddArgument(tool, "-fms-compatibility");
 
 		if (vs.m_version >= 2008)
 		{
-			//tool.appendArgumentsAdjuster(getInsertArgumentAdjuster("-fms-compatibility-version=18", ArgumentInsertPosition::BEGIN));
+			// AddArgument(tool, "-fms-compatibility-version=18");
 		}
 
 		AddVsSearchDir(tool);
@@ -952,7 +924,7 @@ namespace cxxclean
 			}
 
 			std::string arg = "-I" + path;
-			tool.appendArgumentsAdjuster(getInsertArgumentAdjuster(arg.c_str(), ArgumentInsertPosition::BEGIN));
+			AddArgument(tool, arg.c_str());
 		}
 	}
 
@@ -968,10 +940,10 @@ namespace cxxclean
 		if (pathtool::exist(src))
 		{
 			HtmlLog::instance.SetHtmlTitle(strtool::get_text(cn_cpp_file, src.c_str()));
-			HtmlLog::instance.SetBigTitle(strtool::get_text(cn_cpp_file, htmltool::get_file_html(src).c_str()));
+			HtmlLog::instance.SetBigTitle(strtool::get_text(cn_cpp_file, htmltool::get_file_html(src.c_str()).c_str()));
 			m_sourceList.push_back(src);
 
-			cxx::init_log(strtool::get_text(cn_cpp_file, pathtool::get_file_name(src).c_str()));
+			cxx::init_log(strtool::get_text(cn_cpp_file, pathtool::get_file_name(src.c_str()).c_str()));
 		}
 		else
 		{
@@ -983,7 +955,7 @@ namespace cxxclean
 			}
 
 			HtmlLog::instance.SetHtmlTitle(strtool::get_text(cn_folder, src.c_str()));
-			HtmlLog::instance.SetBigTitle(strtool::get_text(cn_folder, htmltool::get_file_html(src).c_str()));
+			HtmlLog::instance.SetBigTitle(strtool::get_text(cn_folder, htmltool::get_file_html(src.c_str()).c_str()));
 
 			std::string log_file = strtool::replace(src, "/", "_");
 			log_file = strtool::replace(src, ".", "_");
@@ -1018,7 +990,7 @@ namespace cxxclean
 				}
 
 				HtmlLog::instance.SetHtmlTitle(strtool::get_text(cn_project, clean_option.c_str()));
-				HtmlLog::instance.SetBigTitle(strtool::get_text(cn_project, htmltool::get_file_html(clean_option).c_str()));
+				HtmlLog::instance.SetBigTitle(strtool::get_text(cn_project, htmltool::get_file_html(clean_option.c_str()).c_str()));
 
 				cxx::init_log(strtool::get_text(cn_project_1, llvm::sys::path::stem(clean_option).str().c_str()));
 				vs.TakeSourceListTo(project);
@@ -1044,7 +1016,7 @@ namespace cxxclean
 					}
 
 					HtmlLog::instance.SetHtmlTitle(strtool::get_text(cn_folder, clean_option.c_str()));
-					HtmlLog::instance.SetBigTitle(strtool::get_text(cn_folder, htmltool::get_file_html(clean_option).c_str()));
+					HtmlLog::instance.SetBigTitle(strtool::get_text(cn_folder, htmltool::get_file_html(clean_option.c_str()).c_str()));
 
 					cxx::init_log(strtool::get_text(cn_folder, clean_option.c_str()));
 				}
@@ -1062,19 +1034,13 @@ namespace cxxclean
 
 		// 移除非c++后缀的源文件
 		project.Fix();
-
-		if (project.m_cpps.size() == 1)
-		{
-			project.m_onlyHas1File = true;
-		}
-
-		project.m_isOnlyNeed1Step = (project.m_onlyHas1File || project.IsCleanModeOpen(CleanMode_Need) ||
+		project.m_isOnlyNeed1Step = (project.m_cpps.size() == 1 || project.IsCleanModeOpen(CleanMode_Need) ||
 		                             !project.m_canCleanAll || !project.m_isOverWrite);
 		return true;
 	}
 
 	// 解析-v选项
-	bool CxxCleanOptionsParser::ParseVerboseOption()
+	bool CxxCleanOptionsParser::ParseLogOption()
 	{
 		if (g_logLevel.getNumOccurrences() == 0)
 		{
@@ -1094,7 +1060,7 @@ namespace cxxclean
 		return true;
 	}
 
-	// 解析-level选项
+	// 解析清理模式-mode选项
 	bool CxxCleanOptionsParser::ParseCleanModeOption()
 	{
 		string strModes ;

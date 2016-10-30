@@ -132,6 +132,7 @@
     <ClCompile Include="p_same_file.cpp" />
     <ClCompile Include="q_using_class.cpp" />
     <ClCompile Include="r_same_forward.cpp" />
+    <ClCompile Include="s_out_file.cpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

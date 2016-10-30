@@ -20,6 +20,11 @@ namespace cxxclean
 	// 打印本次清理的文件列表
 	void Project::Print() const
 	{
+		if (Project::instance.m_logLvl < LogLvl_5)
+		{
+			return;
+		}
+
 		HtmlDiv div;
 		div.AddTitle(cn_project_text);
 
@@ -30,7 +35,7 @@ namespace cxxclean
 
 			for (const string &file : m_allowCleanList)
 			{
-				div.AddRow(strtool::get_text(cn_project_allow_file, htmltool::get_file_html(file).c_str()), 2);
+				div.AddRow(strtool::get_text(cn_project_allow_file, htmltool::get_file_html(file.c_str()).c_str()), 2);
 			}
 
 			div.AddRow("");
@@ -51,7 +56,7 @@ namespace cxxclean
 			for (const string &file : m_cpps)
 			{
 				const string absoluteFile = pathtool::get_absolute_path(file.c_str());
-				div.AddRow(strtool::get_text(cn_project_source, htmltool::get_file_html(absoluteFile).c_str()), 2);
+				div.AddRow(strtool::get_text(cn_project_source, htmltool::get_file_html(absoluteFile.c_str()).c_str()), 2);
 			}
 
 			div.AddRow("");

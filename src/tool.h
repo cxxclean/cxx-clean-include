@@ -164,7 +164,7 @@ namespace pathtool
 
 	// 根据路径获取文件名
 	// 例如：/a/b/foo.txt    => foo.txt
-	string get_file_name(const string& path);
+	string get_file_name(const char *path);
 
 	// 简化路径
 	// 例如：d:/a/b/c/../../d/ -> d:/d/
@@ -254,9 +254,9 @@ namespace htmltool
 
 	std::string escape_html(const std::string &html);
 
-	std::string get_file_html(const std::string &filename);
+	std::string get_file_html(const char *filename);
 
-	std::string get_min_file_name_html(const std::string &filename);
+	std::string get_min_file_name_html(const char *filename);
 
 	std::string get_include_html(const std::string &text);
 

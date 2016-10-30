@@ -308,7 +308,7 @@ namespace pathtool
 
 	// 根据路径获取文件名
 	// 例如：/a/b/foo.txt    => foo.txt
-	string get_file_name(const string& path)
+	string get_file_name(const char *path)
 	{
 		return llvm::sys::path::filename(path);
 	}
@@ -426,7 +426,7 @@ namespace pathtool
 			return "";
 		}
 
-		llvm::SmallString<512> filepath(path);
+		llvm::SmallString<2048> filepath(path);
 		std::error_code error = llvm::sys::fs::make_absolute(filepath);
 		if (error)
 		{
@@ -434,7 +434,7 @@ namespace pathtool
 		}
 
 		filepath = simplify_path(filepath.c_str());
-		return tolower(filepath.str());
+		return filepath.str();
 	}
 
 	/*
@@ -473,12 +473,7 @@ namespace pathtool
 	bool is_dir_exist(const std::string &dir)
 	{
 		struct _stat fileStat;
-		if ((_stat(dir.c_str(), &fileStat) == 0) && (fileStat.st_mode & _S_IFDIR))
-		{
-			return true;
-		}
-
-		return false;
+		return  ((_stat(dir.c_str(), &fileStat) == 0) && (fileStat.st_mode & _S_IFDIR));
 	}
 
 	// 指定路径是否存在，可为文件路径或者文件夹路径
@@ -498,8 +493,8 @@ namespace pathtool
 	{
 		struct _finddata_t filefind;
 
-		int handle = 0;
-		if(-1 == (handle = _findfirst(path.c_str(), &filefind)))
+		int handle = _findfirst(path.c_str(), &filefind);
+		if(-1 == handle)
 		{
 			return false;
 		}
@@ -575,7 +570,7 @@ namespace pathtool
 
 	std::string get_current_path()
 	{
-		llvm::SmallString<512> path;
+		llvm::SmallString<2048> path;
 		std::error_code err = llvm::sys::fs::current_path(path);
 		return err ? "" : path.str();
 	}
@@ -598,18 +593,18 @@ namespace htmltool
 		return ret;
 	}
 
-	std::string get_file_html(const std::string &filename)
+	std::string get_file_html(const char *filename)
 	{
 		std::string html = R"--(<a href="#{file}">#{file}</a>)--";
-		strtool::replace(html, "#{file}", filename.c_str());
+		strtool::replace(html, "#{file}", filename);
 
 		return html;
 	}
 
-	std::string get_min_file_name_html(const std::string &filename)
+	std::string get_min_file_name_html(const char *filename)
 	{
 		std::string html = R"--(<a href="#{filepath}">#{filename}</a>)--";
-		strtool::replace(html, "#{filepath}", filename.c_str());
+		strtool::replace(html, "#{filepath}", filename);
 		strtool::replace(html, "#{filename}", pathtool::get_file_name(filename).c_str());
 
 		return html;
@@ -635,7 +630,7 @@ namespace timetool
 {
 	std::string get_now(const char* format /* = "%04d/%02d/%02d-%02d:%02d:%02d" */)
 	{
-		if (NULL == format)
+		if (strtool::is_empty(format))
 		{
 			return "";
 		}

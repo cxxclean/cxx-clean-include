@@ -87,6 +87,7 @@ namespace cxxclean
 	static const char* cn_project_history_clean_count	= "清理结果：共有%s个c++文件可被清理";
 	static const char* cn_project_history_src_count		= "本次共分析了%s个cpp（或cxx、cc）源文件";
 
+	static const char* cn_parent_file_debug_text		= "文件 = %s, 子文件数 = %s";
 	static const char* cn_file_debug_text				= "%s[%s](文件ID = %d)(层数 = %s){该文件来自于%s}";
 	static const char* cn_file_include_line				= "[%s第%s行%s]";
 	static const char* cn_main_file_debug_text			= "[%s](文件ID = %d)(层数 = %s)";

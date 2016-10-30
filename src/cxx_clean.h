@@ -16,7 +16,6 @@
 #include "clang/Frontend/TextDiagnosticPrinter.h"
 #include "clang/Frontend/FrontendAction.h"
 #include "clang/Frontend/CompilerInstance.h"
-#include "clang/Rewrite/Core/Rewriter.h"
 #include "clang/Tooling/Tooling.h"
 
 using namespace clang;
@@ -44,22 +43,11 @@ namespace cxxclean
 		explicit CxxCleanPreprocessor(ParsingFile *mainFile);
 
 	public:
-		void EndOfMainFile() override;
-
 		// 文件切换
-		void FileChanged(SourceLocation loc, FileChangeReason reason,
-		                 SrcMgr::CharacteristicKind FileType,
-		                 FileID prevFileID = FileID()) override;
+		void FileChanged(SourceLocation loc, FileChangeReason reason, SrcMgr::CharacteristicKind FileType, FileID prevFileID = FileID()) override;
 
 		// 文件被跳过
-		void FileSkipped(const FileEntry &SkippedFile, const Token &FilenameTok, SrcMgr::CharacteristicKind FileType) override;
-
 		void FileSkippedWithFileID(FileID);
-
-		// 处理#include
-		void InclusionDirective(SourceLocation HashLoc /*#的位置*/, const Token &includeTok,
-		                        StringRef fileName, bool isAngled/*是否被<>包含，否则是被""包围*/, CharSourceRange filenameRange,
-		                        const FileEntry *file, StringRef searchPath, StringRef relativePath, const clang::Module *Imported) override;
 
 		// 定义宏，如#if defined DEBUG
 		void Defined(const Token &macroName, const MacroDefinition &definition, SourceRange range) override;
@@ -71,10 +59,7 @@ namespace cxxclean
 		void MacroUndefined(const Token &macroName, const MacroDefinition &definition) override;
 
 		// 宏扩展
-		void MacroExpands(const Token &macroName,
-		                  const MacroDefinition &definition,
-		                  SourceRange range,
-		                  const MacroArgs *args) override;
+		void MacroExpands(const Token &macroName, const MacroDefinition &definition, SourceRange range, const MacroArgs *args) override;
 
 		// #ifdef
 		void Ifdef(SourceLocation loc, const Token &macroName, const MacroDefinition &definition) override;
@@ -176,8 +161,7 @@ namespace cxxclean
 	public:
 		CxxCleanAction()
 			: m_root(nullptr)
-		{
-		}
+		{}
 
 		// 开始文件处理
 		bool BeginSourceFileAction(CompilerInstance &compiler, StringRef filename) override;
@@ -189,9 +173,6 @@ namespace cxxclean
 		std::unique_ptr<ASTConsumer> CreateASTConsumer(CompilerInstance &compiler, StringRef file) override;
 
 	private:
-		// 文件重写类，用来修改c++源码内容
-		Rewriter	m_rewriter;
-
 		// 当前正在解析的cpp文件信息
 		ParsingFile	*m_root;
 	};
@@ -212,6 +193,9 @@ namespace cxxclean
 		//		则-clean ./hello/将被本工具解析，-include log.h将被clang库解析
 		static FixedCompilationDatabase *CxxCleanOptionsParser::SplitCommandLine(int &argc, const char *const *argv, Twine directory = ".");
 
+		// 添加clang参数
+		void AddArgument(ClangTool &tool, const char *arg) const;
+
 		// 根据vs工程文件里调整clang的参数
 		bool AddCleanVsArgument(const VsProject &vs, ClangTool &tool) const;
 
@@ -228,7 +212,7 @@ namespace cxxclean
 		bool ParseCleanOption();
 
 		// 解析日志打印级别-v选项
-		bool ParseVerboseOption();
+		bool ParseLogOption();
 
 		// 解析清理模式-mode选项
 		bool ParseCleanModeOption();

@@ -15,8 +15,10 @@
 #include "history.h"
 #include "tool.h"
 
+using namespace cxxclean;
+
 // 初始化环境配置
-bool Init(cxxclean::CxxCleanOptionsParser &optionParser, int argc, const char **argv)
+bool Init(CxxCleanOptionsParser &optionParser, int argc, const char **argv)
 {
 	llvm::sys::PrintStackTraceOnErrorSignal("");
 
@@ -29,34 +31,56 @@ bool Init(cxxclean::CxxCleanOptionsParser &optionParser, int argc, const char **
 }
 
 // 开始分析
-void Run(const cxxclean::CxxCleanOptionsParser &optionParser)
+void Run(const CxxCleanOptionsParser &optionParser)
 {
-	ClangTool tool(optionParser.getCompilations(), cxxclean::Project::instance.m_cpps);
+	ClangTool tool(optionParser.getCompilations(), Project::instance.m_cpps);
 	tool.clearArgumentsAdjusters();
 	tool.appendArgumentsAdjuster(getClangSyntaxOnlyAdjuster());
 
-	optionParser.AddCleanVsArgument(cxxclean::VsProject::instance, tool);
-
-	tool.appendArgumentsAdjuster(getInsertArgumentAdjuster("-fcxx-exceptions",			ArgumentInsertPosition::BEGIN));
-	tool.appendArgumentsAdjuster(getInsertArgumentAdjuster("-nobuiltininc",				ArgumentInsertPosition::BEGIN));	// 禁止使用clang内置的头文件
-	tool.appendArgumentsAdjuster(getInsertArgumentAdjuster("-w",						ArgumentInsertPosition::BEGIN));	// 禁用警告
-	tool.appendArgumentsAdjuster(getInsertArgumentAdjuster("-Wno-everything",			ArgumentInsertPosition::BEGIN));	// 禁用任何警告，比-w级别高
-	tool.appendArgumentsAdjuster(getInsertArgumentAdjuster("-ferror-limit=5",			ArgumentInsertPosition::BEGIN));	// 限制单个cpp产生的编译错误数，超过则不再编译
-	tool.appendArgumentsAdjuster(getInsertArgumentAdjuster("-fpermissive",				ArgumentInsertPosition::BEGIN));	// 对不某些不符合标准的行为，允许编译通过，即对标准做降级处理
+	optionParser.AddCleanVsArgument(VsProject::instance, tool);
+	optionParser.AddArgument(tool, "-fcxx-exceptions");
+	optionParser.AddArgument(tool, "-nobuiltininc");		// 禁止使用clang内置的头文件
+	optionParser.AddArgument(tool, "-w");					// 禁用警告
+	optionParser.AddArgument(tool, "-Wno-everything");		// 禁用任何警告，比-w级别高
+	optionParser.AddArgument(tool, "-ferror-limit=5");		// 限制单个cpp产生的编译错误数，超过则不再编译
+	optionParser.AddArgument(tool, "-fpermissive");			// 对不某些不符合标准的行为，允许编译通过，即对标准做降级处理
 
 	DiagnosticOptions diagnosticOptions;
 	diagnosticOptions.ShowOptionNames = 1;
-	tool.setDiagnosticConsumer(new cxxclean::CxxcleanDiagnosticConsumer(&diagnosticOptions)); // 注意：这里用new没关系，会被释放
+	tool.setDiagnosticConsumer(new CxxcleanDiagnosticConsumer(&diagnosticOptions)); // 注意：这里用new没关系，会被释放
 
 	// 对每个文件进行语法分析
-	std::unique_ptr<FrontendActionFactory> factory = newFrontendActionFactory<cxxclean::CxxCleanAction>();
+	std::unique_ptr<FrontendActionFactory> factory = newFrontendActionFactory<CxxCleanAction>();
 	tool.run(factory.get());
+}
+
+// 第1步：分析每个文件
+void Run1(const CxxCleanOptionsParser &optionParser)
+{
+	Run(optionParser);
+
+	ProjectHistory::instance.Fix();
+	ProjectHistory::instance.Print();
+}
+
+// 第2步：开始清理
+void Run2(const CxxCleanOptionsParser &optionParser)
+{
+	if (!Project::instance.m_isOnlyNeed1Step)
+	{
+		ProjectHistory::instance.m_isFirst	= false;
+		ProjectHistory::instance.g_fileNum	= 0;
+
+		Run(optionParser);
+	}
 }
 
 int main(int argc, const char **argv)
 {
+	Log("-- now = " << timetool::get_now() << " --!");
+
 	// 命令行解析器
-	cxxclean::CxxCleanOptionsParser optionParser;
+	CxxCleanOptionsParser optionParser;
 
 	// 初始化
 	if (!Init(optionParser, argc, argv))
@@ -64,22 +88,9 @@ int main(int argc, const char **argv)
 		return 0;
 	}
 
-	Log("-- now = " << timetool::get_now() << " --!");
-
-	// 1. 分析每个文件，并打印统计日志
-	Run(optionParser);
-
-	cxxclean::ProjectHistory::instance.Fix();
-	cxxclean::ProjectHistory::instance.Print();
-
-	// 2. 第2遍开始清理
-	if (!cxxclean::Project::instance.m_isOnlyNeed1Step)
-	{
-		cxxclean::ProjectHistory::instance.m_isFirst	= false;
-		cxxclean::ProjectHistory::instance.g_fileNum	= 0;
-
-		Run(optionParser);
-	}
+	// 开始分析并清理
+	Run1(optionParser);
+	Run2(optionParser);
 
 	Log("-- now = " << timetool::get_now() << " --!");
 	Log("-- finished --!");

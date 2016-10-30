@@ -35,8 +35,6 @@ namespace cxxclean
 			div.AddRow(" ", 1, 100, false, Row_Error);
 		}
 
-		// div.AddRow(" ", 1, 100, false, true);
-
 		if (!fatalErrorIds.empty())
 		{
 			std::string errTexts;
@@ -88,7 +86,7 @@ namespace cxxclean
 		bool isError	= m_compileErrorHistory.HaveFatalError();
 		const char *tip = (isError ? cn_file_history_compile_error : cn_file_history);
 
-		div.AddRow(strtool::get_text(tip, htmltool::get_number_html(id).c_str(), htmltool::get_file_html(m_filename).c_str()),
+		div.AddRow(strtool::get_text(tip, htmltool::get_number_html(id).c_str(), htmltool::get_file_html(m_filename.c_str()).c_str()),
 		           1, 100, false, Row_None, isError ? Grid_Error : Grid_Ok);
 
 		if (isPrintCompiliError)
@@ -205,7 +203,7 @@ namespace cxxclean
 				}
 
 				// 在行尾添加[in 所处的文件 : line = xx]
-				div.AddRow(strtool::get_text(cn_file_replace_in_file, htmltool::get_file_html(replaceInfo.inFile).c_str(), htmltool::get_number_html(replaceInfo.line).c_str()), 5);
+				div.AddRow(strtool::get_text(cn_file_replace_in_file, htmltool::get_file_html(replaceInfo.inFile.c_str()).c_str(), htmltool::get_number_html(replaceInfo.line).c_str()), 5);
 			}
 
 			div.AddRow("");
@@ -234,7 +232,7 @@ namespace cxxclean
 
 			for (const BeAdd &beAdd : addLine.adds)
 			{
-				div.AddRow(strtool::get_text(cn_file_add_line_new, htmltool::get_include_html(beAdd.text).c_str(), htmltool::get_file_html(beAdd.fileName).c_str()), 4);
+				div.AddRow(strtool::get_text(cn_file_add_line_new, htmltool::get_include_html(beAdd.text).c_str(), htmltool::get_file_html(beAdd.fileName.c_str()).c_str()), 4);
 			}
 
 			div.AddRow("");
@@ -386,7 +384,7 @@ namespace cxxclean
 		{
 			const std::string &file = itr.first;
 
-			div.AddRow("file = " + htmltool::get_file_html(file), 2);
+			div.AddRow("file = " + htmltool::get_file_html(file.c_str()), 2);
 
 			for (int relyLineNo : itr.second)
 			{

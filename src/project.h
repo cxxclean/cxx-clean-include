@@ -41,7 +41,6 @@ namespace cxxclean
 	public:
 		Project()
 			: m_canCleanAll(false)
-			, m_onlyHas1File(false)
 			, m_isOverWrite(false)
 			, m_isOnlyNeed1Step(false)
 			, m_logLvl(LogLvl_0)
@@ -51,7 +50,7 @@ namespace cxxclean
 
 	public:
 		// 该文件是否允许被清理
-		static bool CanClean(const std::string &filename)
+		static inline bool CanClean(const std::string &filename)
 		{
 			return CanClean(filename.c_str());
 		}
@@ -92,9 +91,6 @@ namespace cxxclean
 
 		// 工作目录
 		std::string					m_workingDir;
-
-		// 是否只有一个文件（当只有一个文件时，只需要解析一次）
-		bool						m_onlyHas1File;
 
 		// 当前项目是否仅需要解析1遍，由其他参数决定，含义：true仅解析1遍、false需要解析2遍
 		bool						m_isOnlyNeed1Step;

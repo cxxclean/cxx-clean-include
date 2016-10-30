@@ -43,8 +43,7 @@ namespace cxxclean
 	public:
 		VsProject()
 			: m_version(0)
-		{
-		}
+		{}
 
 	public:
 		// 解析vs2005版本的工程文件（vcproj后缀）
