@@ -230,10 +230,7 @@ namespace pathtool
 			{
 				last_same_slash = diff1_pos;
 			}
-			else if (c1 == c2)
-			{
-			}
-			else
+			else if (!is_same_ignore_case(c1, c2))
 			{
 				break;
 			}
@@ -406,14 +403,6 @@ namespace pathtool
 		return path.c_str();
 	}
 
-	/*
-		返回简化后的绝对路径，若传入相对路径，则结果 = 简化（当前路径 + 相对路径），若传入绝对路径，结果 = 简化后的绝对路径
-		例如：
-			假设当前路径为：d:/a/b/c/
-			get_absolute_path("../../d/e/hello2.cpp") = "d:/a/b/d/e/hello2.cpp"
-			get_absolute_path("d:/a/b/c/../../d/") = "d:/a/d/"
-
-	*/
 	string get_absolute_path(const char *path)
 	{
 		if (nullptr == path)
@@ -437,11 +426,6 @@ namespace pathtool
 		return filepath.str();
 	}
 
-	/*
-		返回简化后的绝对路径，结果 = 简化（基础路径 + 相对路径）
-		例如：
-			get_absolute_path("d:/a/b/c/", "../../d/") = "d:/a/d/"
-	*/
 	string get_absolute_path(const char *base_path, const char* relative_path)
 	{
 		if (nullptr == base_path || nullptr == relative_path)
@@ -460,6 +444,12 @@ namespace pathtool
 		}
 
 		return "";
+	}
+
+	// 获取小写的文件路径
+	string get_lower_absolute_path(const char *path)
+	{
+		return tolower(get_absolute_path(path));
 	}
 
 	// 改变当前文件夹
@@ -516,7 +506,7 @@ namespace pathtool
 	// 文件是否在指定文件夹下（含子文件夹）
 	bool is_at_folder(const char* folder, const char *file)
 	{
-		return start_with(tolower(folder), tolower(file).c_str());
+		return start_with(folder, file);
 	}
 
 	// 列出指定文件夹下的文件名列表（含子文件夹下的文件）

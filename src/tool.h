@@ -45,6 +45,21 @@ namespace strtool
 		return (str == nullptr) || (str[0] == 0x00);
 	}
 
+	inline bool is_same_ignore_case(char a, char b)
+	{
+		return ::tolower(a) == ::tolower(b);
+	}
+
+	inline bool is_same_ignore_case(const std::string &a, const char *b)
+	{
+		return 0 == strnicmp(a.c_str(), b, a.size());
+	}
+
+	inline bool is_same_ignore_case(const char *a, const char *b)
+	{
+		return 0 == strnicmp(a, b, strlen(a));
+	}
+
 	std::string itoa(int n);
 
 	int atoi(const char*);
@@ -86,7 +101,7 @@ namespace strtool
 	// 根据传入的格式文本和参数返回最终的文本串
 	const char* get_text(const char* fmt, ...);
 
-	// 是否以指定字符串开头
+	// 是否以指定字符串开头（不区分大小写）
 	inline bool start_with(const string &text, const char *prefix)
 	{
 		int prefix_len	= strlen(prefix);
@@ -97,7 +112,7 @@ namespace strtool
 			return false;
 		}
 
-		return 0 == strncmp(text.c_str(), prefix, prefix_len);
+		return 0 == strnicmp(text.c_str(), prefix, prefix_len);
 	}
 
 	// 是否以指定字符串结尾
@@ -138,18 +153,6 @@ namespace strtool
 
 		return false;
 	}
-
-	// 若以指定后缀开头，则移除后缀并返回剩下的字符串
-	inline bool try_strip_right(string& str, const string& suffix)
-	{
-		if (strtool::end_with(str, suffix.c_str()))
-		{
-			str = str.substr(0, str.length() - suffix.length());
-			return true;
-		}
-
-		return false;
-	}
 }
 
 using namespace strtool;
@@ -180,23 +183,19 @@ namespace pathtool
 
 	*/
 	std::string get_relative_path(const char *path_1, const char *path_2);
-
-	/*
-		返回简化后的绝对路径，若传入相对路径，则结果 = 简化（当前路径 + 相对路径），若传入绝对路径，结果 = 简化后的绝对路径
-		例如：
-			假设当前路径为：d:/a/b/c/
-			get_absolute_path("../../d/e/hello2.cpp") = "d:/a/b/d/e/hello2.cpp"
-			get_absolute_path("d:/a/b/c/../../d/") = "d:/a/d/"
-
-	*/
+	
+	// 返回简化后的绝对路径，若传入相对路径，则结果 = 简化（当前路径 + 相对路径），若传入绝对路径，结果 = 简化后的绝对路径
+	// 例如：假设当前路径为：d:/a/b/c/，则
+	//		get_absolute_path("../../d/e/hello2.cpp") = "d:/a/b/d/e/hello2.cpp"
+	//		get_absolute_path("d:/a/b/c/../../d/") = "d:/a/d/"
 	string get_absolute_path(const char *path);
 
-	/*
-		返回简化后的绝对路径，结果 = 简化（基础路径 + 相对路径）
-		例如：
-			get_absolute_path("d:/a/b/c/", "../../d/") = "d:/a/d/"
-	*/
+	// 返回简化后的绝对路径，结果 = 简化（基础路径 + 相对路径）
+	// 例如：get_absolute_path("d:/a/b/c/", "../../d/") = "d:/a/d/"
 	string get_absolute_path(const char *base_path, const char* relative_path);
+
+	// 获取小写的文件路径
+	string get_lower_absolute_path(const char *path);
 
 	// 返回当前路径
 	std::string get_current_path();

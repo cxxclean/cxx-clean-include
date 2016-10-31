@@ -219,7 +219,9 @@ namespace cxxclean
 		std::string GetNestedNamespace(const NamespaceDecl *d);
 
 		// 当a使用b时，如果b对应的文件被包含多次，从b的同名文件中选取一个最好的文件
-		inline FileID GetBestSameFile(FileID a, FileID b) const;
+		inline FileID GetBestKid(FileID a, FileID b) const;
+
+		inline FileID GetBestAncestor(FileID a, FileID b) const;
 
 		// 开始清理文件（将改动c++源文件）
 		void Clean();
@@ -257,6 +259,9 @@ namespace cxxclean
 
 		// 获取文件的绝对路径（从缓存中获取，速度比每次重新计算快30倍）
 		inline const char* GetFileNameInCache(FileID file) const;
+
+		// 获取文件的小写绝对路径
+		inline const char* GetLowerFileNameInCache(FileID file) const;
 
 		// 用于调试：获取文件的绝对路径和相关信息
 		string GetDebugFileName(FileID file) const;
@@ -718,50 +723,53 @@ namespace cxxclean
 
 		//================== 一些通用的临时数据 ==================//
 
-		// 1. 各文件引用其他文件的记录：[文件ID] -> [引用的其他文件列表]（例如，假设A.h用到了B.h中的class B，则认为A.h引用了B.h）
+		// 1.1 各文件引用其他文件的记录：[文件ID] -> [引用的其他文件列表]（例如，假设A.h用到了B.h中的class B，则认为A.h引用了B.h）
 		std::map<FileID, FileSet>					m_uses;
-
-		// 2. 各文件所包含的文件列表：[文件ID] -> [所include的文件]
-		std::map<FileID, FileSet>					m_includes;
-
-		// 3. 所有文件ID
-		FileSet										m_files;
-
-		// 4. 父文件关系：[文件ID] -> [父文件ID]
-		std::map<FileID, FileID>					m_parents;
-
-		// 5. 头文件搜索路径列表
-		std::vector<HeaderSearchDir>				m_headerSearchPaths;
-
-		// 6.1 每个位置所使用的class、struct（指针、引用），用于生成前置声明：[位置] -> [所使用的class、struct、union指针或引用]
-		LocUseRecordsMap							m_locUseRecordPointers;
-
-		// 6.2 每个文件所使用的class、struct（指针、引用），用于生成前置声明：[文件] -> [所使用的class、struct、union指针或引用]
-		FileUseRecordsMap							m_fileUseRecordPointers;
-
-		// 6.3 每个文件所使用的class、struct（非指针、非引用），用于避免生成多余的前置声明
-		FileUseRecordsMap							m_fileUseRecords;
-
-		// 7. using namespace记录：[using namespace的位置] -> [对应的namespace定义]
-		map<SourceLocation, const NamespaceDecl*>	m_usingNamespaces;
-
-		// 8. 各文件的后代：[文件ID] -> [该文件包含的全部后代文件ID]
-		std::map<FileID, FileSet>					m_kids;
-
-		// 9. 仅用于打印：各文件所使用的类名、函数名、宏名等的名称记录：[文件ID] -> [该文件所使用的其他文件中的类名、函数名、宏名、变量名等]
+		
+		// 1.2 仅用于打印：各文件所使用的类名、函数名、宏名等的名称记录：[文件ID] -> [该文件所使用的其他文件中的类名、函数名、宏名、变量名等]
 		std::map<FileID, std::vector<UseNameInfo>>	m_useNames;
 
-		// 10. 仅用于打印：各文件内声明的命名空间记录：[文件] -> [该文件内的命名空间记录]
+		// 2.1 各文件所包含的文件列表：[文件ID] -> [所include的文件]
+		std::map<FileID, FileSet>					m_includes;
+
+		// 2.2 所有文件ID
+		FileSet										m_files;
+
+		// 2.3 父文件关系：[文件ID] -> [父文件ID]
+		std::map<FileID, FileID>					m_parents;
+		
+		// 2.4 各文件的后代：[文件ID] -> [该文件包含的全部后代文件ID]
+		std::map<FileID, FileSet>					m_kids;
+
+		// 2.5 同一个文件名对应的不同文件ID：[文件名] -> [同名文件ID列表]
+		std::map<std::string, FileSet>				m_sameFiles;
+
+		// 3. 头文件搜索路径列表
+		std::vector<HeaderSearchDir>				m_headerSearchPaths;
+
+		// 4.1 每个位置所使用的class、struct（指针、引用），用于生成前置声明：[位置] -> [所使用的class、struct、union指针或引用]
+		LocUseRecordsMap							m_locUseRecordPointers;
+
+		// 4.2 每个文件所使用的class、struct（指针、引用），用于生成前置声明：[文件] -> [所使用的class、struct、union指针或引用]
+		FileUseRecordsMap							m_fileUseRecordPointers;
+
+		// 4.3 每个文件所使用的class、struct（非指针、非引用），用于避免生成多余的前置声明
+		FileUseRecordsMap							m_fileUseRecords;
+
+		// 5.1 using namespace记录：[using namespace的位置] -> [对应的namespace定义]
+		map<SourceLocation, const NamespaceDecl*>	m_usingNamespaces;
+
+		// 5.2 仅用于打印：各文件内声明的命名空间记录：[文件] -> [该文件内的命名空间记录]
 		std::map<FileID, std::set<std::string>>		m_namespaces;
 
-		// 11. 同一个文件名对应的不同文件ID：[文件名] -> [同名文件ID列表]
-		std::map<std::string, FileSet>				m_sameFiles;
+		// 6.1 所有文件ID对应的文件名：[文件ID] -> [文件名]
+		std::map<FileID, std::string>				m_fileNames;
+
+		// 6.2 所有文件ID对应的文件名：[文件ID] -> [小写文件名]
+		std::map<FileID, std::string>				m_lowerFileNames;
 
 		// 12. 主文件id
 		FileID										m_root;
-
-		// 13. 所有文件ID对应的文件名：[文件ID] -> [文件名]
-		std::map<FileID, std::string>				m_fileNames;
 
 	private:
 		// 文件重写类，用来修改c++源码内容

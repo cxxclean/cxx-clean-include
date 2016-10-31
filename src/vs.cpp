@@ -498,10 +498,6 @@ namespace cxxclean
 				project.m_cpps.push_back(absolute_path);
 			}
 		}
-		// 否则，仅清理指定的.cpp文件（待完善）
-		else
-		{
-		}
 
 		// 若开启深度清理选项
 		if (project.m_canCleanAll)

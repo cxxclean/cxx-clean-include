@@ -201,8 +201,11 @@ namespace cxxclean
 		const std::string fileName = GetAbsoluteFileName(file);
 		if (!fileName.empty())
 		{
+			const std::string lowerFileName = tolower(fileName);
+
 			m_fileNames.insert(std::make_pair(file, fileName));
-			m_sameFiles[fileName].insert(file);
+			m_lowerFileNames.insert(std::make_pair(file, lowerFileName));
+			m_sameFiles[lowerFileName].insert(file);
 		}
 
 		FileID parent = m_srcMgr->getFileID(m_srcMgr->getIncludeLoc(file));
@@ -296,7 +299,7 @@ namespace cxxclean
 	// 获取同名文件列表
 	FileSet ParsingFile::GetAllSameFiles(FileID file) const
 	{
-		auto sameItr = m_sameFiles.find(GetFileNameInCache(file));
+		auto sameItr = m_sameFiles.find(GetLowerFileNameInCache(file));
 		if (sameItr != m_sameFiles.end())
 		{
 			const FileSet &sames = sameItr->second;
@@ -313,7 +316,7 @@ namespace cxxclean
 	// 2个文件是否文件名一样
 	inline bool ParsingFile::IsSameName(FileID a, FileID b) const
 	{
-		return (std::string(GetFileNameInCache(a)) == GetFileNameInCache(b));
+		return (std::string(GetLowerFileNameInCache(a)) == GetLowerFileNameInCache(b));
 	}
 
 	// 为当前cpp文件的清理作前期准备
@@ -407,7 +410,7 @@ namespace cxxclean
 			{
 				for (FileID forceInclude : m_forceIncludes)
 				{
-					FileID same = GetBestSameFile(forceInclude, kid);
+					FileID same = GetBestKid(forceInclude, kid);
 					if (same != kid)
 					{
 						LogInfoByLvl(LogLvl_3, "force includes: erase [kid](top = " << GetDebugFileName(top) << ", forceInclude = " << GetDebugFileName(forceInclude) << ", kid = " << GetDebugFileName(kid) << ")");
@@ -522,7 +525,7 @@ namespace cxxclean
 		{
 			FileID top = itr.first;
 
-			FileSet &kids = m_kidsBySame[GetFileNameInCache(top)];
+			FileSet &kids = m_kidsBySame[GetLowerFileNameInCache(top)];
 			GetKidsBySame(top, kids);
 		}
 	}
@@ -553,6 +556,8 @@ namespace cxxclean
 						continue;
 					}
 				}
+
+				beUse = GetBestKid(by, beUse);
 
 				FileID beUseAncestor = GetOuterFileAncestor(beUse);
 				userUseList.insert(beUseAncestor);
@@ -1356,12 +1361,12 @@ namespace cxxclean
 			return FileID();
 		}
 
-		std::string kidFileName = GetFileNameInCache(kid);
+		const std::string kidFileName = GetLowerFileNameInCache(kid);
 
 		const FileSet &includes = itr->second;
 		for (FileID beInclude : includes)
 		{
-			if (kidFileName == GetFileNameInCache(beInclude))
+			if (kidFileName == GetLowerFileNameInCache(beInclude))
 			{
 				return beInclude;
 			}
@@ -1396,11 +1401,11 @@ namespace cxxclean
 	// 第2个文件是否是第1个文件的祖先
 	inline bool ParsingFile::IsAncestor(FileID young, const char* old) const
 	{
-		const std::string strOld = old;
+		const std::string strOld = tolower(old);
 
 		for (FileID parent = GetParent(young); parent.isValid(); parent = GetParent(parent))
 		{
-			if (GetFileNameInCache(parent) == strOld)
+			if (GetLowerFileNameInCache(parent) == strOld)
 			{
 				return true;
 			}
@@ -1418,10 +1423,10 @@ namespace cxxclean
 		{
 			const FileSet &kids = itr->second;
 
-			const std::string strOld = GetFileNameInCache(old);
+			const std::string strKid = tolower(young);
 			for (FileID kid : kids)
 			{
-				if (GetFileNameInCache(kid) == strOld)
+				if (strKid == GetLowerFileNameInCache(kid))
 				{
 					return true;
 				}
@@ -1434,7 +1439,7 @@ namespace cxxclean
 	// 第2个文件是否是第1个文件的祖先（考虑同名文件）
 	inline bool ParsingFile::IsAncestorBySame(FileID young, FileID old) const
 	{
-		auto itr = m_kidsBySame.find(GetFileNameInCache(old));
+		auto itr = m_kidsBySame.find(GetLowerFileNameInCache(old));
 		if (itr != m_kidsBySame.end())
 		{
 			const FileSet &kids = itr->second;
@@ -1501,7 +1506,7 @@ namespace cxxclean
 			return;
 		}
 
-		b = GetBestSameFile(a, b);
+		b = GetBestKid(a, b);
 
 		m_uses[a].insert(b);
 		UseName(a, b, name, line);
@@ -1692,10 +1697,10 @@ namespace cxxclean
 	}
 
 	// 当a使用b时，如果b对应的文件被包含多次，从b的同名文件中选取一个最好的文件
-	inline FileID ParsingFile::GetBestSameFile(FileID a, FileID b) const
+	inline FileID ParsingFile::GetBestKid(FileID a, FileID b) const
 	{
 		// 如果b文件被包含多次，则在其中选择一个较合适的（注意：每个文件优先保留自己及后代文件中的#include语句）
-		auto &sameItr = m_sameFiles.find(GetFileNameInCache(b));
+		auto &sameItr = m_sameFiles.find(GetLowerFileNameInCache(b));
 		if (sameItr != m_sameFiles.end())
 		{
 			// 先找到同名文件列表
@@ -1709,7 +1714,7 @@ namespace cxxclean
 
 				for (FileID same :sames)
 				{
-					if (includes.find(same) != includes.end())
+					if (Has(includes, same))
 					{
 						return same;
 					}
@@ -1723,7 +1728,7 @@ namespace cxxclean
 				const FileSet &children = kidItr->second;
 				for (FileID same :sames)
 				{
-					if (children.find(same) != children.end())
+					if (Has(children, same))
 					{
 						return same;
 					}
@@ -1732,6 +1737,17 @@ namespace cxxclean
 		}
 
 		return b;
+	}
+
+	inline FileID ParsingFile::GetBestAncestor(FileID a, FileID b) const
+	{
+		FileID better = b;
+
+		if (IsAncestorBySame(b, a))
+		{
+		}
+
+		return GetOuterFileAncestor(better);
 	}
 
 	// 当前位置使用目标类型（注：Type代表某个类型，但不含const、volatile、static等的修饰）
@@ -2336,7 +2352,7 @@ namespace cxxclean
 	// 是否允许清理该c++文件（若不允许清理，则文件内容不会有任何变化）
 	inline bool ParsingFile::CanClean(FileID file) const
 	{
-		return Project::CanClean(GetFileNameInCache(file));
+		return Project::CanClean(GetLowerFileNameInCache(file));
 	}
 
 	// 打印各文件的父文件
@@ -2531,13 +2547,14 @@ namespace cxxclean
 	inline const char* ParsingFile::GetFileNameInCache(FileID file) const
 	{
 		auto itr = m_fileNames.find(file);
-		if (itr == m_fileNames.end())
-		{
-			return "";
-		}
+		return itr != m_fileNames.end() ? itr->second.c_str() : "";
+	}
 
-		const std::string &fileName = itr->second;
-		return fileName.c_str();
+	// 获取文件的小写绝对路径
+	inline const char* ParsingFile::GetLowerFileNameInCache(FileID file) const
+	{
+		auto itr = m_lowerFileNames.find(file);
+		return itr != m_lowerFileNames.end() ? itr->second.c_str() : "";
 	}
 
 	// 用于调试：获取文件的绝对路径和相关信息
@@ -2597,7 +2614,7 @@ namespace cxxclean
 		string include2;
 
 		// 优先判断2个文件是否在同一文件夹下
-		if (get_dir(absolutePath1) == get_dir(absolutePath2))
+		if (tolower(get_dir(absolutePath1)) == tolower(get_dir(absolutePath2)))
 		{
 			include2 = "\"" + strip_dir(absolutePath2) + "\"";
 		}
@@ -2904,7 +2921,7 @@ namespace cxxclean
 		// 建立当前cpp中文件名到文件FileID的map映射（注意：同一个文件可能被包含多次，FileID是不一样的，这里只存入最小的FileID）
 		for (FileID file : m_files)
 		{
-			const char *name = GetFileNameInCache(file);
+			const char *name = GetLowerFileNameInCache(file);
 
 			if (!Project::CanClean(name))
 			{
@@ -2970,7 +2987,7 @@ namespace cxxclean
 	void ParsingFile::CleanMainFile()
 	{
 		// 仅取出主文件的待清理记录
-		auto &rootItr = ProjectHistory::instance.m_files.find(GetFileNameInCache(m_root));
+		auto &rootItr = ProjectHistory::instance.m_files.find(GetLowerFileNameInCache(m_root));
 		if (rootItr != ProjectHistory::instance.m_files.end())
 		{
 			FileHistoryMap historys;
@@ -3154,7 +3171,7 @@ namespace cxxclean
 		{
 			FileID top = itr->first;
 
-			if (GetFileNameInCache(top) == oldFile.m_filename)
+			if (is_same_ignore_case(oldFile.m_filename, GetLowerFileNameInCache(top)))
 			{
 				newFileID	= top;
 				newFileItr	= itr;
@@ -3201,7 +3218,7 @@ namespace cxxclean
 				for (auto & childItr : newReplaceMap)
 				{
 					FileID child = childItr.first;
-					if (GetFileNameInCache(child) == newLine.oldFile)
+					if (GetLowerFileNameInCache(child) == newLine.oldFile)
 					{
 						beReplaceFileID = child;
 						break;
@@ -3288,7 +3305,7 @@ namespace cxxclean
 		// 若本文件有严重编译错误或编译错误数过多，则仅合并编译错误历史，用于打印
 		if (m_compileErrorHistory.HaveFatalError())
 		{
-			const char *rootFile = GetFileNameInCache(m_root);
+			const char *rootFile = GetLowerFileNameInCache(m_root);
 
 			auto itr = newFiles.find(rootFile);
 			if (itr == newFiles.end())
@@ -3406,7 +3423,7 @@ namespace cxxclean
 	{
 		// 1. 该行的旧文本
 		SourceRange	includeRange	= GetIncludeRange(from);
-		replaceLine.oldFile			= GetFileNameInCache(from);
+		replaceLine.oldFile			= GetLowerFileNameInCache(from);
 		replaceLine.oldText			= GetBeIncludeLineText(from);
 		replaceLine.beg				= m_srcMgr->getFileOffset(includeRange.getBegin());
 		replaceLine.end				= m_srcMgr->getFileOffset(includeRange.getEnd());
@@ -3580,11 +3597,11 @@ namespace cxxclean
 			}
 			else
 			{
-				const std::string kidName = GetFileNameInCache(kid);
+				const std::string kidName = GetLowerFileNameInCache(kid);
 
 				for (FileID beInclude : oldIncludes)
 				{
-					if (kidName == GetFileNameInCache(beInclude))
+					if (kidName == GetLowerFileNameInCache(beInclude))
 					{
 						oldIncludes.erase(beInclude);
 						newIncludes.erase(kid);
@@ -3654,7 +3671,7 @@ namespace cxxclean
 					continue;
 				}
 
-				const char *fileName = GetFileNameInCache(top);
+				const char *fileName = GetLowerFileNameInCache(top);
 				if (!Has(out, fileName))
 				{
 					TakeNeed(top, out[fileName]);
@@ -3668,7 +3685,7 @@ namespace cxxclean
 			// 先将当前cpp文件使用到的文件全存入map中
 			for (FileID file : m_relys)
 			{
-				const char *fileName = GetFileNameInCache(file);
+				const char *fileName = GetLowerFileNameInCache(file);
 				if (Project::CanClean(fileName))
 				{
 					InitHistory(file, out[fileName]);
@@ -3711,7 +3728,7 @@ namespace cxxclean
 			FileID atFile = itr.first;
 			const FileSet &dels = itr.second;
 
-			const char *atFileName = GetFileNameInCache(atFile);
+			const char *atFileName = GetLowerFileNameInCache(atFile);
 			if (!Project::CanClean(atFileName))
 			{
 				continue;
@@ -3743,11 +3760,8 @@ namespace cxxclean
 	// 该文件是否是预编译头文件
 	bool ParsingFile::IsPrecompileHeader(FileID file) const
 	{
-		const std::string fileName = pathtool::get_file_name(GetFileNameInCache(file));
-
-		bool is = !strnicmp(fileName.c_str(), "stdafx.h", fileName.size());
-		is |= !strnicmp(fileName.c_str(), "stdafx.cpp", fileName.size());
-		return is;
+		const std::string fileName = pathtool::get_file_name(GetLowerFileNameInCache(file));
+		return fileName == "stdafx.h";
 	}
 
 	// 取出指定文件的#include替换信息
@@ -3766,7 +3780,7 @@ namespace cxxclean
 			// 2. 该行依赖于其他文件的哪些行
 			ReplaceTo &replaceTo			= replaceLine.replaceTo;
 
-			const char *replaceParentName	= GetFileNameInCache(GetParent(to));
+			const char *replaceParentName	= GetLowerFileNameInCache(GetParent(to));
 			int replaceLineNo				= GetIncludeLineNo(to);
 
 			if (Project::CanClean(replaceParentName))
@@ -3781,7 +3795,7 @@ namespace cxxclean
 
 				for (FileID rely : relys)
 				{
-					const char *relyParentName	= GetFileNameInCache(GetParent(rely));
+					const char *relyParentName	= GetLowerFileNameInCache(GetParent(rely));
 					int relyLineNo				= GetIncludeLineNo(rely);
 
 					if (Project::CanClean(relyParentName))
@@ -3806,9 +3820,7 @@ namespace cxxclean
 			FileID top							= itr.first;
 			const ReplaceMap &childrenReplaces	= itr.second;
 
-			string fileName = GetFileNameInCache(top);
-
-			auto outItr = out.find(GetFileNameInCache(top));
+			auto outItr = out.find(GetLowerFileNameInCache(top));
 			if (outItr == out.end())
 			{
 				continue;
@@ -3823,7 +3835,7 @@ namespace cxxclean
 	// 取出本文件的编译错误历史
 	void ParsingFile::TakeCompileErrorHistory(FileHistoryMap &out) const
 	{
-		FileHistory &history			= out[GetFileNameInCache(m_root)];
+		FileHistory &history			= out[GetLowerFileNameInCache(m_root)];
 		history.m_compileErrorHistory	= m_compileErrorHistory;
 	}
 
@@ -3916,16 +3928,20 @@ namespace cxxclean
 				auto & linesItr = beuse.nameMap.find(name);
 				if (linesItr != beuse.nameMap.end())
 				{
-					for (int line : linesItr->second)
+					const std::set<int> &lines = linesItr->second;
+					int n = (int)lines.size();
+					int i = 0;
+					for (int line : lines)
 					{
-						linesStream << htmltool::get_number_html(line) << ", ";
+						linesStream << htmltool::get_number_html(line);
+						if (++i < n)
+						{
+							linesStream << ", ";
+						}
 					}
 				}
 
 				std::string linesText = linesStream.str();
-
-				strtool::try_strip_right(linesText, std::string(", "));
-
 				div.AddRow("name = " + name, 4, 70);
 				div.AddGrid("lines = " + linesText, 30);
 			}
