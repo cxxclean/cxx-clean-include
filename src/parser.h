@@ -221,7 +221,7 @@ namespace cxxclean
 		// 当a使用b时，如果b对应的文件被包含多次，从b的同名文件中选取一个最好的文件
 		inline FileID GetBestKid(FileID a, FileID b) const;
 
-		inline FileID GetBestAncestor(FileID a, FileID b) const;
+		inline FileID GetBestKidBySame(FileID a, FileID b) const;
 
 		// 开始清理文件（将改动c++源文件）
 		void Clean();

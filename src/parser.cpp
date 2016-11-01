@@ -467,7 +467,7 @@ namespace cxxclean
 
 	inline bool ParsingFile::IsOuterFile(FileID file) const
 	{
-		return file.isValid() && (IsAncestorForceInclude(file) || !CanClean(file));
+		return file.isValid() && (IsAncestorForceInclude(file) || !IsUserFile(file));
 	}
 
 	inline FileID ParsingFile::GetOuterFileAncestor(FileID file) const
@@ -557,9 +557,18 @@ namespace cxxclean
 					}
 				}
 
-				beUse = GetBestKid(by, beUse);
+				FileID a = GetBestKidBySame(by, beUse);
+				FileID b = GetBestKid(by, beUse);
 
-				FileID beUseAncestor = GetOuterFileAncestor(beUse);
+				if (a != b)
+				{
+					LogInfo("a != b: by = " << GetDebugFileName(by));
+					LogInfo("------: beuse = " << GetDebugFileName(beUse));
+					LogInfo("------: a = " << GetDebugFileName(a));
+					LogInfo("------: b = " << GetDebugFileName(b));
+				}
+
+				FileID beUseAncestor = GetOuterFileAncestor(a);
 				userUseList.insert(beUseAncestor);
 			}
 
@@ -1739,15 +1748,44 @@ namespace cxxclean
 		return b;
 	}
 
-	inline FileID ParsingFile::GetBestAncestor(FileID a, FileID b) const
+	inline FileID ParsingFile::GetBestKidBySame(FileID a, FileID b) const
 	{
-		FileID better = b;
-
-		if (IsAncestorBySame(b, a))
+		if (!IsAncestorBySame(b, a))
 		{
+			return b;
 		}
 
-		return GetOuterFileAncestor(better);
+		FileSet todo;
+		FileSet done;
+
+		todo.insert(b);
+
+		while (!todo.empty())
+		{
+			todo.erase(FileID());
+			Del(todo, done);
+
+			FileSet doing = todo;
+			todo.clear();
+
+			for (FileID f : doing)
+			{
+				const FileSet sames = GetAllSameFiles(f);
+				for (FileID same : sames)
+				{
+					if (IsAncestor(same, a))
+					{
+						return same;
+					}
+
+					todo.insert(GetParent(same));
+				}
+			}
+
+			Add(done, doing);
+		}
+
+		return b;
 	}
 
 	// 当前位置使用目标类型（注：Type代表某个类型，但不含const、volatile、static等的修饰）
