@@ -351,8 +351,6 @@ namespace cxxclean
 		HtmlLog::instance.AddBigTitle(cn_project_history_title);
 
 		HtmlDiv &div = HtmlLog::instance.m_newDiv;
-		div.Clear();
-
 		div.AddTitle(strtool::get_text(cn_project_history_clean_count,	htmltool::get_number_html(canCleanFileCount).c_str()), 40);
 		div.AddTitle(strtool::get_text(cn_project_history_src_count,	htmltool::get_number_html(Project::instance.m_cpps.size()).c_str()), 59);
 
@@ -377,7 +375,6 @@ namespace cxxclean
 	void ProjectHistory::PrintSkip() const
 	{
 		HtmlDiv &div = HtmlLog::instance.m_newDiv;
-		div.Clear();
 		div.AddRow(AddPrintIdx() + ". list of skip : count = " + htmltool::get_number_html(m_skips.size()), 1);
 
 		for (auto &itr : m_skips)

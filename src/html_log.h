@@ -15,7 +15,7 @@ namespace cxxclean
 {
 	// 1. 中文
 	static const char* cn_log							= "清理%s的日志-%s.html";
-	static const char* cn_time							= "%04d年%02d年%02d日%02d时%02d分%02d秒";
+	static const char* cn_time							= "%04d年%02d月%02d日%02d时%02d分%02d秒";
 	static const char* cn_cpp_file						= "[ %s ] c++ 文件";
 	static const char* cn_folder						= "[ %s ] 文件夹";
 	static const char* cn_project						= "[ %s ] visual studio工程";
@@ -27,7 +27,6 @@ namespace cxxclean
 	static const char* cn_project_source_list			= "待分析的c++源文件列表：文件个数 = %s（不属于该列表的c++文件不会被分析）";
 	static const char* cn_project_source				= "待分析的c++源文件 = %s";
 	static const char* cn_project_allow_dir				= "允许清理文件夹";
-	static const char* cn_line_old_text					= "该行原来的内容 = ";
 
 	static const char* cn_file_history					= "第%s个文件%s可被清理，分析结果如下：";
 	static const char* cn_file_history_compile_error	= "第%s个文件%s发生了严重编译错误，无法被清理，一部分日志如下：";
@@ -41,13 +40,9 @@ namespace cxxclean
 	static const char* cn_error_too_many				= "==> 注意：至少产生了%s个编译错误，由于编译错误数过多，本文件的分析结果将被丢弃";
 	static const char* cn_error_ignore					= "==> 编译结果：共产生了%s个编译错误，由于错误较少或不严重，本文件的分析结果仍将被统计";
 
-	static const char* cn_file_count_unused				= "共有%s个文件有多余的#include";
 	static const char* cn_file_unused_count				= "该文件中有%s行多余的#include";
 	static const char* cn_file_unused_line				= "可移除第%s行";
 	static const char* cn_file_unused_include			= "该行原来的#include文本 = %s";
-	static const char* cn_file_add_using_namespace		= "应新增%s";
-	static const char* cn_file_add_front_using_ns		= "应在行首新增%s";
-	static const char* cn_file_add_back_using_ns		= "应在行末新增%s";
 
 	static const char* cn_file_can_replace_num			= "该文件中有%s个#include可被替换";
 	static const char* cn_file_can_replace_line			= "第%s行可以被替换，该行原来的内容 = %s";
@@ -57,7 +52,6 @@ namespace cxxclean
 	static const char* cn_file_force_include_text		= " ==>  [注意: 本次替换将被跳过，因为该行可能已被强制包含]";
 	static const char* cn_file_replace_in_file			= "（注：新的#include来自于%s文件的第%s行）";
 
-	static const char* cn_file_count_add_forward		= "共有%s个文件可以新增前置声明";
 	static const char* cn_file_add_forward_num			= "该文件中可以新增%s个前置声明";
 	static const char* cn_file_add_forward_line			= "可在第%s行新增前置声明，该行原来的内容 = %s";
 	static const char* cn_file_add_forward_old_text		= "该行原来的内容 = %s";
@@ -65,18 +59,6 @@ namespace cxxclean
 	static const char* cn_file_add_line_num				= "该文件中可以新增%s行";
 	static const char* cn_file_add_line					= "可在第%s行新增行，该行原来的内容 = %s";
 	static const char* cn_file_add_line_new				= "新增行 = %s(对应文件 = %s)";
-
-	static const char* cn_file_move_num					= "该文件中有%s个#include可被转移";
-	static const char* cn_file_move_to_line				= "第%s行可以转移到其他文件，该行原来的内容 = %s";
-	static const char* cn_file_move_to					= "可以转移到%s文件中的第%s行之后";
-	static const char* cn_file_move_to_old				= "该行原来的文本 = %s";
-	static const char* cn_file_move_to_new				= "转移之后的文本 = %s";
-	static const char* cn_file_move_to_replace			= "（注：转移之后的#include来自于%s文件的第%s行）";
-	static const char* cn_file_move_from_line			= "第%s行应新增其他文件转移的#include，该行原来的内容 = %s";
-	static const char* cn_file_move_from				= "可以由%s文件的第%s行转移";
-	static const char* cn_file_move_from_old			= "该行原来的文本 = %s";
-	static const char* cn_file_move_from_new			= "转移之后的文本 = %s";
-	static const char* cn_file_move_skip				= "注意：检测到本文件为预编译文件，将忽略该改动";
 
 	static const char* cn_file_min_use					= "%s. 各文件的最小引用文件集，文件数 = %s";
 	static const char* cn_file_min_kid					= "%s. 各文件的最小引用后代文件集，文件数 = %s";
@@ -138,7 +120,6 @@ namespace cxxclean
 	{
 		HtmlDiv()
 			: hasErrorTip(false)
-			, errorTipCount(0)
 		{
 		}
 
@@ -151,29 +132,19 @@ namespace cxxclean
 
 		void AddTitle(const char* title, int width = 100);
 
-		void AddTitle(const std::string &title, int width = 100)
-		{
-			AddTitle(title.c_str(), width);
-		}
+		void AddTitle(const std::string &title, int width = 100);
 
-		void AddRow(const char* text, int tabCount = 1, int width = 100, bool needEscape = false, RowType rowType = Row_None, GridType gridType = Grid_None);
+		void AddRow(const char* text, int tabCount = 0, int width = 100, bool needEscape = false, RowType rowType = Row_None, GridType gridType = Grid_None);
 
-		void AddRow(const std::string &text, int tabCount = 1 /* 缩进tab数 */, int width = 100, bool needEscape = false, RowType rowType = Row_None, GridType gridType = Grid_None)
-		{
-			AddRow(text.c_str(), tabCount, width, needEscape, rowType, gridType);
-		}
+		void AddRow(const std::string &text, int tabCount = 0 /* 缩进tab数 */, int width = 100, bool needEscape = false, RowType rowType = Row_None, GridType gridType = Grid_None);
 
 		void AddGrid(const char* text, int width = 0, bool needEscape = false, GridType gridType = Grid_None);
 
-		void AddGrid(const std::string &text, int width = 0, bool needEscape = false, GridType gridType = Grid_None)
-		{
-			AddGrid(text.c_str(), width, needEscape, gridType);
-		}
+		void AddGrid(const std::string &text, int width = 0, bool needEscape = false, GridType gridType = Grid_None);
 
 		std::vector<DivGrid>	titles;
 		std::vector<DivRow>		rows;
 		bool					hasErrorTip;
-		int						errorTipCount;
 	};
 
 	// 用于将日志转成html格式，方便查看
@@ -183,8 +154,8 @@ namespace cxxclean
 		// 设置网页文件的标题
 		void SetHtmlTitle(const std::string &title);
 
-		// 设置网页内大标题
-		void SetBigTitle(const std::string &title);
+		// 设置网页内的文字提示
+		void SetTip(const std::string &tip);
 
 		void BeginLog();
 
@@ -196,14 +167,19 @@ namespace cxxclean
 		void AddBigTitle(const std::string &title);
 
 	private:
-		static std::string GetHtmlStart(const char* title);
+		static std::string GetHtmlStart(const char* title, const char* time, const char *tip);
 
 	public:
 		static HtmlLog instance;
 
 	public:
+		// 网页文件标题
 		std::string		m_htmlTitle;
-		std::string		m_bigTitle;
+
+		// 网页内的提示
+		std::string		m_tip;
+
+		// 当前的div
 		HtmlDiv			m_newDiv;
 	};
 }

@@ -51,6 +51,16 @@ namespace cxxclean
 		}
 	}
 
+	// map减去set
+	template <typename Key, typename Val>
+	inline void Del(std::map<Key, Val> &a, const std::set<Key> &b)
+	{
+		for (const Key &t : b)
+		{
+			a.erase(t);
+		}
+	}
+
 	// set减去set
 	template <typename T>
 	inline void Add(std::set<T> &a, const std::set<T> &b)
@@ -370,8 +380,8 @@ namespace cxxclean
 		FileSet chain = GetChain(top, [&](const FileSet &done, FileSet &todo, FileID cur)
 		{
 			// 1. 若当前文件不依赖其他文件，则跳过
-			auto & useItr = m_userUses.find(cur);
-			if (useItr != m_userUses.end())
+			auto & useItr = m_uses.find(cur);
+			if (useItr != m_uses.end())
 			{
 				// 2. todo集合 += 当前文件依赖的其他文件
 				const FileSet &useFiles = useItr->second;
@@ -515,6 +525,29 @@ namespace cxxclean
 				m_outFileAncestor[file] = outerFileAncestor;
 			}
 		}
+
+		FileSet dels;
+
+		for (auto itr : m_outFileAncestor)
+		{
+			FileID kid = itr.first;
+
+			auto sameItr = m_sameFiles.find(GetLowerFileNameInCache(kid));
+			if (sameItr != m_sameFiles.end())
+			{
+				const FileSet &sames = sameItr->second;
+				for (FileID same :sames)
+				{
+					if (!Has(m_outFileAncestor, same))
+					{
+						Add(dels, sames);
+						break;
+					}
+				}
+			}
+		}
+
+		Del(m_outFileAncestor, dels);
 	}
 
 	void ParsingFile::GenerateKidBySame()
@@ -558,6 +591,8 @@ namespace cxxclean
 				}
 
 				FileID a = GetBestKidBySame(by, beUse);
+
+				/*
 				FileID b = GetBestKid(by, beUse);
 
 				if (a != b)
@@ -567,6 +602,7 @@ namespace cxxclean
 					LogInfo("------: a = " << GetDebugFileName(a));
 					LogInfo("------: b = " << GetDebugFileName(b));
 				}
+				*/
 
 				FileID beUseAncestor = GetOuterFileAncestor(a);
 				userUseList.insert(beUseAncestor);
@@ -582,13 +618,20 @@ namespace cxxclean
 
 	void ParsingFile::GenerateMinUse()
 	{
-		for (const auto &itr : m_userUses)
+		for (const auto &itr : m_uses)
 		{
 			FileID top = itr.first;
 			const FileSet chain = GetUseChain(top);
 			if (!chain.empty())
 			{
-				m_min.insert(std::make_pair(top, chain));
+				//FileSet &better = m_min[top];
+				for (FileID f : chain)
+				{
+					// m_min[GetOuterFileAncestor(top)].insert(GetOuterFileAncestor(GetBestKidBySame(top, f)));
+					m_min[GetOuterFileAncestor(top)].insert(f);
+				}
+
+				// m_min.insert(std::make_pair(top, chain));
 			}
 		}
 
@@ -990,7 +1033,8 @@ namespace cxxclean
 				return true;
 			}
 
-			FileID outerAncestor = GetOuterFileAncestor(recordAt);
+			FileID best = GetBestKidBySame(recordAt, byFile);
+			FileID outerAncestor = GetOuterFileAncestor(best);
 			return HasMinKidBySameName(byFile, outerAncestor);
 		};
 
@@ -1750,6 +1794,11 @@ namespace cxxclean
 
 	inline FileID ParsingFile::GetBestKidBySame(FileID a, FileID b) const
 	{
+		if (IsAncestor(b, a))
+		{
+			return b;
+		}
+
 		if (!IsAncestorBySame(b, a))
 		{
 			return b;

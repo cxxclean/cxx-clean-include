@@ -1,11 +1,14 @@
-set(LLVM_LINK_COMPONENTS support)
+set( LLVM_LINK_COMPONENTS
+  ${LLVM_TARGETS_TO_BUILD}
+  Option
+  Support
+)
 
 add_clang_executable(cxxclean
 	cxx_clean.cpp
 	parser.cpp	
 	project.cpp
 	history.cpp
-	test.cpp
 	tool.cpp
 	vs.cpp
 	html_log.cpp
@@ -16,56 +19,11 @@ include_directories(
 	${CLANG_SOURCE_DIR}
 )
 
-link_directories(
-	"${LLVM_LIBRARY_DIR}"
-	"${CMAKE_BINARY_DIR}/lib${LLVM_LIBDIR_SUFFIX}"
-)
-
 target_link_libraries(cxxclean
-	clangTooling
-	clangBasic
-	clangASTMatchers
-	clangFrontend
-	clangDriver
-	clangParse
-	clangSerialization
-	clangSema
-	clangEdit
-	clangAnalysis
-	clangToolingCore
-	clangAST
-	clangRewrite
-	clangLex
-	LLVMOption
-	LLVMMCParser
-	LLVMBitReader
-	LLVMSupport
-	LLVMCore
-	LLVMMC
-	LLVMAnalysis
-	LLVMCodeGen
-	LLVMipo
-	LLVMInstCombine
-	LLVMInstrumentation
-	LLVMObjCARCOpts
-	LLVMScalarOpts
-	LLVMTransformUtils
-	LLVMVectorize
-	LLVMAsmPrinter
-	LLVMSelectionDAG
-	LLVMX86Utils
-	LLVMMCDisassembler
-	LLVMTarget
-	LLVMBitWriter
-	LLVMIRReader
-	LLVMAsmParser
-	LLVMLinker
-	LLVMProfileData
-	LLVMObject
-	LLVMX86CodeGen
-	LLVMX86AsmPrinter
-	LLVMX86AsmParser
-	LLVMX86Desc
-	LLVMX86Info
-	LLVMX86Disassembler
+  clangAST
+  clangBasic
+  clangDriver
+  clangFrontend
+  clangRewriteFrontend
+  clangTooling
 )

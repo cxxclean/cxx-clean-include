@@ -22,8 +22,8 @@ bool Init(CxxCleanOptionsParser &optionParser, int argc, const char **argv)
 {
 	llvm::sys::PrintStackTraceOnErrorSignal("");
 
-	llvm::InitializeNativeTarget();								// 初始化当前平台环境
-	llvm::InitializeNativeTargetAsmParser();					// 支持解析asm
+	llvm::InitializeNativeTarget();				// 初始化当前平台环境
+	llvm::InitializeNativeTargetAsmParser();	// 支持解析asm
 
 	// 解析命令行参数
 	bool ok = optionParser.ParseOptions(argc, argv);

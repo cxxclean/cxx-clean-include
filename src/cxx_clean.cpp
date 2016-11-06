@@ -692,8 +692,6 @@ namespace cxxclean
 	{
 		m_root = new ParsingFile(compiler);
 
-		HtmlLog::instance.m_newDiv.Clear();
-
 		compiler.getPreprocessor().addPPCallbacks(llvm::make_unique<CxxCleanPreprocessor>(m_root));
 		return llvm::make_unique<CxxCleanASTConsumer>(m_root);
 	}
@@ -940,7 +938,7 @@ namespace cxxclean
 		if (pathtool::exist(src))
 		{
 			HtmlLog::instance.SetHtmlTitle(strtool::get_text(cn_cpp_file, src.c_str()));
-			HtmlLog::instance.SetBigTitle(strtool::get_text(cn_cpp_file, htmltool::get_file_html(src.c_str()).c_str()));
+			HtmlLog::instance.SetTip(strtool::get_text(cn_cpp_file, htmltool::get_file_html(src.c_str()).c_str()));
 			m_sourceList.push_back(src);
 
 			cxx::init_log(strtool::get_text(cn_cpp_file, pathtool::get_file_name(src.c_str()).c_str()));
@@ -955,7 +953,7 @@ namespace cxxclean
 			}
 
 			HtmlLog::instance.SetHtmlTitle(strtool::get_text(cn_folder, src.c_str()));
-			HtmlLog::instance.SetBigTitle(strtool::get_text(cn_folder, htmltool::get_file_html(src.c_str()).c_str()));
+			HtmlLog::instance.SetTip(strtool::get_text(cn_folder, htmltool::get_file_html(src.c_str()).c_str()));
 
 			std::string log_file = strtool::replace(src, "/", "_");
 			log_file = strtool::replace(src, ".", "_");
@@ -990,7 +988,7 @@ namespace cxxclean
 				}
 
 				HtmlLog::instance.SetHtmlTitle(strtool::get_text(cn_project, clean_option.c_str()));
-				HtmlLog::instance.SetBigTitle(strtool::get_text(cn_project, htmltool::get_file_html(clean_option.c_str()).c_str()));
+				HtmlLog::instance.SetTip(strtool::get_text(cn_project, htmltool::get_file_html(clean_option.c_str()).c_str()));
 
 				cxx::init_log(strtool::get_text(cn_project_1, llvm::sys::path::stem(clean_option).str().c_str()));
 				vs.TakeSourceListTo(project);
@@ -1016,7 +1014,7 @@ namespace cxxclean
 					}
 
 					HtmlLog::instance.SetHtmlTitle(strtool::get_text(cn_folder, clean_option.c_str()));
-					HtmlLog::instance.SetBigTitle(strtool::get_text(cn_folder, htmltool::get_file_html(clean_option.c_str()).c_str()));
+					HtmlLog::instance.SetTip(strtool::get_text(cn_folder, htmltool::get_file_html(clean_option.c_str()).c_str()));
 
 					cxx::init_log(strtool::get_text(cn_folder, clean_option.c_str()));
 				}
