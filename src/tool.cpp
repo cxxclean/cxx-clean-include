@@ -23,8 +23,6 @@
 	#include <unistd.h>
 #endif
 
-using namespace cxxclean;
-
 namespace strtool
 {
 	std::string itoa(int n)
@@ -42,7 +40,6 @@ namespace strtool
 		return n;
 	}
 
-	// 变小写
 	std::string tolower(const char* str)
 	{
 		std::string s(str);
@@ -51,9 +48,6 @@ namespace strtool
 		return s;
 	}
 
-	// 替换字符串，传入的字符串将被修改
-	// 例如：replace("this is an expmple", "is", "") = "th  an expmple"
-	// 又如: replace("acac", "ac", "ca") = "caca"
 	string& replace(string &str, const char *old, const char* to)
 	{
 		string::size_type pos = 0;
@@ -69,7 +63,6 @@ namespace strtool
 		return str;
 	}
 
-	// 将字符串根据分隔符分割为字符串数组
 	void split(const std::string &src, std::vector<std::string> &strvec, char cut /* = ';' */)
 	{
 		std::string::size_type pos1 = 0, pos2 = 0;
@@ -97,8 +90,6 @@ namespace strtool
 		}
 	}
 
-	// 返回文件夹路径，返回结果末尾含/或\
-	// 例如：get_dir(../../xxxx.txt) = ../../
 	string get_dir(const string &path)
 	{
 		if(path.empty())
@@ -128,8 +119,6 @@ namespace strtool
 		return string(path.begin(), path.begin() + i);
 	}
 
-	// 移掉路径，只返回文件名称
-	// 例如：../../xxxx.txt -> xxxx.txt
 	string strip_dir(const string &path)
 	{
 		if(path.empty())
@@ -149,8 +138,6 @@ namespace strtool
 		return path.c_str() + (i + 1);
 	}
 
-	// 从左数起直到指定分隔符的字符串
-	// 例如：r_trip_at("123_456", '_') = 123
 	string trip_at(const string &str, char delimiter)
 	{
 		string::size_type pos = str.find(delimiter);
@@ -162,8 +149,6 @@ namespace strtool
 		return string(str.begin(), str.begin() + pos);
 	}
 
-	// 从右数起直到指定分隔符的字符串
-	// 例如：r_trip_at("123_456", '_') = 456
 	string r_trip_at(const string &str, char delimiter)
 	{
 		string::size_type pos = str.rfind(delimiter);
@@ -175,8 +160,6 @@ namespace strtool
 		return string(str.begin() + pos + 1, str.end());
 	}
 
-	// 获取文件后缀
-	// 例如：get_ext("../../abc.txt", '_') = txt
 	string get_ext(const string &path)
 	{
 		string file = strip_dir(path);
@@ -188,16 +171,13 @@ namespace strtool
 		return r_trip_at(file, '.');
 	}
 
-	// 打印
-	char g_sprintfBuf[10 * 1024] = {0};
-
 	const char* get_text(const char* fmt, ...)
 	{
+		static char g_sprintfBuf[10 * 1024] = {0};
+
 		va_list args;
 		va_start(args, fmt);
-
 		vsprintf_s(g_sprintfBuf, sizeof(g_sprintfBuf), fmt, args);
-
 		va_end(args);
 		return g_sprintfBuf;
 	}
@@ -205,13 +185,6 @@ namespace strtool
 
 namespace pathtool
 {
-	/*
-		令path_1为当前路径，返回path_2的相对路径
-		例如：
-			get_relative_path("d:/a/b/c/hello1.cpp", "d:/a/b/c/d/e/f/g/hello2.cpp") = d/e/f/g/hello2.cpp
-			get_relative_path("d:/a/b/c/d/e/f/g/hello2.cpp", "d:/a/b/c/hello1.cpp") = ../../../../hello1.cpp
-
-	*/
 	std::string get_relative_path(const char *path_1, const char *path_2)
 	{
 		if (nullptr == path_1 || nullptr == path_2)
@@ -276,7 +249,6 @@ namespace pathtool
 		return relative_path;
 	}
 
-	// 将路径转成linux路径格式：将路径中的每个'\'字符均替换为'/'
 	string to_linux_path(const char *path)
 	{
 		string ret = path;
@@ -292,7 +264,6 @@ namespace pathtool
 		return ret;
 	}
 
-	// 强制将路径以/结尾，将路径中的每个'\'字符均替换为'/'
 	string fix_path(const string& path)
 	{
 		string ret = to_linux_path(path.c_str());
@@ -446,38 +417,27 @@ namespace pathtool
 		return "";
 	}
 
-	// 获取小写的文件路径
-	string get_lower_absolute_path(const char *path)
+	string get_lower_absolute_path(const char *base_path, const char* relative_path)
 	{
-		return tolower(get_absolute_path(path));
+		return tolower(get_absolute_path(base_path, relative_path));
 	}
 
-	// 改变当前文件夹
 	bool cd(const char *path)
 	{
 		return 0 == _chdir(path);
 	}
 
-	// 指定路径是否存在
-	// 例如：dir = "../../example"
 	bool is_dir_exist(const std::string &dir)
 	{
 		struct _stat fileStat;
 		return  ((_stat(dir.c_str(), &fileStat) == 0) && (fileStat.st_mode & _S_IFDIR));
 	}
 
-	// 指定路径是否存在，可为文件路径或者文件夹路径
-	// 例如：path = "../../example"
-	// 又如：path = "../../abc.xml"
-	// 又如：path = "../../"
 	bool exist(const std::string &path)
 	{
 		return _access(path.c_str(), 0) != -1;
 	}
 
-	// 列出指定文件夹下的文件名列表（子文件夹将被忽略），含义如windows命令行下的dir
-	// 例如：path = ../../*.*,   则 files = { "a.txt", "b.txt", "c.exe" }
-	// 又如：path = ../../*.txt, 则 files = { "a.txt", "b.txt" }
 	typedef std::vector<string> filevec_t;
 	bool dir(const std::string &path, /* out */filevec_t &files)
 	{
@@ -504,16 +464,15 @@ namespace pathtool
 	}
 
 	// 文件是否在指定文件夹下（含子文件夹）
-	bool is_at_folder(const char* folder, const char *file)
+	bool is_at_directory(const char* directory, const char *file)
 	{
-		return start_with(folder, file);
+		return start_with(file, directory);
 	}
 
 	// 列出指定文件夹下的文件名列表（含子文件夹下的文件）
 	// 例如，假设../../下有文件"a", "b", "c", "a.txt", "b.txt", "c.exe"
 	//     若path = ../../*.*,   则 files = { "a.txt", "b.txt", "c.exe" }
 	//     若path = ../../*.txt, 则 files = { "a.txt", "b.txt" }
-	typedef std::vector<string> FileVec;
 	bool ls(const string &path, FileVec &files)
 	{
 		std::string folder	= get_dir(path);
@@ -539,7 +498,7 @@ namespace pathtool
 			//判断是否有子目录
 			if (fileinfo.attrib & _A_SUBDIR)
 			{
-				//这个语句很重要：忽略当前目录和上层目录
+				// 忽略当前目录和上层目录
 				if( (strcmp(fileinfo.name,".") != 0) &&(strcmp(fileinfo.name,"..") != 0))
 				{
 					string subdir = folder + "/" + fileinfo.name + "/" + pattern;
@@ -566,56 +525,6 @@ namespace pathtool
 	}
 }
 
-namespace htmltool
-{
-	std::string escape_html(const char* html)
-	{
-		return escape_html(std::string(html));
-	}
-
-	std::string escape_html(const std::string &html)
-	{
-		std::string ret(html);
-
-		strtool::replace(ret, "<", "&lt;");
-		strtool::replace(ret, ">", "&gt;");
-
-		return ret;
-	}
-
-	std::string get_file_html(const char *filename)
-	{
-		std::string html = R"--(<a href="#{file}">#{file}</a>)--";
-		strtool::replace(html, "#{file}", filename);
-
-		return html;
-	}
-
-	std::string get_min_file_name_html(const char *filename)
-	{
-		std::string html = R"--(<a href="#{filepath}">#{filename}</a>)--";
-		strtool::replace(html, "#{filepath}", filename);
-		strtool::replace(html, "#{filename}", pathtool::get_file_name(filename).c_str());
-
-		return html;
-	}
-
-	std::string get_include_html(const std::string &text)
-	{
-		return strtool::get_text(R"--(<span class="src">%s</span>)--", htmltool::escape_html(text).c_str());
-	}
-
-	std::string get_number_html(int num)
-	{
-		return strtool::get_text(R"--(<span class="num">%s</span>)--", strtool::itoa(num).c_str());
-	}
-
-	std::string get_warn_html(const char *text)
-	{
-		return strtool::get_text(R"--(<span class="num">%s</span>)--", text);
-	}
-}
-
 namespace timetool
 {
 	std::string get_now(const char* format /* = "%04d/%02d/%02d-%02d:%02d:%02d" */)
@@ -626,58 +535,13 @@ namespace timetool
 		}
 
 		time_t now;
-		time(&now);// time函数读取现在的时间(国际标准时间非北京时间)，然后传值给now
+		time(&now);
 
 		tm *localnow = localtime(&now); // 转为本时区时间
 
 		char buf[128] = { 0 };
-		sprintf_s(buf, sizeof buf, format,
-		          1900 + localnow->tm_year, 1 + localnow->tm_mon, localnow->tm_mday,
-		          localnow->tm_hour, localnow->tm_min, localnow->tm_sec
-		         );
-
+		sprintf_s(buf, sizeof(buf), format, 1900 + localnow->tm_year, 1 + localnow->tm_mon, localnow->tm_mday,
+		          localnow->tm_hour, localnow->tm_min, localnow->tm_sec);
 		return buf;
-	}
-}
-
-namespace cxx
-{
-	static std::string s_log_path;
-
-	void init_log(std::string log_path)
-	{
-		if (s_log_path.empty())
-		{
-			log_path = strtool::replace(log_path, "[", "");
-			log_path = strtool::replace(log_path, "]", "");
-			log_path = strtool::replace(log_path, " ", "");
-			log_path = strtool::replace(log_path, ".", "-");
-			log_path = strtool::replace(log_path, "/", "-");
-			log_path = strtool::replace(log_path, "\\", "-");
-			log_path = strtool::replace(log_path, ":", "-");
-
-			s_log_path = strtool::get_text(cn_log, log_path.c_str(), timetool::get_now(cn_time).c_str());
-		}
-	}
-
-	llvm::raw_ostream& log()
-	{
-		static llvm::raw_fd_ostream *o = nullptr;
-		if (nullptr == o)
-		{
-			FILE *file = fopen(s_log_path.c_str(), "w"); // 文件打开方式：如果原来有内容也会销毁
-			if (file)
-			{
-				static llvm::raw_fd_ostream fd_os(_fileno(file), true);
-				o = &fd_os;
-			}
-			else
-			{
-				static llvm::raw_fd_ostream err_os(0, true);
-				o = &err_os;
-			}
-		}
-
-		return *o;
 	}
 }

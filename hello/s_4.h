@@ -1,7 +1,7 @@
 #ifndef _s_4_h_
 #define _s_4_h_
 
-#include "s_1.h"
+#include "s_2.h"
 
 class S4
 {

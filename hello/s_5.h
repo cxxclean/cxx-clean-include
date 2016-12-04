@@ -5,7 +5,7 @@
 
 class S5
 {
-	S4 m_s4;
+	S1 m_s1;
 };
 
 #endif // _s_5_h_

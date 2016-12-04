@@ -13,137 +13,110 @@
 #include "parser.h"
 #include "html_log.h"
 
-namespace cxxclean
+Project Project::instance;
+
+// 打印本次清理的文件列表
+void Project::Print() const
 {
-	Project Project::instance;
-
-	// 打印本次清理的文件列表
-	void Project::Print() const
+	if (Project::instance.m_logLvl < LogLvl_5)
 	{
-		if (Project::instance.m_logLvl < LogLvl_5)
-		{
-			return;
-		}
-
-		HtmlDiv div;
-		div.AddTitle(cn_project_text);
-
-		// 允许清理的c++文件列表
-		if (!m_allowCleanList.empty())
-		{
-			div.AddRow(AddPrintIdx() + ". " + strtool::get_text(cn_project_allow_files, htmltool::get_number_html(m_allowCleanList.size()).c_str()));
-
-			for (const string &file : m_allowCleanList)
-			{
-				div.AddRow(strtool::get_text(cn_project_allow_file, htmltool::get_file_html(file.c_str()).c_str()), 2);
-			}
-
-			div.AddRow("");
-		}
-
-		// 允许清理的文件夹路径
-		if (!m_allowCleanDir.empty())
-		{
-			div.AddRow(AddPrintIdx() + ". " + cn_project_allow_dir + m_allowCleanDir);
-			div.AddRow("");
-		}
-
-		// 待清理的c++源文件列表
-		if (!m_cpps.empty())
-		{
-			div.AddRow(AddPrintIdx() + ". " + strtool::get_text(cn_project_source_list, htmltool::get_number_html(m_cpps.size()).c_str()));
-
-			for (const string &file : m_cpps)
-			{
-				const string absoluteFile = pathtool::get_absolute_path(file.c_str());
-				div.AddRow(strtool::get_text(cn_project_source, htmltool::get_file_html(absoluteFile.c_str()).c_str()), 2);
-			}
-
-			div.AddRow("");
-		}
-
-		HtmlLog::instance.AddDiv(div);
+		return;
 	}
 
-	// 打印索引 + 1
-	std::string Project::AddPrintIdx() const
-	{
-		return strtool::itoa(++m_printIdx);
-	}
+	HtmlDiv div;
+	div.AddTitle(cn_project_text);
 
-	// 生成允许清理文件列表
-	void Project::GenerateAllowCleanList()
+	// 允许清理的c++文件列表
+	if (!m_canCleanFiles.empty())
 	{
-		if (!m_allowCleanDir.empty())
+		div.AddRow(AddPrintIdx() + ". " + strtool::get_text(cn_project_allow_files, get_number_html(m_canCleanFiles.size()).c_str()));
+
+		for (const string &file : m_canCleanFiles)
 		{
-			return;
+			div.AddRow(strtool::get_text(cn_project_allow_file, get_file_html(file.c_str()).c_str()), 2);
 		}
 
-		// 将待清理的.cpp文件存入可清理列表
-		for (const string &cpp : m_cpps)
+		div.AddRow("");
+	}
+
+	// 允许清理的文件夹路径
+	if (!m_canCleanDirectory.empty())
+	{
+		div.AddRow(AddPrintIdx() + ". " + cn_project_allow_dir + m_canCleanDirectory);
+		div.AddRow("");
+	}
+
+	// 待清理的c++源文件列表
+	if (!m_cpps.empty())
+	{
+		div.AddRow(AddPrintIdx() + ". " + strtool::get_text(cn_project_source_list, get_number_html(m_cpps.size()).c_str()));
+
+		for (const string &file : m_cpps)
 		{
-			string absolutePath = pathtool::get_absolute_path(cpp.c_str());
-			m_allowCleanList.insert(tolower(absolutePath.c_str()));
+			const string absoluteFile = pathtool::get_absolute_path(file.c_str());
+			div.AddRow(strtool::get_text(cn_project_source, get_file_html(absoluteFile.c_str()).c_str()), 2);
 		}
+
+		div.AddRow("");
 	}
 
-	// 指定的清理选项是否开启
-	bool Project::IsCleanModeOpen(CleanMode mode)
+	HtmlLog::instance.AddDiv(div);
+}
+
+// 打印索引 + 1
+std::string Project::AddPrintIdx() const
+{
+	return strtool::itoa(++m_printIdx);
+}
+
+// 生成允许清理文件列表
+void Project::GenerateAllowCleanList()
+{
+	if (!m_canCleanDirectory.empty())
 	{
-		if (mode <= 0 || mode > (int)instance.m_cleanModes.size())
+		return;
+	}
+
+	// 将待清理的.cpp文件存入可清理列表
+	for (const string &cpp : m_cpps)
+	{
+		string absolutePath = pathtool::get_absolute_path(cpp.c_str());
+		m_canCleanFiles.insert(tolower(absolutePath.c_str()));
+	}
+}
+
+// 该文件是否允许被清理
+bool Project::CanClean(const char* filename)
+{
+	if (!instance.m_canCleanDirectory.empty())
+	{
+		return pathtool::is_at_directory(instance.m_canCleanDirectory.c_str(), filename);
+	}
+	else
+	{
+		return instance.m_canCleanFiles.find(tolower(filename)) != instance.m_canCleanFiles.end();
+	}
+
+	return false;
+}
+
+// 移除非c++后缀的源文件
+void Project::Fix()
+{
+	// 遍历清理目标，将非c++后缀的文件从列表中移除
+	for (int i = 0, size = m_cpps.size(); i < size;)
+	{
+		std::string &cpp = m_cpps[i];
+		string ext = strtool::get_ext(cpp);
+
+		if (cpptool::is_cpp(ext) && CanClean(cpp.c_str()))
 		{
-			return false;
-		}
-
-		return instance.m_cleanModes[mode - 1];
-	}
-
-	// 当前是否允许清理
-	bool Project::CanCleanNow()
-	{
-		bool can_clean = (m_isOnlyNeed1Step || !ProjectHistory::instance.m_isFirst);
-		return can_clean;
-	}
-
-	// 该文件是否允许被清理
-	bool Project::CanClean(const char* filename)
-	{
-		if (!instance.m_allowCleanDir.empty())
-		{
-			return pathtool::is_at_folder(instance.m_allowCleanDir.c_str(), filename);
+			++i;
 		}
 		else
 		{
-			return instance.m_allowCleanList.find(tolower(filename)) != instance.m_allowCleanList.end();
+			m_cpps[i] = m_cpps[--size];
+			m_cpps.pop_back();
 		}
-
-		return false;
-	}
-
-	// 移除非c++后缀的源文件
-	void Project::Fix()
-	{
-		// 遍历清理目标，将非c++后缀的文件从列表中移除
-		for (int i = 0, size = m_cpps.size(); i < size;)
-		{
-			std::string &cpp = m_cpps[i];
-			string ext = strtool::get_ext(cpp);
-
-			if (cpptool::is_cpp(ext))
-			{
-				++i;
-			}
-			else
-			{
-				m_cpps[i] = m_cpps[--size];
-				m_cpps.pop_back();
-			}
-		}
-
-		// 附：
-		//     对于允许清理的文件列表，则不检测后缀，因为很可能在某个cpp文件内有这样的语句：
-		//         #include "common.def"
-		//     甚至是:
-		//		   #include "common.cpp"
 	}
 }

@@ -28,11 +28,11 @@ const char* g_beginHtml = R"--(
 			a:hover,a:active,a:focus{color:#06c;text-decoration:underline}
 			.src{color:#743481;}
 			.num{color:#FF6C00;}
-			.box{margin-top:30px;margin-bottom:5em;background:#fff;box-shadow:0 4px 8px 0 rgba(0,0,0,.1);border-radius:2px;padding:14px 0 0px;min-width:960px;max-width:1200px;}
+			.box{margin-top:30px;margin-bottom:5em;background:#fff;box-shadow:0 4px 8px 0 rgba(0,0,0,.1);border-radius:2px;padding:14px 0 0px;min-width:960px;}
 			.title ul{border-top:1px solid #e0e0e0;border-bottom:1px solid #e0e0e0;height:41px;line-height:41px;font-size:1.4em;font-family:Microsoft YaHei;}
 			.title .col{float:left;margin-left:-2px;border-left:2px solid #e5e5e5;border-right:2px solid #e5e5e5;text-indent:10px;white-space:nowrap;}
 			.title .col:hover{background:#e8f5fd }
-			.chart{padding:14px 0 10px;min-width:960px;max-width:1200px;}
+			.chart{padding:14px 0 10px;min-width:960px;}
 			.chart .row{position:relative;height:28px;line-height:28px;border-bottom:1px solid #ebebeb;white-space:nowrap;text-overflow:ellipsis;background:#FFF }
 			.chart .row:hover{background:#DDD;}
 			.chart .error_row{position:relative;line-height:20px;white-space:nowrap;text-overflow:ellipsis;background:#FFF;color:#FF0000;border-bottom:2px dashed #ebebeb;}
@@ -79,165 +79,218 @@ const char* g_gridHtml = R"--(<div${class} style="${width}">${text}</div>)--";
 
 const char* g_errorGridHtml = R"--(<div><pre${class}>${text}</pre></div>)--";
 
-namespace cxxclean
+HtmlLog HtmlLog::instance;
+
+std::string escape_html(const char* html)
 {
-	HtmlLog HtmlLog::instance;
+	return escape_html(std::string(html));
+}
 
-	void HtmlDiv::AddTitle(const char* title, int width /* = 100 */)
+std::string escape_html(const std::string &html)
+{
+	std::string ret(html);
+
+	strtool::replace(ret, "<", "&lt;");
+	strtool::replace(ret, ">", "&gt;");
+
+	return ret;
+}
+
+std::string get_file_html(const char *filename)
+{
+	std::string html = R"--(<a href="#{file}">#{file}</a>)--";
+	strtool::replace(html, "#{file}", filename);
+
+	return html;
+}
+
+std::string get_short_file_name_html(const char *filename)
+{
+	std::string html = R"--(<a href="#{filepath}">#{filename}</a>)--";
+	strtool::replace(html, "#{filepath}", filename);
+	strtool::replace(html, "#{filename}", pathtool::get_file_name(filename).c_str());
+
+	return html;
+}
+
+std::string get_include_html(const std::string &text)
+{
+	return strtool::get_text(R"--(<span class="src">%s</span>)--", escape_html(text).c_str());
+}
+
+std::string get_number_html(int num)
+{
+	return strtool::get_text(R"--(<span class="num">%s</span>)--", strtool::itoa(num).c_str());
+}
+
+std::string get_warn_html(const char *text)
+{
+	return strtool::get_text(R"--(<span class="num">%s</span>)--", text);
+}
+
+void HtmlDiv::AddTitle(const char* title, int width /* = 100 */)
+{
+	titles.resize(titles.size() + 1);
+
+	DivGrid &grid	= titles.back();
+	grid.text		= title;
+	grid.width		= width;
+}
+
+void HtmlDiv::AddTitle(const std::string &title, int width /* = 100 */)
+{
+	AddTitle(title.c_str(), width);
+}
+
+void HtmlDiv::AddRow(const char* text, int tabCount /* = 0 */, int width /* = 100 */, bool needEscape /* = false */, RowType rowType /*= Row_None */, GridType gridType /* = Grid_None */)
+{
+	rows.resize(rows.size() + 1);
+	DivRow &row		= rows.back();
+	row.tabCount	= __max(tabCount, 0);
+	row.rowType		= rowType;
+
+	AddGrid(text, width, needEscape, gridType);
+}
+
+void HtmlDiv::AddRow(const std::string &text, int tabCount /* = 0 /* 缩进tab数 */, int width /*= 100*/, bool needEscape /*= false*/, RowType rowType /*= Row_None*/, GridType gridType /*= Grid_None*/)
+{
+	AddRow(text.c_str(), tabCount, width, needEscape, rowType, gridType);
+}
+
+void HtmlDiv::AddGrid(const char* text, int width, bool needEscape /* = false */, GridType gridType /* = Grid_None */)
+{
+	DivRow &row		= rows.back();
+	row.grids.resize(row.grids.size() + 1);
+
+	DivGrid &grid	= row.grids.back();
+	grid.text		= text;
+	grid.width		= width;
+	grid.gridType	= gridType;
+
+	if (needEscape)
 	{
-		titles.resize(titles.size() + 1);
-
-		DivGrid &grid	= titles.back();
-		grid.text		= title;
-		grid.width		= width;
+		escape_html(grid.text);
 	}
+}
 
-	void HtmlDiv::AddTitle(const std::string &title, int width /* = 100 */)
+void HtmlDiv::AddGrid(const std::string &text, int width /*= 0*/, bool needEscape /*= false*/, GridType gridType /*= Grid_None*/)
+{
+	AddGrid(text.c_str(), width, needEscape, gridType);
+}
+
+bool HtmlLog::Init(const std::string &htmlPath, const std::string &htmlTitle, const std::string &tip)
+{
+	m_htmlPath = htmlPath;
+
+	for (char &c : m_htmlPath)
 	{
-		AddTitle(title.c_str(), width);
-	}
-
-	void HtmlDiv::AddRow(const char* text, int tabCount /* = 0 */, int width /* = 100 */, bool needEscape /* = false */, RowType rowType /*= Row_None */, GridType gridType /* = Grid_None */)
-	{
-		rows.resize(rows.size() + 1);
-		DivRow &row		= rows.back();
-		row.tabCount	= __max(tabCount, 0);
-		row.rowType		= rowType;
-
-		AddGrid(text, width, needEscape, gridType);
-	}
-
-	void HtmlDiv::AddRow(const std::string &text, int tabCount /* = 0 /* 缩进tab数 */, int width /*= 100*/, bool needEscape /*= false*/, RowType rowType /*= Row_None*/, GridType gridType /*= Grid_None*/)
-	{
-		AddRow(text.c_str(), tabCount, width, needEscape, rowType, gridType);
-	}
-
-	void HtmlDiv::AddGrid(const char* text, int width, bool needEscape /* = false */, GridType gridType /* = Grid_None */)
-	{
-		DivRow &row		= rows.back();
-		row.grids.resize(row.grids.size() + 1);
-
-		DivGrid &grid	= row.grids.back();
-		grid.text		= text;
-		grid.width		= width;
-		grid.gridType	= gridType;
-
-		if (needEscape)
+		if (c == '.' || c == '/' || c == '\\' || c == ':')
 		{
-			htmltool::escape_html(grid.text);
+			c = '_';
 		}
 	}
 
-	void HtmlDiv::AddGrid(const std::string &text, int width /*= 0*/, bool needEscape /*= false*/, GridType gridType /*= Grid_None*/)
+	strtool::replace(m_htmlPath, "[", "");
+	strtool::replace(m_htmlPath, "]", "");
+	strtool::replace(m_htmlPath, " ", "");
+
+	m_htmlPath = strtool::get_text(cn_log, m_htmlPath.c_str(), timetool::get_now(cn_time).c_str());
+	m_htmlTitle = strtool::get_text(cn_clean, htmlTitle.c_str());
+	m_tip = strtool::get_text(cn_clean, tip.c_str());
+
+	return true;
+}
+
+void HtmlLog::BeginLog()
+{
+	// 文件打开方式：覆盖原有内容
+	FILE *file = fopen(m_htmlPath.c_str(), "w");
+	if (file)
 	{
-		AddGrid(text.c_str(), width, needEscape, gridType);
+		static llvm::raw_fd_ostream fd_os(_fileno(file), true);
+		m_log = &fd_os;
+	}
+	else
+	{
+		m_log = &llvm::errs();
 	}
 
-	std::string HtmlLog::GetHtmlStart(const char* title, const char* time, const char *tip)
-	{
-		std::string beginHtml(g_beginHtml);
-		strtool::replace(beginHtml, "${title}", title);
-		strtool::replace(beginHtml, "${time}", time);
-		strtool::replace(beginHtml, "${tip}", tip);
+	std::string beginHtml(g_beginHtml);
+	strtool::replace(beginHtml, "${title}", m_htmlTitle.c_str());
+	strtool::replace(beginHtml, "${time}", timetool::get_now().c_str());
+	strtool::replace(beginHtml, "${tip}", m_tip.c_str());
 
-		return beginHtml;
+	GetLog() << beginHtml;
+}
+
+void HtmlLog::EndLog()
+{
+	GetLog() << g_endHtml;
+	GetLog().flush();
+}
+
+void HtmlLog::AddDiv(const HtmlDiv &div)
+{
+	std::string divHtml			= g_divHtml;
+	std::string divTitlesHtml;
+	std::string divRowsHtml;
+
+	for (const DivGrid &grid : div.titles)
+	{
+		std::string title(g_titleHtml);
+
+		strtool::replace(title, "${title}",	grid.text.c_str());
+		strtool::replace(title, "${width}",	strtool::itoa(grid.width).c_str());
+
+		divTitlesHtml += title;
 	}
 
-	void HtmlLog::SetHtmlTitle(const std::string &title)
+	for (const DivRow &row : div.rows)
 	{
-		if (!m_htmlTitle.empty())
+		std::string rowHtml = (row.rowType == Row_Error ? g_errorRowHtml : g_rowHtml);
+		std::string gridsHtml;
+
+		for (const DivGrid &grid : row.grids)
 		{
-			return;
+			std::string gridHtml		= (row.rowType == Row_Error ? g_errorGridHtml : g_gridHtml);
+			std::string widthHtml		= (grid.width == 100 || grid.width == 0) ? "" : strtool::get_text("width:%d%%;", grid.width);
+			std::string gridClassHtml	= (grid.gridType == Grid_Ok ? " class=\"ok\"" : "");
+			gridClassHtml += (grid.gridType == Grid_Error ? " class=\"err\"" : "");
+
+			strtool::replace(gridHtml, "${class}",		gridClassHtml.c_str());
+			strtool::replace(gridHtml, "${width}",		widthHtml.c_str());
+			strtool::replace(gridHtml, " style=\"\"",	"");
+			strtool::replace(gridHtml, "${text}",		grid.text.c_str());
+
+			gridsHtml += gridHtml;
 		}
 
-		m_htmlTitle = strtool::get_text(cn_clean, title.c_str());
-	}
-
-	// 设置网页内的文字提示
-	void HtmlLog::SetTip(const std::string &tip)
-	{
-		if (!m_tip.empty())
+		string rowClassHtml;
+		if (row.tabCount > 0)
 		{
-			return;
-		}
-
-		m_tip = strtool::get_text(cn_clean, tip.c_str());
-	}
-
-	void HtmlLog::BeginLog()
-	{
-		cxx::log() << GetHtmlStart(m_htmlTitle.c_str(), timetool::get_now().c_str(), m_tip.c_str());
-	}
-
-	void HtmlLog::EndLog()
-	{
-		cxx::log() << g_endHtml;
-		cxx::log().flush();
-	}
-
-	void HtmlLog::AddDiv(const HtmlDiv &div)
-	{
-		std::string divHtml			= g_divHtml;
-		std::string divTitlesHtml;
-		std::string divRowsHtml;
-
-		for (const DivGrid &grid : div.titles)
-		{
-			std::string title(g_titleHtml);
-
-			strtool::replace(title, "${title}",	grid.text.c_str());
-			strtool::replace(title, "${width}",	strtool::itoa(grid.width).c_str());
-
-			divTitlesHtml += title;
-		}
-
-		for (const DivRow &row : div.rows)
-		{
-			std::string rowHtml = (row.rowType == Row_Error ? g_errorRowHtml : g_rowHtml);
-			std::string gridsHtml;
-
-			for (const DivGrid &grid : row.grids)
+			rowClassHtml = " col" + strtool::itoa(row.tabCount);
+			if (row.tabCount == 1)
 			{
-				std::string gridHtml		= (row.rowType == Row_Error ? g_errorGridHtml : g_gridHtml);
-				std::string widthHtml		= (grid.width == 100 || grid.width == 0) ? "" : strtool::get_text("width:%d%%;", grid.width);
-				std::string gridClassHtml	= (grid.gridType == Grid_Ok ? " class=\"ok\"" : "");
-				gridClassHtml += (grid.gridType == Grid_Error ? " class=\"err\"" : "");
-
-				strtool::replace(gridHtml, "${class}",		gridClassHtml.c_str());
-				strtool::replace(gridHtml, "${width}",		widthHtml.c_str());
-				strtool::replace(gridHtml, " style=\"\"",	"");
-				strtool::replace(gridHtml, "${text}",		grid.text.c_str());
-
-				gridsHtml += gridHtml;
+				rowClassHtml += " bold";
 			}
-
-			string rowClassHtml;
-			if (row.tabCount > 0)
-			{
-				rowClassHtml = " col" + strtool::itoa(row.tabCount);
-				if (row.tabCount == 1)
-				{
-					rowClassHtml += " bold";
-				}
-			}
-
-			strtool::replace(rowHtml, "${other_class}", rowClassHtml.c_str());
-			strtool::replace(rowHtml, "${row}", gridsHtml.c_str());
-			divRowsHtml += rowHtml;
 		}
 
-		strtool::replace(divHtml, "${div_titles}",	divTitlesHtml.c_str());
-		strtool::replace(divHtml, "${div_rows}",	divRowsHtml.c_str());
-
-		cxx::log() << divHtml;
-		cxx::log().flush();
-
-		m_newDiv.Clear();
+		strtool::replace(rowHtml, "${other_class}", rowClassHtml.c_str());
+		strtool::replace(rowHtml, "${row}", gridsHtml.c_str());
+		divRowsHtml += rowHtml;
 	}
 
-	// 添加大标题
-	void HtmlLog::AddBigTitle(const std::string &title)
-	{
-		cxx::log() << "\n			<h1>" << title << "</h1>";
-	}
+	strtool::replace(divHtml, "${div_titles}",	divTitlesHtml.c_str());
+	strtool::replace(divHtml, "${div_rows}",	divRowsHtml.c_str());
+
+	GetLog() << divHtml;
+	GetLog().flush();
+
+	m_newDiv.Clear();
+}
+
+// 添加大标题
+void HtmlLog::AddBigTitle(const std::string &title)
+{
+	GetLog() << "\n			<h1>" << title << "</h1>";
 }

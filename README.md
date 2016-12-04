@@ -1,10 +1,7 @@
-2016-10-08 注意：当前正在试验新的清理方式，仍有问题，暂时不要使用（或者通过添加-mode 1+2参数改为采用更保守的清理方式）
-=====
-
 cxx-clean-include说明
 =====
 
-cxx-clean-include是一个用于清理c++文件中多余#include的工具，可以对visual studio项目（2005及以上版本）进行清理，也可以对单个文件夹（含子文件夹）的c++源文件进行清理。
+cxx-clean-include是一个用于清理c++文件中多余#include并自动生成前置声明的工具，可以对visual studio项目（2005及以上版本）进行清理，也可以对单个文件夹（含子文件夹）的c++源文件进行清理。
 
 ## 使用方法
 
@@ -81,9 +78,9 @@ cxx-clean-include目前支持清理visual studio项目（vs2005及以上版本�
 * 1. 对于visual studio项目，可以使用以下命令：
 
 ```cpp
-cxxclean -clean vs项目名称
+cxxclean -vs vs项目名称
 
-// 比如：cxxclean -clean d:/vs2005/hello.vcproj
+// 比如：cxxclean -vs d:/vs2005/hello.vcproj
 // vs项目名称最好是绝对路径，如: d:/vs2005/hello.vcproj、d:/vs2008/hello.vcxproj
 ```
 
@@ -116,20 +113,21 @@ cxxclean -clean 文件夹路径 -- -I"你的头文件搜索路径" -D 需要预�
 cxx-clean-include提供以下选项：
 
 ```
+  -vs=<string>    - 清理指定的visual studio项目(vs2005版本及以上): 例如: 
+						cxxclean -vs ./hello.vcproj
+						该命令将清理hello项目中的所有c++文件
+											   
+					-vs可和-clean结合使用，例如：
+						cxxclean -vs hello.vcproj -clean hello.cpp
+						该命令将根据hello.vcproj项目的配置（如头文件搜索路径、预定义宏等配置）来清理hello.cpp文件
 
-  -clean=<string> - 该选项可以用来：
-                        1. 清理指定的文件夹, 例如: 
-						       cxxclean -clean ../hello/
-						   该命令将清理../hello/文件夹（包括子文件夹）下的c++文件
 
-                        2. 清理指定的visual studio项目(vs2005版本及以上): 例如: 
-						       cxxclean -clean ./hello.vcproj （或 cxxclean -clean ./hello.vcxproj）
+  -clean=<string> - 清理指定的文件或文件夹, 例如: 
+                        1. cxxclean -clean ../hello/
+						   该命令将清理hello文件夹（包括子文件夹）下的c++文件
+
+                        2. cxxclean -clean hello.cpp
 						   该命令将清理hello项目中的所有c++文件
-
-  -mode=<string>  - 用于指定哪些清理类型应开启，默认为[-mode 3]，不同清理类型用+号连接，例如：[-mode 1+2]
-                        清理类型1. 清除多余的#include
-						清理类型2. 尝试替换#include
-						清理类型3. 每个头文件仅包含自己所需要的头文件，并尽量用前置声明替代#include[本模式只能单独使用]
 
   -no             - 即no overwrite的首字母缩写, 当传入此参数时，本工具仅执行分析并打印分析结果，所有的c++文件将不会被改动
 
@@ -139,18 +137,7 @@ cxx-clean-include提供以下选项：
 
   -print-vs       - 打印visual studio项目的配置文件内容, 例如：打印头文件搜索路径、打印项目c++文件列表、打印预定义宏等等
 
-  -src=<string>   - 仅清理指定的c++文件（路径须合法），本参数可结合-clean参数使用，可分2种情况：
-                        1. 当-clean传入visual studio项目路径时，将采用vs项目的配置来清理该c++文件，例如: 
-						       cxxclean -clean hello.vcproj -src ./hello.cpp
-						   该命令将根据hello.vcproj项目的配置（如头文件搜索路径、预定义宏等配置）来清理hello.cpp文件
-
-						2. 当-clean传入文件夹路径时，表示仅允许清理该文件夹路径下的文件，例如: 
-						       cxxclean -clean ./a/b -src ./hello.cpp
-						   该命令将仅允许对./a/b文件夹路径下的c++文件做修改
-
 ```
-
-注意：在使用cxx-clean-include清理c++文件前，最好先传入-print-project参数，确保打印出的允许被清理c++文件列表符合要求。
 
 ## 源码对应的llvm版本：282490，clang版本：282492
 

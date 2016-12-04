@@ -11,20 +11,13 @@
 #include <iterator>
 #include <vector>
 
-namespace llvm
-{
-	class raw_ostream;
-}
-
 using namespace std;
 
+#define Log(text)		llvm::errs() << text << "\n"
 #define LogInfo(text)	llvm::errs() << "==>[Info][" << __FUNCTION__ << "][" << __LINE__<< "] " << text << "\n"
 #define LogError(text)	llvm::errs() << "==>[Error][" << __FUNCTION__ << "][" << __LINE__<< "] " << text << "\n"
 #define LogInfoByLvl(logLvl, text)	if (Project::instance.m_logLvl >= logLvl) { LogInfo(text); }
 #define LogErrorByLvl(logLvl, text)	if (Project::instance.m_logLvl >= logLvl) { LogError(text); }
-
-#define LogRaw(text)	llvm::errs() << text
-#define Log(text)	llvm::errs() << text << "\n"
 
 namespace strtool
 {
@@ -175,17 +168,14 @@ namespace pathtool
 
 	std::string append_path(const char* a, const char* b);
 
-	/*
-		令path_1为当前路径，返回path_2的相对路径
-		例如：
-			get_relative_path("d:/a/b/c/hello1.cpp", "d:/a/b/c/d/e/f/g/hello2.cpp") = d/e/f/g/hello2.cpp
-			get_relative_path("d:/a/b/c/d/e/f/g/hello2.cpp", "d:/a/b/c/hello1.cpp") = ../../../../hello1.cpp
-
-	*/
+	// 令path_1为当前路径，返回path_2的相对路径
+	// 例如：
+	//		get_relative_path("d:/a/b/c/hello1.cpp", "d:/a/b/c/d/e/f/g/hello2.cpp") = d/e/f/g/hello2.cpp
+	//		get_relative_path("d:/a/b/c/d/e/f/g/hello2.cpp", "d:/a/b/c/hello1.cpp") = ../../../../hello1.cpp
 	std::string get_relative_path(const char *path_1, const char *path_2);
 	
 	// 返回简化后的绝对路径，若传入相对路径，则结果 = 简化（当前路径 + 相对路径），若传入绝对路径，结果 = 简化后的绝对路径
-	// 例如：假设当前路径为：d:/a/b/c/，则
+	// 例如：令当前路径为：d:/a/b/c/，则
 	//		get_absolute_path("../../d/e/hello2.cpp") = "d:/a/b/d/e/hello2.cpp"
 	//		get_absolute_path("d:/a/b/c/../../d/") = "d:/a/d/"
 	string get_absolute_path(const char *path);
@@ -195,7 +185,7 @@ namespace pathtool
 	string get_absolute_path(const char *base_path, const char* relative_path);
 
 	// 获取小写的文件路径
-	string get_lower_absolute_path(const char *path);
+	string get_lower_absolute_path(const char *base_path, const char* relative_path);
 
 	// 返回当前路径
 	std::string get_current_path();
@@ -220,7 +210,7 @@ namespace pathtool
 	bool dir(const std::string &path, /* out */filevec_t &files);
 
 	// 文件是否在指定文件夹下（含子文件夹）
-	bool is_at_folder(const char* folder, const char *file);
+	bool is_at_directory(const char* directory, const char *file);
 
 	// 列出指定文件夹下的文件名列表（含子文件夹下的文件）
 	// 例如，假设../../下有文件"a", "b", "c", "a.txt", "b.txt", "c.exe"
@@ -247,33 +237,9 @@ namespace cpptool
 	}
 }
 
-namespace htmltool
-{
-	std::string escape_html(const char* html);
-
-	std::string escape_html(const std::string &html);
-
-	std::string get_file_html(const char *filename);
-
-	std::string get_min_file_name_html(const char *filename);
-
-	std::string get_include_html(const std::string &text);
-
-	std::string get_number_html(int num);
-
-	std::string get_warn_html(const char *text);
-}
-
 namespace timetool
 {
 	std::string get_now(const char* format = "%04d/%02d/%02d-%02d:%02d:%02d");
-}
-
-namespace cxx
-{
-	void init_log(std::string log_path);
-
-	llvm::raw_ostream& log();
 }
 
 #endif // _tool_h_

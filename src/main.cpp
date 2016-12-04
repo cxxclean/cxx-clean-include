@@ -15,8 +15,6 @@
 #include "history.h"
 #include "tool.h"
 
-using namespace cxxclean;
-
 // 初始化环境配置
 bool Init(CxxCleanOptionsParser &optionParser, int argc, const char **argv)
 {
@@ -52,27 +50,8 @@ void Run(const CxxCleanOptionsParser &optionParser)
 	// 对每个文件进行语法分析
 	std::unique_ptr<FrontendActionFactory> factory = newFrontendActionFactory<CxxCleanAction>();
 	tool.run(factory.get());
-}
 
-// 第1步：分析每个文件
-void Run1(const CxxCleanOptionsParser &optionParser)
-{
-	Run(optionParser);
-
-	ProjectHistory::instance.Fix();
 	ProjectHistory::instance.Print();
-}
-
-// 第2步：开始清理
-void Run2(const CxxCleanOptionsParser &optionParser)
-{
-	if (!Project::instance.m_isOnlyNeed1Step)
-	{
-		ProjectHistory::instance.m_isFirst	= false;
-		ProjectHistory::instance.g_fileNum	= 0;
-
-		Run(optionParser);
-	}
 }
 
 int main(int argc, const char **argv)
@@ -89,8 +68,7 @@ int main(int argc, const char **argv)
 	}
 
 	// 开始分析并清理
-	Run1(optionParser);
-	Run2(optionParser);
+	Run(optionParser);
 
 	Log("-- now = " << timetool::get_now() << " --!");
 	Log("-- finished --!");
