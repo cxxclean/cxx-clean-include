@@ -449,6 +449,9 @@ private:
 	// a文件是否在b位置之前
 	bool IsFileBeforeLoc(FileID a, SourceLocation b) const;
 
+	// a文件是否在b文件之前
+	bool IsFileBeforeFile(FileID a, FileID b) const;
+
 	// 打印引用记录
 	void PrintUse() const;
 
@@ -492,7 +495,7 @@ private:
 	inline bool HasMinKidBySameName(FileID top, FileID kid) const;
 
 	// 是否应保留该位置引用的class、struct、union的前置声明
-	bool IsNeedMinClass(FileID, const CXXRecordDecl &cxxRecord) const;
+	bool IsShouldKeepForwardClass(FileID, const CXXRecordDecl &cxxRecord) const;
 
 	FileSet GetUseChain(const std::map<FileID, FileSet> &use, FileID top) const;
 
@@ -601,7 +604,6 @@ private:
 
 	// 6. 被强制包含的文件ID列表
 	FileSet										m_forceIncludes;
-
 
 	//================== 一些临时数据 ==================//
 

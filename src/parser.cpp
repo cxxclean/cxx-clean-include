@@ -447,7 +447,7 @@ bool ParsingFile::MergeMin()
 					break;
 				}
 
-				if (HasMinKidBySameName(kid, other))
+				if (HasMinKidBySameName(kid, other) && IsFileBeforeFile(kid, other))
 				{
 					LogInfoByLvl(LogLvl_3, "[kid]'s child contains [other]: erase [other](top = " << GetDebugFileName(top) << ", kid = " << GetDebugFileName(kid) << ", other = " << GetDebugFileName(other) << ")");
 
@@ -455,7 +455,7 @@ bool ParsingFile::MergeMin()
 					break;
 				}
 
-				if (HasMinKidBySameName(other, kid))
+				if (HasMinKidBySameName(other, kid) && IsFileBeforeFile(other, kid))
 				{
 					LogInfoByLvl(LogLvl_3, "[other]'s child contains [kid]: erase [kid](top = " << GetDebugFileName(top) << ", other = " << GetDebugFileName(other) << ", kid = " << GetDebugFileName(kid) << ")");
 
@@ -507,7 +507,7 @@ void ParsingFile::GenerateForceIncludes()
 {
 	for (FileID file : m_files)
 	{
-		if (IsForceIncluded(file))
+		if (IsForceIncluded(file) || IsPrecompileHeader(file))
 		{
 			m_forceIncludes.insert(file);
 		}
@@ -576,7 +576,7 @@ void ParsingFile::GenerateUserUse()
 		const FileSet &useList	= itr.second;
 
 		// 忽略被强制包含的文件
-		if (IsForceIncluded(by))
+		if (IsSkip(by))
 		{
 			continue;
 		}
@@ -706,12 +706,27 @@ bool ParsingFile::IsSkip(FileID file) const
 // 该文件的所有同名文件是否被依赖（同一文件可被包含多次）
 inline bool ParsingFile::HasMinKidBySameName(FileID top, FileID kid) const
 {
+	auto &itr = m_minKids.find(top);
+	if (itr == m_minKids.end())
+	{
+		return false;
+	}
+
+	const FileSet &kids = itr->second;
 	const FileSet &sames = GetAllSameFiles(kid);
 	for (FileID same : sames)
 	{
-		if (HasInMap(m_minKids, top, same))
+		if (Has(kids, same))
 		{
 			return true;
+		}
+
+		for (FileID minKid : kids)
+		{
+			if (IsAncestorBySame(same, minKid))
+			{
+				return true;
+			}
 		}
 	}
 
@@ -723,6 +738,14 @@ bool ParsingFile::IsFileBeforeLoc(FileID a, SourceLocation b) const
 {
 	SourceLocation aBeg = m_srcMgr->getLocForStartOfFile(a);
 	return m_srcMgr->isBeforeInTranslationUnit(aBeg, b);
+}
+
+// a文件是否在b文件之前
+bool ParsingFile::IsFileBeforeFile(FileID a, FileID b) const
+{
+	SourceLocation aBeg = m_srcMgr->getLocForStartOfFile(a);
+	SourceLocation bBeg = m_srcMgr->getLocForStartOfFile(b);
+	return m_srcMgr->isBeforeInTranslationUnit(aBeg, bBeg);
 }
 
 // 祖先文件是否被强制包含
@@ -791,7 +814,7 @@ FileID ParsingFile::GetCommonAncestor(const FileSet &kids) const
 }
 
 // 是否应保留该位置引用的class、struct、union的前置声明
-bool ParsingFile::IsNeedMinClass(FileID by, const CXXRecordDecl &cxxRecord) const
+bool ParsingFile::IsShouldKeepForwardClass(FileID by, const CXXRecordDecl &cxxRecord) const
 {
 	auto IsAnyKidHasRecord = [&](FileID byFile, FileID recordAt) -> bool
 	{
@@ -807,9 +830,9 @@ bool ParsingFile::IsNeedMinClass(FileID by, const CXXRecordDecl &cxxRecord) cons
 			return true;
 		}
 
-		FileID best = GetBestKidBySame(recordAt, byFile);
-		FileID outerAncestor = GetOuterFileAncestor(best);
-		return HasMinKidBySameName(byFile, outerAncestor);
+		//FileID best = GetBestKidBySame(recordAt, byFile);
+		//FileID outerAncestor = GetOuterFileAncestor(best);
+		return HasMinKidBySameName(byFile, recordAt);
 	};
 
 	auto IsAnyRecordBeInclude = [&]() -> bool
@@ -861,13 +884,13 @@ void ParsingFile::GenerateForwardClass()
 	{
 		EraseIf(records, [&](const CXXRecordDecl* record)
 		{
-			bool need = g_nowFile->IsNeedMinClass(by, *record);
-			if (need)
+			bool should_keep = g_nowFile->IsShouldKeepForwardClass(by, *record);
+			if (should_keep)
 			{
-				LogErrorByLvl(LogLvl_3, "IsNeedMinClass = true: " << GetDebugFileName(by) << "," << GetRecordName(*record));
+				LogErrorByLvl(LogLvl_3, "IsShouldKeepForwardClass = true: " << GetDebugFileName(by) << "," << GetRecordName(*record));
 			}
 
-			return !need;
+			return !should_keep;
 		});
 
 		return records.empty();
@@ -1615,7 +1638,7 @@ inline FileID ParsingFile::GetBestKidBySame(FileID a, FileID b) const
 FileID ParsingFile::GetBestAncestor(FileID a, FileID b) const
 {
 	// 在孩子文件中找出b的祖先
-	auto SearchInDirectKid = [&](FileID now, FileID b)
+	auto SearchDirectKid = [&](FileID now, FileID b)
 	{
 		auto itr = m_includes.find(now);
 		if (itr == m_includes.end())
@@ -1651,7 +1674,7 @@ FileID ParsingFile::GetBestAncestor(FileID a, FileID b) const
 
 		while (cur.isValid())
 		{
-			FileID kid = SearchInDirectKid(cur, b);
+			FileID kid = SearchDirectKid(cur, b);
 			if (kid.isInvalid())
 			{
 				break;
@@ -3333,7 +3356,7 @@ inline bool ParsingFile::IsForceIncluded(FileID file) const
 bool ParsingFile::IsPrecompileHeader(FileID file) const
 {
 	const std::string fileName = pathtool::get_file_name(GetLowerFileNameInCache(file));
-	return fileName == "stdafx.h";
+	return strtool::start_with(fileName, "stdafx");
 }
 
 // 取出本文件的编译错误历史
