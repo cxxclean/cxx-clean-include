@@ -39,13 +39,6 @@ void Project::Print() const
 		div.AddRow("");
 	}
 
-	// 允许清理的文件夹路径
-	if (!m_canCleanDirectory.empty())
-	{
-		div.AddRow(AddPrintIdx() + ". " + cn_project_allow_dir + m_canCleanDirectory);
-		div.AddRow("");
-	}
-
 	// 待清理的c++源文件列表
 	if (!m_cpps.empty())
 	{
@@ -69,54 +62,31 @@ std::string Project::AddPrintIdx() const
 	return strtool::itoa(++m_printIdx);
 }
 
-// 生成允许清理文件列表
-void Project::GenerateAllowCleanList()
-{
-	if (!m_canCleanDirectory.empty())
-	{
-		return;
-	}
-
-	// 将待清理的.cpp文件存入可清理列表
-	for (const string &cpp : m_cpps)
-	{
-		string absolutePath = pathtool::get_absolute_path(cpp.c_str());
-		m_canCleanFiles.insert(tolower(absolutePath.c_str()));
-	}
-}
-
 // 该文件是否允许被清理
 bool Project::CanClean(const char* filename)
 {
-	if (!instance.m_canCleanDirectory.empty())
-	{
-		return pathtool::is_at_directory(instance.m_canCleanDirectory.c_str(), filename);
-	}
-	else
-	{
-		return instance.m_canCleanFiles.find(tolower(filename)) != instance.m_canCleanFiles.end();
-	}
-
-	return false;
+	return instance.m_canCleanFiles.find(tolower(filename)) != instance.m_canCleanFiles.end();
 }
 
 // 移除非c++后缀的源文件
 void Project::Fix()
 {
-	// 遍历清理目标，将非c++后缀的文件从列表中移除
-	for (int i = 0, size = m_cpps.size(); i < size;)
+	if (m_cpps.size() <= 1)
 	{
-		std::string &cpp = m_cpps[i];
-		string ext = strtool::get_ext(cpp);
+		// 只有一个文件时，允许有任意后缀
+		return;
+	}
 
-		if (cpptool::is_cpp(ext) && CanClean(cpp.c_str()))
+	// 遍历清理目标，将非c++后缀的文件从列表中移除
+	FileNameVec cpps;
+
+	for (const std::string &cpp : m_cpps)
+	{
+		if (cpptool::is_cpp(cpp) && CanClean(cpp.c_str()))
 		{
-			++i;
-		}
-		else
-		{
-			m_cpps[i] = m_cpps[--size];
-			m_cpps.pop_back();
+			cpps.push_back(cpp);
 		}
 	}
+
+	m_cpps = cpps;
 }

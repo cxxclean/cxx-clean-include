@@ -63,6 +63,21 @@ namespace strtool
 		return str;
 	}
 
+	wstring& wide_replace(wstring &str, const wchar_t *old, const wchar_t* to)
+	{
+		wstring::size_type pos = 0;
+		int len_old = wcslen(old);
+		int len_new = wcslen(to);
+
+		while ((pos = str.find(old, pos)) != string::npos)
+		{
+			str.replace(pos, len_old, to);
+			pos += len_new;
+		}
+
+		return str;
+	}
+
 	void split(const std::string &src, std::vector<std::string> &strvec, char cut /* = ';' */)
 	{
 		std::string::size_type pos1 = 0, pos2 = 0;
@@ -180,6 +195,48 @@ namespace strtool
 		vsprintf_s(g_sprintfBuf, sizeof(g_sprintfBuf), fmt, args);
 		va_end(args);
 		return g_sprintfBuf;
+	}
+
+	// 获取指定格式的宽文本串
+	const wchar_t* get_wide_text(const wchar_t* fmt, ...)
+	{
+		static wchar_t g_swprintfBuf[10 * 1024] = { 0 };
+
+		va_list args;
+		va_start(args, fmt);
+		vswprintf_s(g_swprintfBuf, sizeof(g_swprintfBuf), fmt, args);
+		va_end(args);
+		return g_swprintfBuf;
+	}
+
+	std::wstring s2ws(const std::string& s)
+	{
+		std::locale old_loc = std::locale::global(std::locale(""));
+
+		const size_t buffer_size = s.size() + 1;
+		wchar_t* dst_wstr = new wchar_t[buffer_size];
+		wmemset(dst_wstr, 0, buffer_size);
+		mbstowcs(dst_wstr, s.c_str(), buffer_size);
+		std::wstring ws = dst_wstr;
+		delete[]dst_wstr;
+
+		std::locale::global(old_loc);
+		return ws;
+	}
+
+	std::string ws2s(const std::wstring& ws)
+	{
+		std::locale old_loc =std::locale::global(std::locale(""));
+
+		size_t buffer_size = ws.size() * 4 + 1;
+		char* dst_str = new char[buffer_size];
+		memset(dst_str, 0, buffer_size);
+		wcstombs(dst_str, ws.c_str(), buffer_size);
+		std::string s = dst_str;
+		delete[]dst_str;
+
+		std::locale::global(old_loc);
+		return s;
 	}
 }
 
@@ -415,6 +472,11 @@ namespace pathtool
 		}
 
 		return "";
+	}
+
+	string get_lower_absolute_path(const char *path)
+	{
+		return tolower(get_absolute_path(path));
 	}
 
 	string get_lower_absolute_path(const char *base_path, const char* relative_path)

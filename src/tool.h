@@ -67,6 +67,7 @@ namespace strtool
 	// 例如：replace("this is an expmple", "is", "") = "th  an expmple"
 	// 又如: replace("acac", "ac", "ca") = "caca"
 	string& replace(string &str, const char *old, const char* to);
+	wstring& wide_replace(wstring &str, const wchar_t *old, const wchar_t* to);
 
 	// 将字符串根据分隔符分割为字符串数组
 	void split(const std::string &src, std::vector<std::string> &strvec, char cut = ';');
@@ -91,8 +92,11 @@ namespace strtool
 	// 例如：get_ext("../../abc.txt", '_') = txt
 	string get_ext(const string &path);
 
-	// 根据传入的格式文本和参数返回最终的文本串
+	// 获取指定格式的文本串
 	const char* get_text(const char* fmt, ...);
+
+	// 获取指定格式的宽文本串
+	const wchar_t* get_wide_text(const wchar_t* fmt, ...);
 
 	// 是否以指定字符串开头（不区分大小写）
 	inline bool start_with(const string &text, const char *prefix)
@@ -146,6 +150,12 @@ namespace strtool
 
 		return false;
 	}
+
+	// 字符串 -> 宽字符串
+	std::wstring s2ws(const std::string& s);
+	
+	// 宽字符串 -> 字符串
+	std::string ws2s(const std::wstring& ws);
 }
 
 using namespace strtool;
@@ -185,6 +195,9 @@ namespace pathtool
 	string get_absolute_path(const char *base_path, const char* relative_path);
 
 	// 获取小写的文件路径
+	string get_lower_absolute_path(const char *path);
+
+	// 获取小写的文件路径
 	string get_lower_absolute_path(const char *base_path, const char* relative_path);
 
 	// 返回当前路径
@@ -222,16 +235,20 @@ namespace pathtool
 
 namespace cpptool
 {
-	// 是否是c++头文件后缀
-	inline bool is_header(const std::string &ext)
+	// 是否是c++头文件
+	inline bool is_header(const std::string &file)
 	{
+		string ext = strtool::get_ext(file);
+
 		// c++头文件的后缀：h、hpp、hh
 		return (ext == "h" || ext == "hpp" || ext == "hh");
 	}
 
-	// 是否是c++源文件后缀
-	inline bool is_cpp(const std::string &ext)
+	// 是否是c++源文件
+	inline bool is_cpp(const std::string &file)
 	{
+		string ext = strtool::get_ext(file);
+
 		// c++源文件的后缀：c、cc、cpp、c++、cxx、m、mm
 		return (ext == "c" || ext == "cc" || ext == "cpp" || ext == "c++" || ext == "cxx" || ext == "m" || ext == "mm");
 	}

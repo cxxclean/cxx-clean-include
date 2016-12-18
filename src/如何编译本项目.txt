@@ -1,5 +1,7 @@
 windows下使用vs编译本工具流程（参见 http://clang.llvm.org/get_started.html 官方教程）
 
+## 源码对应的llvm版本：289317，clang版本：289309
+
 所需工具：svn、cmake（3.6或3.6以上的版本）、visual studio 2015（2013也可以，但需要安装一个更新，否则无法编译通过）
 
 1. 新建llvm文件夹，使用svn将llvm官方源码导出到该文件夹
@@ -28,7 +30,8 @@ windows下使用vs编译本工具流程（参见 http://clang.llvm.org/get_start
 			LLVM_INCLUDE_TOOLS
 			LLVM_INCLUDE_UTILS
 			LLVM_TOOL_CLANG_TOOLS_EXTRA_BUILD  本项含义是：编译llvm\tools\clang\tools\extra下的项目
-		d. [可选]在Advanced选项，将类似CLANG_TOOL_xxxxxx_BUILD的均取消打勾，只留下CLANG_TOOL_CXX_CLEAN_INCLUDE_BUILD
+		d. 将所有的MD换为MT，将MDd换为MTd
+		e. [可选]在Advanced选项，将类似CLANG_TOOL_xxxxxx_BUILD的均取消打勾，只留下CLANG_TOOL_CXX_CLEAN_INCLUDE_BUILD
 
 	4.3 使用CMake导出vs项目文件
 

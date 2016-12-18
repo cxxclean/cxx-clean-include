@@ -188,10 +188,13 @@ public:
 	static FixedCompilationDatabase *CxxCleanOptionsParser::SplitCommandLine(int &argc, const char *const *argv, Twine directory = ".");
 
 	// 添加clang参数
-	void AddArgument(ClangTool &tool, const char *arg) const;
+	void AddClangArgument(ClangTool &tool, const char *arg) const;
 
-	// 根据vs工程文件里调整clang的参数
-	bool AddCleanVsArgument(const VsProject &vs, ClangTool &tool) const;
+	// 根据命令行添加clang参数
+	void AddClangArgumentByOption(ClangTool &tool) const;
+
+	// 根据vs工程文件调整clang的参数
+	bool AddVsArgument(const VsProject &vs, ClangTool &tool) const;
 
 	// 获取visual studio的安装路径
 	std::string GetVsInstallDir() const;

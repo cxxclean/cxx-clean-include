@@ -178,37 +178,41 @@ void HtmlDiv::AddGrid(const std::string &text, int width /*= 0*/, bool needEscap
 	AddGrid(text.c_str(), width, needEscape, gridType);
 }
 
-bool HtmlLog::Init(const std::string &htmlPath, const std::string &htmlTitle, const std::string &tip)
+bool HtmlLog::Init(const std::wstring &htmlPath, const std::string &htmlTitle, const std::string &tip)
 {
 	m_htmlPath = htmlPath;
 
-	for (char &c : m_htmlPath)
+	for (wchar_t &c : m_htmlPath)
 	{
-		if (c == '.' || c == '/' || c == '\\' || c == ':')
+		if (c == L'.' || c == L'/' || c == L'\\' || c == L':' || c == L'-')
 		{
-			c = '_';
+			c = L'_';
 		}
 	}
 
-	strtool::replace(m_htmlPath, "[", "");
-	strtool::replace(m_htmlPath, "]", "");
-	strtool::replace(m_htmlPath, " ", "");
+	strtool::wide_replace(m_htmlPath, L"[", L"");
+	strtool::wide_replace(m_htmlPath, L"]", L"");
+	strtool::wide_replace(m_htmlPath, L" ", L"");
 
-	m_htmlPath = strtool::get_text(cn_log, m_htmlPath.c_str(), timetool::get_now(cn_time).c_str());
+	std::string str_now = timetool::get_now(cn_time);
+	std::wstring wstr_now = strtool::s2ws(str_now);
+
+	m_htmlPath = strtool::get_wide_text(cn_log, m_htmlPath.c_str(), wstr_now.c_str());
 	m_htmlTitle = strtool::get_text(cn_clean, htmlTitle.c_str());
 	m_tip = strtool::get_text(cn_clean, tip.c_str());
 
+	m_htmlPath = s2ws(pathtool::get_absolute_path(ws2s(m_htmlPath).c_str()));
 	return true;
 }
 
 void HtmlLog::BeginLog()
 {
 	// 文件打开方式：覆盖原有内容
-	FILE *file = fopen(m_htmlPath.c_str(), "w");
+	FILE *file = _wfopen(m_htmlPath.c_str(), L"w");
 	if (file)
 	{
-		static llvm::raw_fd_ostream fd_os(_fileno(file), true);
-		m_log = &fd_os;
+		m_newfdLog = new llvm::raw_fd_ostream(_fileno(file), true);
+		m_log = m_newfdLog;
 	}
 	else
 	{
@@ -227,6 +231,14 @@ void HtmlLog::EndLog()
 {
 	GetLog() << g_endHtml;
 	GetLog().flush();
+
+	m_log = nullptr;
+
+	if (m_newfdLog)
+	{
+		delete m_newfdLog;
+		m_newfdLog = nullptr;
+	}
 }
 
 void HtmlLog::AddDiv(const HtmlDiv &div)

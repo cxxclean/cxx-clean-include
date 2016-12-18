@@ -14,6 +14,7 @@
 #include "vs.h"
 #include "history.h"
 #include "tool.h"
+#include "html_log.h"
 
 // 初始化环境配置
 bool Init(CxxCleanOptionsParser &optionParser, int argc, const char **argv)
@@ -35,13 +36,13 @@ void Run(const CxxCleanOptionsParser &optionParser)
 	tool.clearArgumentsAdjusters();
 	tool.appendArgumentsAdjuster(getClangSyntaxOnlyAdjuster());
 
-	optionParser.AddCleanVsArgument(VsProject::instance, tool);
-	optionParser.AddArgument(tool, "-fcxx-exceptions");
-	optionParser.AddArgument(tool, "-nobuiltininc");		// 禁止使用clang内置的头文件
-	optionParser.AddArgument(tool, "-w");					// 禁用警告
-	optionParser.AddArgument(tool, "-Wno-everything");		// 禁用任何警告，比-w级别高
-	optionParser.AddArgument(tool, "-ferror-limit=5");		// 限制单个cpp产生的编译错误数，超过则不再编译
-	optionParser.AddArgument(tool, "-fpermissive");			// 对不某些不符合标准的行为，允许编译通过，即对标准做降级处理
+	optionParser.AddClangArgumentByOption(tool);
+	optionParser.AddClangArgument(tool, "-fcxx-exceptions");	
+	optionParser.AddClangArgument(tool, "-nobuiltininc");		// 禁止使用clang内置的头文件
+	optionParser.AddClangArgument(tool, "-w");					// 禁用警告
+	optionParser.AddClangArgument(tool, "-Wno-everything");		// 禁用任何警告，比-w级别高
+	optionParser.AddClangArgument(tool, "-ferror-limit=5");		// 限制单个cpp产生的编译错误数，超过则不再编译
+	optionParser.AddClangArgument(tool, "-fpermissive");		// 对不某些不符合标准的行为，允许编译通过，即对标准做降级处理
 
 	DiagnosticOptions diagnosticOptions;
 	diagnosticOptions.ShowOptionNames = 1;
@@ -72,5 +73,7 @@ int main(int argc, const char **argv)
 
 	Log("-- now = " << timetool::get_now() << " --!");
 	Log("-- finished --!");
+
+	system(ws2s(HtmlLog::instance.m_htmlPath).c_str());
 	return 0;
 }

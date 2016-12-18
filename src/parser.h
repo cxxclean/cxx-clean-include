@@ -76,6 +76,12 @@ inline void Add(Container1 &a, const Container2 &b)
 	a.insert(b.begin(), b.end());
 }
 
+template <typename Container, typename Key>
+inline bool Has(Container& container, const Key &key)
+{
+	return container.find(key) != container.end();
+}
+
 // 当前正在解析的c++文件信息
 class ParsingFile
 {
@@ -151,11 +157,17 @@ public:
 	// 是否为可前置声明的类型
 	bool IsForwardType(const QualType &var);
 
+	// 是否为可前置声明的类型
+	bool IsAllQualifierNamespace(const NestedNameSpecifier *specifier);
+
 	// a文件使用b文件
 	inline void UseInclude(FileID a, FileID b, const char* name = nullptr, int line = 0);
 
 	// 当前位置使用指定的宏
 	void UseMacro(SourceLocation loc, const MacroDefinition &macro, const Token &macroName, const MacroArgs *args = nullptr);
+
+	// 去除指针，获取变量最终指向的类型
+	QualType GetPointeeType(const QualType &var);
 
 	// 新增使用变量记录
 	void UseVarType(SourceLocation loc, const QualType &var);
@@ -202,8 +214,17 @@ public:
 	// 引用嵌套名字修饰符
 	void UseQualifier(SourceLocation loc, const NestedNameSpecifier*);
 
+	// 引用嵌套名字修饰符
+	void UseUsingQualifier(SourceLocation loc, const NestedNameSpecifier*);
+
 	// 引用命名空间声明
 	void UseNamespaceDecl(SourceLocation loc, const NamespaceDecl*);
+
+	// 引用using namespace声明
+	void UseUsingNamespace(SourceLocation loc, const NamespaceDecl*);
+
+	// 引用using声明
+	void UseUsing(SourceLocation loc, const NamedDecl*);
 
 	// 引用命名空间别名
 	void UseNamespaceAliasDecl(SourceLocation loc, const NamespaceAliasDecl*);
@@ -640,10 +661,13 @@ private:
 	// 4.3 每个文件所使用的class、struct（非指针、非引用），用于避免生成多余的前置声明
 	FileUseRecordsMap							m_fileUseRecords;
 
-	// 5.1 using namespace记录：[using namespace的位置] -> [对应的namespace定义]
+	// 5.1 using namespace记录（例如：using namespace std;）：[using namespace的位置] -> [对应的namespace定义]
 	map<SourceLocation, const NamespaceDecl*>	m_usingNamespaces;
+	
+	// 5.2 using记录（例如：using std::string;）：[using的目标对应的位置] -> [using声明]
+	map<const NamedDecl*, const UsingDecl*>		m_usings;
 
-	// 5.2 仅用于打印：各文件内声明的命名空间记录：[文件] -> [该文件内的命名空间记录]
+	// 5.3 仅用于打印：各文件内声明的命名空间记录：[文件] -> [该文件内的命名空间记录]
 	std::map<FileID, std::set<std::string>>		m_namespaces;
 
 	// 6.1 所有文件ID对应的文件名：[文件ID] -> [文件名]

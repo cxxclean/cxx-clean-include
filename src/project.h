@@ -24,6 +24,9 @@ enum LogLvl
 	LogLvl_Max
 };
 
+typedef std::set<std::string> FileNameSet;
+typedef std::vector<std::string> FileNameVec;
+
 // 项目配置
 class Project
 {
@@ -45,9 +48,6 @@ public:
 	// 该文件是否允许被清理
 	static bool CanClean(const char* filename);
 
-	// 生成允许清理文件列表
-	void GenerateAllowCleanList();
-
 	// 移除非c++后缀的源文件
 	void Fix();
 
@@ -61,14 +61,11 @@ public:
 	static Project instance;
 
 public:
-	// 允许被清理的文件夹（只有处于该文件夹下的c++文件才允许被改动）
-	std::string					m_canCleanDirectory;
-
-	// 允许被清理的文件列表（只有属于本列表内的c++文件才允许被改动），注意：当允许清理文件夹不为空时，本项无意义
-	std::set<std::string>		m_canCleanFiles;
+	// 允许被清理的文件列表（只有属于本列表内的c++文件才允许被改动）
+	FileNameSet					m_canCleanFiles;
 
 	// 待清理的c++源文件列表，只能是c++后缀的文件，如cpp、cxx等
-	std::vector<std::string>	m_cpps;
+	FileNameVec					m_cpps;
 
 	// 工作目录
 	std::string					m_workingDir;

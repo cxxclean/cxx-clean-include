@@ -113,12 +113,6 @@ inline void MapEraseIf(Container& container, const Op& op)
 	}
 }
 
-template <typename Container, typename Key>
-inline bool Has(Container& container, const Key &key)
-{
-	return container.find(key) != container.end();
-}
-
 template <typename Key>
 inline bool HasInMap(const std::map<Key, std::set<Key>> &container, const Key &by, const Key &kid)
 {
@@ -1407,24 +1401,58 @@ void ParsingFile::UseQualifier(SourceLocation loc, const NestedNameSpecifier *sp
 	}
 }
 
+// 引用嵌套名字修饰符
+void ParsingFile::UseUsingQualifier(SourceLocation loc, const NestedNameSpecifier *specifier)
+{
+	while (specifier)
+	{
+		NestedNameSpecifier::SpecifierKind kind = specifier->getKind();
+		if (kind == NestedNameSpecifier::Namespace)
+		{
+			UseUsingNamespace(loc, specifier->getAsNamespace());
+		}
+
+		specifier = specifier->getPrefix();
+	}
+}
+
 // 引用命名空间声明
 void ParsingFile::UseNamespaceDecl(SourceLocation loc, const NamespaceDecl *ns)
 {
 	UseNameDecl(loc, ns);
+	UseUsingNamespace(loc, ns);
+}
 
+// 引用using namespace声明
+void ParsingFile::UseUsingNamespace(SourceLocation loc, const NamespaceDecl*)
+{
 	for (auto itr : m_usingNamespaces)
 	{
-		SourceLocation usingLoc		= itr.first;
-		const NamespaceDecl	*ns		= itr.second;
+		SourceLocation usingLoc = itr.first;
+		const NamespaceDecl	*ns = itr.second;
 
 		if (m_srcMgr->isBeforeInTranslationUnit(usingLoc, loc))
 		{
 			if (ns->getQualifiedNameAsString() == ns->getQualifiedNameAsString())
 			{
 				Use(loc, usingLoc, GetNestedNamespace(ns).c_str());
+				break;
 			}
 		}
 	}
+}
+
+// 引用using声明
+void ParsingFile::UseUsing(SourceLocation loc, const NamedDecl *nameDecl)
+{
+	auto itr = m_usings.find(nameDecl);
+	if (itr == m_usings.end())
+	{
+		return;
+	}
+
+	const UsingDecl *usingDecl = itr->second;
+	Use(loc, usingDecl->getLocation(), usingDecl->getQualifiedNameAsString().c_str());
 }
 
 // 引用命名空间别名
@@ -1494,17 +1522,17 @@ void ParsingFile::UsingNamespace(const UsingDirectiveDecl *d)
 // using了命名空间下的某类，比如：using std::string;
 void ParsingFile::UsingXXX(const UsingDecl *d)
 {
-	SourceLocation usingLoc		= d->getUsingLoc();
+	SourceLocation usingLoc = d->getUsingLoc();
 
-	for (auto &itr = d->shadow_begin(); itr != d->shadow_end(); ++itr)
+	for (const UsingShadowDecl *shadowDecl : d->shadows())
 	{
-		UsingShadowDecl *shadowDecl = *itr;
-
 		NamedDecl *nameDecl = shadowDecl->getTargetDecl();
 		if (nullptr == nameDecl)
 		{
 			continue;
 		}
+
+		m_usings[nameDecl] = d;
 
 		std::stringstream name;
 		name << "using " << shadowDecl->getQualifiedNameAsString() << "[" << nameDecl->getDeclKindName() << "]";
@@ -1512,7 +1540,7 @@ void ParsingFile::UsingXXX(const UsingDecl *d)
 		Use(usingLoc, nameDecl->getLocEnd(), name.str().c_str());
 
 		// 注意：这里要反向引用，因为比如我们在a文件中#include <string>，然后在b文件using std::string，那么b文件也是有用的
-		Use(nameDecl->getLocEnd(), usingLoc);
+		//Use(nameDecl->getLocEnd(), usingLoc);
 	}
 }
 
@@ -1535,10 +1563,11 @@ std::string ParsingFile::GetNestedNamespace(const NamespaceDecl *d)
 		if (parent && parent->isNamespace())
 		{
 			d = cast<NamespaceDecl>(parent);
-			continue;
 		}
-
-		break;
+		else
+		{
+			break;
+		}
 	}
 
 	return name;
@@ -1726,10 +1755,7 @@ void ParsingFile::UseType(SourceLocation loc, const Type *t)
 		UseQualType(loc, elaboratedType->getNamedType());
 
 		// 嵌套名称修饰
-		if (elaboratedType->getQualifier())
-		{
-			UseQualifier(loc, elaboratedType->getQualifier());
-		}
+		UseQualifier(loc, elaboratedType->getQualifier());
 	}
 	else if (isa<TemplateSpecializationType>(t))
 	{
@@ -1945,6 +1971,9 @@ inline void ParsingFile::UseForward(SourceLocation loc, const CXXRecordDecl *cxx
 	// 添加文件所使用的前置声明记录
 	m_fileUseRecordPointers[by].insert(cxxRecord);
 
+	UseUsingQualifier(loc, cxxRecord->getQualifier());
+	UseUsing(loc, cxxRecord);
+
 	if (Project::instance.m_logLvl >= LogLvl_3)
 	{
 		m_locUseRecordPointers[loc].insert(cxxRecord);
@@ -1959,13 +1988,8 @@ bool ParsingFile::IsForwardType(const QualType &var)
 		return false;
 	}
 
-	QualType pointeeType = var->getPointeeType();
-
-	// 如果是指针类型就获取其指向类型(PointeeType)
-	while (isa<PointerType>(pointeeType) || isa<ReferenceType>(pointeeType))
-	{
-		pointeeType = pointeeType->getPointeeType();
-	}
+	// 去除指针，获取变量最终指向的类型
+	QualType pointeeType = GetPointeeType(var);
 
 	if (!isa<RecordType>(pointeeType))
 	{
@@ -1984,32 +2008,57 @@ bool ParsingFile::IsForwardType(const QualType &var)
 		return false;
 	}
 
+	if (!IsAllQualifierNamespace(cxxRecordDecl->getQualifier()))
+	{
+		return false;
+	}
+
 	return true;
 }
 
-// 新增使用变量记录
-void ParsingFile::UseVarType(SourceLocation loc, const QualType &var)
+// 是否为可前置声明的类型
+bool ParsingFile::IsAllQualifierNamespace(const NestedNameSpecifier *specifier)
 {
-	if (!IsForwardType(var))
+	while (specifier)
 	{
-		UseQualType(loc, var);
-		return;
+		NestedNameSpecifier::SpecifierKind kind = specifier->getKind();
+		if (kind != NestedNameSpecifier::Namespace)
+		{
+			return false;
+		}
+
+		specifier = specifier->getPrefix();
 	}
 
-	if (IsOuterFile(GetFileID(loc)))
-	{
-		UseQualType(loc, var);
-		return;
-	}
+	return true;
+}
 
+// 去除指针，获取变量最终指向的类型
+QualType ParsingFile::GetPointeeType(const QualType &var)
+{
 	QualType pointeeType = var->getPointeeType();
 	while (pointeeType->isPointerType() || pointeeType->isReferenceType())
 	{
 		pointeeType = pointeeType->getPointeeType();
 	}
 
-	const CXXRecordDecl *cxxRecordDecl = pointeeType->getAsCXXRecordDecl();
-	UseForward(loc, cxxRecordDecl);
+	return pointeeType;
+}
+
+// 新增使用变量记录
+void ParsingFile::UseVarType(SourceLocation loc, const QualType &var)
+{
+	if (IsForwardType(var) /* 该类型必须可前置声明 */ && !IsOuterFile(GetFileID(loc)) /* 不考虑在外部文件中生成前置声明 */ )
+	{		
+		QualType pointeeType = GetPointeeType(var);
+
+		const CXXRecordDecl *cxxRecordDecl = pointeeType->getAsCXXRecordDecl();
+		UseForward(loc, cxxRecordDecl);
+	}
+	else
+	{
+		UseQualType(loc, var);
+	}
 }
 
 // 引用构造函数
@@ -2108,6 +2157,7 @@ void ParsingFile::UseNameDecl(SourceLocation loc, const NamedDecl *nameDecl)
 
 	Use(loc, nameDecl->getLocEnd(), name.str().c_str());
 	UseContext(loc, nameDecl->getDeclContext());
+	UseUsing(loc, nameDecl);
 }
 
 // 新增使用函数声明记录
@@ -2119,10 +2169,7 @@ void ParsingFile::UseFuncDecl(SourceLocation loc, const FunctionDecl *f)
 	}
 
 	// 嵌套名称修饰
-	if (f->getQualifier())
-	{
-		UseQualifier(loc, f->getQualifier());
-	}
+	UseQualifier(loc, f->getQualifier());
 
 	// 函数的返回值
 	QualType returnType = f->getReturnType();
@@ -2399,7 +2446,7 @@ string ParsingFile::DebugLocText(SourceLocation loc) const
 inline const char* ParsingFile::GetFileName(FileID file) const
 {
 	const FileEntry *fileEntry = m_srcMgr->getFileEntryForID(file);
-	return fileEntry ? fileEntry->getName() : "";
+	return fileEntry ? fileEntry->getName().data() : "";
 }
 
 // 获取拼写位置
@@ -3599,6 +3646,12 @@ void ParsingFile::PrintHistory() const
 			continue;
 		}
 
+		if (ProjectHistory::instance.HasCleaned(history.m_filename))
+		{
+			continue;
+		}
+
+		/*
 		if (Project::instance.m_logLvl < LogLvl_3)
 		{
 			string ext = strtool::get_ext(history.m_filename);
@@ -3607,6 +3660,7 @@ void ParsingFile::PrintHistory() const
 				continue;
 			}
 		}
+		*/
 
 		history.Print(++i, false);
 	}

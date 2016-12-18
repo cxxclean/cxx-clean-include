@@ -6,7 +6,6 @@
 ///<------------------------------------------------------------------------------
 
 #include "cxx_clean.h"
-
 #include <sstream>
 
 #include "clang/Lex/HeaderSearch.h"
@@ -146,11 +145,7 @@ bool CxxCleanASTVisitor::VisitStmt(Stmt *s)
 	{
 		DeclRefExpr *declRefExpr = cast<DeclRefExpr>(s);
 
-		if (declRefExpr->hasQualifier())
-		{
-			m_root->UseQualifier(loc, declRefExpr->getQualifier());
-		}
-
+		m_root->UseQualifier(loc, declRefExpr->getQualifier());
 		m_root->UseValueDecl(loc, declRefExpr->getDecl());
 	}
 	// 依赖当前范围取成员语句，例如：this->print();
@@ -228,7 +223,7 @@ bool CxxCleanASTVisitor::VisitStmt(Stmt *s)
 	// 类似于DeclRefExpr，要等实例化时才知道类型，比如：T::
 	else if (isa<DependentScopeDeclRefExpr>(s)){}
 	// return语句，例如：return 4;、return;
-	else if (isa<ReturnStmt>(s)){}	
+	else if (isa<ReturnStmt>(s)){}
 	// 括号表达式，例如：(1)、(a + b)
 	else if (isa<ParenExpr>(s)){}
 	// 复合表达式，由不同表达式组合而成
@@ -318,6 +313,15 @@ bool CxxCleanASTVisitor::VisitCXXRecordDecl(CXXRecordDecl *r)
 		return true;
 	}
 
+	// 模板特化，例子如下：
+	//	template<typename T> class array;
+	//	
+	//	template<> class array<bool> { }; // class template specialization array<bool>
+	if (const ClassTemplateSpecializationDecl *Spec = dyn_cast<ClassTemplateSpecializationDecl>(r))
+	{
+		m_root->UseTemplateDecl(r->getLocStart(), Spec->getSpecializedTemplate());
+	}
+
 	// 遍历所有基类
 	for (CXXRecordDecl::base_class_iterator itr = r->bases_begin(), end = r->bases_end(); itr != end; ++itr)
 	{
@@ -331,6 +335,8 @@ bool CxxCleanASTVisitor::VisitCXXRecordDecl(CXXRecordDecl *r)
 		FieldDecl *field = *itr;
 		m_root->UseValueDecl(r->getLocStart(), field);
 	}
+
+	m_root->UseQualifier(r->getLocStart(), r->getQualifier());
 
 	// 成员函数不需要在这里遍历，因为VisitFunctionDecl将会访问成员函数
 	return true;
@@ -458,6 +464,7 @@ void CxxcleanDiagnosticConsumer::Clear()
 
 void CxxcleanDiagnosticConsumer::BeginSourceFile(const LangOptions &LO, const Preprocessor *PP)
 {
+	PP->getDiagnostics().Reset();
 	TextDiagnosticPrinter::BeginSourceFile(LO, PP);
 
 	Clear();
@@ -470,6 +477,11 @@ void CxxcleanDiagnosticConsumer::EndSourceFile()
 {
 	TextDiagnosticPrinter::EndSourceFile();
 
+	if (nullptr == ParsingFile::g_nowFile)
+	{
+		return;
+	}
+
 	CompileErrorHistory &errHistory = ParsingFile::g_nowFile->GetCompileErrorHistory();
 	errHistory.errNum				= NumErrors;
 }
@@ -478,6 +490,11 @@ void CxxcleanDiagnosticConsumer::EndSourceFile()
 void CxxcleanDiagnosticConsumer::HandleDiagnostic(DiagnosticsEngine::Level diagLevel, const Diagnostic &info)
 {
 	TextDiagnosticPrinter::HandleDiagnostic(diagLevel, info);
+
+	if (nullptr == ParsingFile::g_nowFile)
+	{
+		return;
+	}
 
 	CompileErrorHistory &errHistory = ParsingFile::g_nowFile->GetCompileErrorHistory();
 
@@ -564,7 +581,7 @@ bool CxxCleanOptionsParser::ParseOptions(int &argc, const char **argv)
 
 	m_compilation.reset(SplitCommandLine(argc, argv));
 
-	cl::ParseCommandLineOptions(argc, argv, nullptr);
+	cl::ParseCommandLineOptions(argc, argv);
 
 	if (!ParseLogOption() || !ParseCleanOption())
 	{
@@ -613,14 +630,34 @@ FixedCompilationDatabase *CxxCleanOptionsParser::SplitCommandLine(int &argc, con
 }
 
 // 添加clang参数
-void CxxCleanOptionsParser::AddArgument(ClangTool &tool, const char *arg) const
+void CxxCleanOptionsParser::AddClangArgument(ClangTool &tool, const char *arg) const
 {
 	ArgumentsAdjuster argAdjuster = getInsertArgumentAdjuster(arg, ArgumentInsertPosition::BEGIN);
 	tool.appendArgumentsAdjuster(argAdjuster);
 }
 
-// 根据vs工程文件里调整clang的参数
-bool CxxCleanOptionsParser::AddCleanVsArgument(const VsProject &vs, ClangTool &tool) const
+// 根据命令行添加clang参数
+void CxxCleanOptionsParser::AddClangArgumentByOption(ClangTool &tool) const
+{
+	// 根据vs工程文件调整clang的参数
+	AddVsArgument(VsProject::instance, tool);
+
+	// 若只有一个文件
+	if (Project::instance.m_cpps.size() == 1)
+	{
+		const std::string &file = Project::instance.m_cpps[0];
+
+		// 且是头文件
+		if (cpptool::is_header(file))
+		{
+			// 若只分析头文件，必须加上下面参数clang才能成功解析
+			AddClangArgument(tool, "-xc++-header");
+		}
+	}
+}
+
+// 根据vs工程文件调整clang的参数
+bool CxxCleanOptionsParser::AddVsArgument(const VsProject &vs, ClangTool &tool) const
 {
 	if (vs.m_configs.empty())
 	{
@@ -632,23 +669,23 @@ bool CxxCleanOptionsParser::AddCleanVsArgument(const VsProject &vs, ClangTool &t
 	for (const std::string &dir	: vsconfig.searchDirs)
 	{
 		const std::string arg = "-I" + dir;
-		AddArgument(tool, arg.c_str());
+		AddClangArgument(tool, arg.c_str());
 	}
 
 	for (const std::string &force_include : vsconfig.forceIncludes)
 	{
 		const std::string arg = "-include" + force_include;
-		AddArgument(tool, arg.c_str());
+		AddClangArgument(tool, arg.c_str());
 	}
 
 	for (auto &predefine : vsconfig.preDefines)
 	{
 		const std::string arg = "-D" + predefine;
-		AddArgument(tool, arg.c_str());
+		AddClangArgument(tool, arg.c_str());
 	}
 
-	AddArgument(tool, "-fms-extensions");
-	AddArgument(tool, "-fms-compatibility");
+	AddClangArgument(tool, "-fms-extensions");
+	AddClangArgument(tool, "-fms-compatibility");
 
 	if (vs.m_version >= 2008)
 	{
@@ -735,7 +772,7 @@ void CxxCleanOptionsParser::AddVsSearchDir(ClangTool &tool) const
 		}
 
 		std::string arg = "-I" + path;
-		AddArgument(tool, arg.c_str());
+		AddClangArgument(tool, arg.c_str());
 	}
 }
 
@@ -749,6 +786,7 @@ bool CxxCleanOptionsParser::ParseCleanOption()
 	std::string vsOption		= g_vsOption;
 	std::string clean_option	= g_cleanOption;
 
+	// 解析-vs参数（-vs指定了应清理的visual studio工程文件）
 	if (!vsOption.empty())
 	{
 		VsProject &vs = VsProject::instance;
@@ -765,7 +803,9 @@ bool CxxCleanOptionsParser::ParseCleanOption()
 			project.m_cpps = vs.m_cpps;
 			project.m_canCleanFiles = vs.m_all;
 
-			HtmlLog::instance.Init(strtool::get_text(cn_project_1, llvm::sys::path::stem(vsOption).str().c_str()),
+			std::string vsPath = llvm::sys::path::stem(vsOption).str();
+
+			HtmlLog::instance.Init(strtool::get_wide_text(cn_log_name_project, strtool::s2ws(vsPath).c_str()),
 			                       strtool::get_text(cn_project, vsOption.c_str()),
 			                       strtool::get_text(cn_project, get_file_html(vsOption.c_str()).c_str()));
 		}
@@ -776,6 +816,7 @@ bool CxxCleanOptionsParser::ParseCleanOption()
 		}
 	}
 
+	// 解析-clean参数（-clean配置了哪些cpp文件应被清理）
 	if (!clean_option.empty())
 	{
 		if (!pathtool::exist(clean_option))
@@ -793,50 +834,74 @@ bool CxxCleanOptionsParser::ParseCleanOption()
 				directory += "/";
 			}
 
-			Project::instance.m_canCleanDirectory = directory;
+			// 列出本文件夹下所有文件
+			std::vector<std::string> all;
+			bool ok = pathtool::ls(directory, all);
+			if (!ok)
+			{
+				Log("error: -clean " << directory << " failed, not found files at the directory!");
+				return false;
+			}
+
+			for (std::string &file : all)
+			{
+				file = pathtool::get_lower_absolute_path(file.c_str());
+			}
+
+			Add(project.m_canCleanFiles, all);
 
 			// -vs选项为空
 			if (vsOption.empty())
 			{
-				// 列出本文件夹下所有文件
-				bool ok = pathtool::ls(directory, project.m_cpps);
-				if (!ok)
-				{
-					Log("error: -clean " << directory << " failed, not found files at the directory!");
-					return false;
-				}
-
-				Add(project.m_canCleanFiles, project.m_cpps);
+				project.m_cpps = all;
 
 				std::string logFile = directory;
 				strtool::replace(logFile, "/", "_");
 				strtool::replace(logFile, ".", "_");
 
-				HtmlLog::instance.Init(strtool::get_text(cn_folder, logFile.c_str()),
-				                       strtool::get_text(cn_folder, directory.c_str()),
-				                       strtool::get_text(cn_folder, get_file_html(directory.c_str()).c_str()));
+				HtmlLog::instance.Init(strtool::get_wide_text(cn_log_name_folder, strtool::s2ws(logFile).c_str()),
+				                       strtool::get_text(strtool::ws2s(cn_log_name_folder).c_str(), directory.c_str()),
+				                       strtool::get_text(strtool::ws2s(cn_log_name_folder).c_str(), get_file_html(directory.c_str()).c_str()));
+			}
+			// 已有-vs参数
+			else
+			{
+				// 找出该文件夹下属于项目的cpp
+				FileNameSet vsCpps(project.m_cpps.begin(), project.m_cpps.end());
+				project.m_cpps.clear();
+
+				for (const std::string &file : all)
+				{
+					if (Has(vsCpps, file))
+					{
+						// 仅保留处于该文件夹的项目cpp成员
+						project.m_cpps.push_back(file);
+					}
+				}
 			}
 		}
 		// 文件
 		else
 		{
-			std::string file = pathtool::get_absolute_path(clean_option.c_str());
+			std::string filePath = pathtool::get_lower_absolute_path(clean_option.c_str());
 			project.m_cpps.clear();
-			project.m_cpps.push_back(file);
+			project.m_cpps.push_back(filePath);
+			project.m_canCleanFiles.insert(filePath);
 
-			HtmlLog::instance.Init(strtool::get_text(cn_cpp_file, pathtool::get_file_name(file.c_str()).c_str()),
-			                       strtool::get_text(cn_cpp_file, file.c_str()),
-			                       strtool::get_text(cn_cpp_file, get_file_html(file.c_str()).c_str()));
+			std::string fileName = pathtool::get_file_name(filePath.c_str());
+
+			HtmlLog::instance.Init(strtool::get_wide_text(cn_log_name_cpp_file, strtool::s2ws(fileName).c_str()),
+			                       strtool::get_text(strtool::ws2s(cn_log_name_cpp_file).c_str(), filePath.c_str()),
+			                       strtool::get_text(strtool::ws2s(cn_log_name_cpp_file).c_str(), get_file_html(filePath.c_str()).c_str()));
 		}
 
 		project.Fix();
 	}
 
+	// 解析-onlycpp（该选项开启时，仅允许清理源文件，禁止清理头文件）
 	if (g_onlyCleanCpp)
 	{
-		project.m_canCleanDirectory.clear();
 		project.m_canCleanFiles.clear();
-
 		Add(project.m_canCleanFiles, project.m_cpps);
 	}
 

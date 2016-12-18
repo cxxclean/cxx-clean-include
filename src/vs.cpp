@@ -31,15 +31,14 @@ namespace vstool
 			}
 
 			string file(file_attr->value());
-			string ext = strtool::get_ext(file);
 
-			// c++头文件的后缀：h、hpp、hh
-			if (cpptool::is_header(ext))
+			// c++头文件：h、hpp、hh
+			if (cpptool::is_header(file))
 			{
 				vs2005.m_headers.push_back(file);
 			}
-			// c++源文件的后缀：c、cc、cpp、c++、cxx、m、mm
-			else if (cpptool::is_cpp(ext))
+			// c++源文件：c、cc、cpp、c++、cxx、m、mm
+			else if (cpptool::is_cpp(file))
 			{
 				vs2005.m_cpps.push_back(file);
 			}

@@ -17,19 +17,19 @@ namespace llvm
 }
 
 // 1. 中文
-static const char* cn_log							= "清理%s的日志-%s.html";
+static const wchar_t* cn_log_name_project			= L"%s工程";
+static const wchar_t* cn_log_name_folder			= L"[ %s ] 文件夹";
+static const wchar_t* cn_log_name_cpp_file			= L"[ %s ] c++ 文件";
+static const wchar_t* cn_log						= L"清理%s的日志-%s.html";
+
 static const char* cn_time							= "%04d年%02d月%02d日%02d时%02d分%02d秒";
-static const char* cn_cpp_file						= "[ %s ] c++ 文件";
-static const char* cn_folder						= "[ %s ] 文件夹";
 static const char* cn_project						= "[ %s ] visual studio工程";
-static const char* cn_project_1						= "%s工程";
 static const char* cn_clean							= "本页面是对 %s 的分析日志，最终结果以本页面最底部的统计结果为准";
 static const char* cn_project_text					= "允许清理的c++文件列表以及待分析的c++源文件列表";
 static const char* cn_project_allow_files			= "允许清理的c++文件列表：文件个数 = %s（不属于该列表的c++文件不允许被改动）";
 static const char* cn_project_allow_file			= "允许清理的文件 = %s";
 static const char* cn_project_source_list			= "待分析的c++源文件列表：文件个数 = %s（不属于该列表的c++文件不会被分析）";
 static const char* cn_project_source				= "待分析的c++源文件 = %s";
-static const char* cn_project_allow_dir				= "允许清理文件夹";
 
 static const char* cn_file_history					= "第%s个文件%s可被清理，分析结果如下：";
 static const char* cn_file_history_compile_error	= "第%s个文件%s发生了严重编译错误，无法被清理，一部分日志如下：";
@@ -164,10 +164,15 @@ struct HtmlDiv
 // 用于将日志转成html格式，方便查看
 class HtmlLog
 {
+	HtmlLog()
+		: m_log(nullptr)
+		, m_newfdLog(nullptr)
+	{}
+
 public:
 	static inline llvm::raw_ostream& GetLog() { return *instance.m_log; }
 
-	bool Init(const std::string &htmlPath, const std::string &htmlTitle, const std::string &tip);
+	bool Init(const std::wstring &htmlPath, const std::string &htmlTitle, const std::string &tip);
 
 	void BeginLog();
 
@@ -182,7 +187,7 @@ public:
 	static HtmlLog instance;
 
 public:
-	std::string			m_htmlPath;
+	std::wstring		m_htmlPath;
 
 	// 网页文件标题
 	std::string			m_htmlTitle;
@@ -194,6 +199,8 @@ public:
 	HtmlDiv				m_newDiv;
 
 	llvm::raw_ostream*	m_log;
+
+	llvm::raw_ostream*	m_newfdLog;
 };
 
 #endif // _html_log_h_
