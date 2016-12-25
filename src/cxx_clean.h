@@ -90,6 +90,9 @@ public:
 	// 比如：namespace A{}
 	bool VisitNamespaceDecl(clang::NamespaceDecl *d);
 
+	// 比如：namespace s = std;
+	bool VisitNamespaceAliasDecl(clang::NamespaceAliasDecl *d);
+
 	// 比如：using namespace std;
 	bool VisitUsingDirectiveDecl(clang::UsingDirectiveDecl *d);
 

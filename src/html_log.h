@@ -164,12 +164,9 @@ struct HtmlDiv
 // 用于将日志转成html格式，方便查看
 class HtmlLog
 {
-	HtmlLog()
-		: m_log(nullptr)
-		, m_newfdLog(nullptr)
-	{}
-
 public:
+	HtmlLog();
+
 	static inline llvm::raw_ostream& GetLog() { return *instance.m_log; }
 
 	bool Init(const std::wstring &htmlPath, const std::string &htmlTitle, const std::string &tip);

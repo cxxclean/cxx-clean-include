@@ -7,6 +7,7 @@
 
 #include "html_log.h"
 #include "tool.h"
+#include <sstream>
 
 #include <llvm/Support/raw_ostream.h>
 
@@ -16,11 +17,11 @@ const char* g_beginHtml = R"--(
 		<meta http-equiv="Content-Type" content="text/html; charset=gb18030" />
 		<title>${title}</title>
 		<style type="text/css">
+			body{background:#2e3842;align:center;}
 			body,button,input,select,textarea{font:12px/1.5 tahoma,arial,"宋体"!important;}			
-			#main{top:70px;left:0px;right:0px;width:86%;z-index:1;position:absolute;MARGIN-RIGHT:auto;MARGIN-LEFT:auto;}
 			body,div,dl,dt,dd,ul,ol,li,h1,h2,h3,h4,h5,h6,pre{margin:0;padding:0}
 			body,button,input,select,textarea{font:12px/1.5 "Microsoft YaHei",arial,SimSun,"宋体";color:#000}			
-			body{background:#2e3842;}
+			#main{top:70px;left:0px;right:0px;width:86%;z-index:1;position:absolute;MARGIN-RIGHT:auto;MARGIN-LEFT:auto;}			
 			ul,li,ol{list-style:none}
 			h1{font-size:3em;font-family:"Microsoft YaHei";color:#fff;border-bottom:dotted #e0e0e0;margin-bottom:20px;margin-top:50px;text-align:center;}
 			h1:before{content:"\2714";color:#00FF00;right:5px;top:3px;position:relative;font-size:60px;}			
@@ -145,6 +146,7 @@ void HtmlDiv::AddTitle(const std::string &title, int width /* = 100 */)
 void HtmlDiv::AddRow(const char* text, int tabCount /* = 0 */, int width /* = 100 */, bool needEscape /* = false */, RowType rowType /*= Row_None */, GridType gridType /* = Grid_None */)
 {
 	rows.resize(rows.size() + 1);
+
 	DivRow &row		= rows.back();
 	row.tabCount	= __max(tabCount, 0);
 	row.rowType		= rowType;
@@ -159,24 +161,25 @@ void HtmlDiv::AddRow(const std::string &text, int tabCount /* = 0 /* 缩进tab数 *
 
 void HtmlDiv::AddGrid(const char* text, int width, bool needEscape /* = false */, GridType gridType /* = Grid_None */)
 {
-	DivRow &row		= rows.back();
-	row.grids.resize(row.grids.size() + 1);
+	DivRow &row = rows.back();
+	auto &grids = row.grids;
+	grids.resize(grids.size() + 1);
 
-	DivGrid &grid	= row.grids.back();
-	grid.text		= text;
+	DivGrid &grid	= grids.back();
+	grid.text		= (needEscape ? escape_html(text) : text);
 	grid.width		= width;
 	grid.gridType	= gridType;
-
-	if (needEscape)
-	{
-		escape_html(grid.text);
-	}
 }
 
 void HtmlDiv::AddGrid(const std::string &text, int width /*= 0*/, bool needEscape /*= false*/, GridType gridType /*= Grid_None*/)
 {
 	AddGrid(text.c_str(), width, needEscape, gridType);
 }
+
+HtmlLog::HtmlLog()
+	: m_log(nullptr)
+	, m_newfdLog(nullptr)
+{}
 
 bool HtmlLog::Init(const std::wstring &htmlPath, const std::string &htmlTitle, const std::string &tip)
 {
@@ -211,7 +214,7 @@ void HtmlLog::BeginLog()
 	FILE *file = _wfopen(m_htmlPath.c_str(), L"w");
 	if (file)
 	{
-		m_newfdLog = new llvm::raw_fd_ostream(_fileno(file), true);
+		m_newfdLog = new llvm::raw_fd_ostream(_fileno(file), true, true);
 		m_log = m_newfdLog;
 	}
 	else
@@ -243,9 +246,8 @@ void HtmlLog::EndLog()
 
 void HtmlLog::AddDiv(const HtmlDiv &div)
 {
-	std::string divHtml			= g_divHtml;
+	// 单个div的标题
 	std::string divTitlesHtml;
-	std::string divRowsHtml;
 
 	for (const DivGrid &grid : div.titles)
 	{
@@ -257,10 +259,12 @@ void HtmlLog::AddDiv(const HtmlDiv &div)
 		divTitlesHtml += title;
 	}
 
+	// 各行
+	std::stringstream divRowsHtml;
+
 	for (const DivRow &row : div.rows)
 	{
-		std::string rowHtml = (row.rowType == Row_Error ? g_errorRowHtml : g_rowHtml);
-		std::string gridsHtml;
+		std::stringstream gridsHtml;
 
 		for (const DivGrid &grid : row.grids)
 		{
@@ -274,7 +278,7 @@ void HtmlLog::AddDiv(const HtmlDiv &div)
 			strtool::replace(gridHtml, " style=\"\"",	"");
 			strtool::replace(gridHtml, "${text}",		grid.text.c_str());
 
-			gridsHtml += gridHtml;
+			gridsHtml << gridHtml;
 		}
 
 		string rowClassHtml;
@@ -287,13 +291,16 @@ void HtmlLog::AddDiv(const HtmlDiv &div)
 			}
 		}
 
+		std::string rowHtml = (row.rowType == Row_Error ? g_errorRowHtml : g_rowHtml);
 		strtool::replace(rowHtml, "${other_class}", rowClassHtml.c_str());
-		strtool::replace(rowHtml, "${row}", gridsHtml.c_str());
-		divRowsHtml += rowHtml;
+		strtool::replace(rowHtml, "${row}", gridsHtml.str().c_str());
+		divRowsHtml << rowHtml;
 	}
 
-	strtool::replace(divHtml, "${div_titles}",	divTitlesHtml.c_str());
-	strtool::replace(divHtml, "${div_rows}",	divRowsHtml.c_str());
+	// 整个div
+	std::string divHtml = g_divHtml;
+	strtool::replace(divHtml, "${div_titles}", divTitlesHtml.c_str());
+	strtool::replace(divHtml, "${div_rows}",	divRowsHtml.str().c_str());
 
 	GetLog() << divHtml;
 	GetLog().flush();

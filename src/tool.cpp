@@ -48,39 +48,56 @@ namespace strtool
 		return s;
 	}
 
-	string& replace(string &str, const char *old, const char* to)
+	template <typename S /* 字符串类型 */, typename C /* 字符类型 */>
+	S& replace(S &str, const C *old, int len_old, const C* to, int len_to)
 	{
-		string::size_type pos = 0;
-		int len_old = strlen(old);
-		int len_new = strlen(to);
+		S::size_type len_str = str.size();
 
-		while((pos = str.find(old, pos)) != string::npos)
+		S out;
+		out.reserve(2 * len_str);
+
+		S::size_type pre_pos = 0;
+		S::size_type find_pos = 0;
+
+		while ((find_pos = str.find(old, pre_pos)) != S::npos)
 		{
-			str.replace(pos, len_old, to);
-			pos += len_new;
+			out += str.substr(pre_pos, find_pos - pre_pos);
+			out += to;
+
+			pre_pos = find_pos + len_old;
 		}
 
+		if (pre_pos < len_str)
+		{
+			out += str.substr(pre_pos);
+		}
+
+		str = out;
 		return str;
+	}
+
+	string& replace(string &str, const char *old, const char* to)
+	{
+		int len_old = strlen(old);
+		int len_to = strlen(to);
+
+		return replace(str, old, len_old, to, len_to);
 	}
 
 	wstring& wide_replace(wstring &str, const wchar_t *old, const wchar_t* to)
 	{
-		wstring::size_type pos = 0;
 		int len_old = wcslen(old);
-		int len_new = wcslen(to);
+		int len_to = wcslen(to);
 
-		while ((pos = str.find(old, pos)) != string::npos)
-		{
-			str.replace(pos, len_old, to);
-			pos += len_new;
-		}
-
-		return str;
+		return replace(str, old, len_old, to, len_to);
 	}
 
 	void split(const std::string &src, std::vector<std::string> &strvec, char cut /* = ';' */)
 	{
-		std::string::size_type pos1 = 0, pos2 = 0;
+		std::string::size_type pos1 = 0;
+		std::string::size_type pos2 = 0;
+		std::string::size_type len = src.size();
+
 		while (pos2 != std::string::npos)
 		{
 			pos1 = src.find_first_not_of(cut, pos2);
@@ -92,16 +109,15 @@ namespace strtool
 			pos2 = src.find_first_of(cut, pos1 + 1);
 			if (pos2 == std::string::npos)
 			{
-				if (pos1 != src.size())
+				if (pos1 < len)
 				{
 					strvec.push_back(src.substr(pos1));
 				}
-
-				break;
-
 			}
-
-			strvec.push_back(src.substr(pos1, pos2 - pos1));
+			else
+			{
+				strvec.push_back(src.substr(pos1, pos2 - pos1));
+			}
 		}
 	}
 
@@ -184,6 +200,20 @@ namespace strtool
 		}
 
 		return r_trip_at(file, '.');
+	}
+
+	std::string& trim(std::string &s)
+	{
+		if (s.empty())
+		{
+			return s;
+		}
+
+		s.erase(0, s.find_first_not_of(" "));
+		s.erase(0, s.find_first_not_of("\t"));
+		s.erase(s.find_last_not_of(" ") + 1);
+		s.erase(s.find_last_not_of("\t") + 1);
+		return s;
 	}
 
 	const char* get_text(const char* fmt, ...)
@@ -294,16 +324,7 @@ namespace pathtool
 
 		relative_path.append(&path_2[diff2_pos]);
 
-		for (int i = 0, len = relative_path.size(); i < len; ++i)
-		{
-			if (relative_path[i] == '\\')
-			{
-				relative_path[i] = '/';
-			}
-		}
-
-		strtool::replace(relative_path, "//", "/");
-		return relative_path;
+		return to_linux_path(relative_path.c_str());
 	}
 
 	string to_linux_path(const char *path)
@@ -311,10 +332,12 @@ namespace pathtool
 		string ret = path;
 
 		// 将'\'替换为'/'
-		for (size_t i = 0; i < ret.size(); ++i)
+		for (char &c : ret)
 		{
-			if (ret[i] == '\\')
-				ret[i] = '/';
+			if (c == '\\')
+			{
+				c = '/';
+			}
 		}
 
 		strtool::replace(ret, "//", "/");
@@ -326,20 +349,20 @@ namespace pathtool
 		string ret = to_linux_path(path.c_str());
 
 		if (!end_with(ret, "/"))
+		{
 			ret += "/";
+		}
 
 		return ret;
 	}
 
 	// 根据路径获取文件名
-	// 例如：/a/b/foo.txt    => foo.txt
 	string get_file_name(const char *path)
 	{
 		return llvm::sys::path::filename(path);
 	}
 
 	// 简化路径
-	// d:/a/b/c/../../d/ -> d:/d/
 	std::string simplify_path(const char* path)
 	{
 		string native_path = to_linux_path(path);
@@ -525,17 +548,8 @@ namespace pathtool
 		return true;
 	}
 
-	// 文件是否在指定文件夹下（含子文件夹）
-	bool is_at_directory(const char* directory, const char *file)
-	{
-		return start_with(file, directory);
-	}
-
 	// 列出指定文件夹下的文件名列表（含子文件夹下的文件）
-	// 例如，假设../../下有文件"a", "b", "c", "a.txt", "b.txt", "c.exe"
-	//     若path = ../../*.*,   则 files = { "a.txt", "b.txt", "c.exe" }
-	//     若path = ../../*.txt, 则 files = { "a.txt", "b.txt" }
-	bool ls(const string &path, FileVec &files)
+	bool ls(const string &path, FileNameVec &files)
 	{
 		std::string folder	= get_dir(path);
 		std::string pattern	= strip_dir(path);

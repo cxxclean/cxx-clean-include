@@ -133,12 +133,6 @@ namespace strtool
 		return *text == x;
 	}
 
-	// 是否包含指定字符串
-	inline bool contain(const std::string &text, const char *x)
-	{
-		return text.find(x) != std::string::npos;
-	}
-
 	// 若以指定前缀开头，则移除前缀并返回剩下的字符串
 	inline bool try_strip_left(string& str, const string& prefix)
 	{
@@ -150,6 +144,8 @@ namespace strtool
 
 		return false;
 	}
+
+	std::string& trim(std::string &s);
 
 	// 字符串 -> 宽字符串
 	std::wstring s2ws(const std::string& s);
@@ -222,15 +218,12 @@ namespace pathtool
 	typedef std::vector<string> filevec_t;
 	bool dir(const std::string &path, /* out */filevec_t &files);
 
-	// 文件是否在指定文件夹下（含子文件夹）
-	bool is_at_directory(const char* directory, const char *file);
-
 	// 列出指定文件夹下的文件名列表（含子文件夹下的文件）
 	// 例如，假设../../下有文件"a", "b", "c", "a.txt", "b.txt", "c.exe"
 	//     若path = ../../*.*,   则 files = { "a.txt", "b.txt", "c.exe" }
 	//     若path = ../../*.txt, 则 files = { "a.txt", "b.txt" }
-	typedef std::vector<string> FileVec;
-	bool ls(const string &path, FileVec &files);
+	typedef std::vector<string> FileNameVec;
+	bool ls(const string &path, FileNameVec &files);
 }
 
 namespace cpptool

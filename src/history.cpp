@@ -29,7 +29,7 @@ void CompileErrorHistory::Print() const
 
 	for (const std::string& errTip : errors)
 	{
-		div.AddRow(errTip, 2, 100, true, Row_Error);
+		div.AddRow(errTip, 2, 100, false, Row_Error);
 		div.AddRow(" ", 1, 100, false, Row_Error);
 	}
 
@@ -51,20 +51,20 @@ void CompileErrorHistory::Print() const
 		}
 
 		std::string tip = get_text(cn_error_fatal, errTexts.c_str());
-		div.AddRow(tip, 1, 100, true, Row_Error);
+		div.AddRow(tip, 1, 100, false, Row_Error);
 	}
 
 	if (hasTooManyError)
 	{
 		std::string tip = get_text(cn_error_too_many, get_number_html(errNum).c_str());
-		div.AddRow(tip, 1, 100, true, Row_Error);
+		div.AddRow(tip, 1, 100, false, Row_Error);
 	}
 	else if (fatalErrorIds.empty())
 	{
 		if (errNum > 0)
 		{
 			std::string tip = get_text(cn_error_ignore, get_number_html(errNum).c_str());
-			div.AddRow(tip, 1, 100, true, Row_Error);
+			div.AddRow(tip, 1, 100, false, Row_Error);
 		}
 	}
 
@@ -123,7 +123,7 @@ void FileHistory::PrintUnusedInclude() const
 		const DelLine &delLine = delLineItr.second;
 
 		div.AddRow(strtool::get_text(cn_file_unused_line, get_number_html(line).c_str()), 3, 25);
-		div.AddGrid(strtool::get_text(cn_file_unused_include, get_include_html(delLine.text).c_str()), 0, true);
+		div.AddGrid(strtool::get_text(cn_file_unused_include, get_include_html(delLine.text).c_str()), 0, false);
 	}
 
 	div.AddRow("");

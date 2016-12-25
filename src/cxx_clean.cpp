@@ -345,6 +345,8 @@ bool CxxCleanASTVisitor::VisitCXXRecordDecl(CXXRecordDecl *r)
 // 当发现变量定义时该接口被调用
 bool CxxCleanASTVisitor::VisitVarDecl(VarDecl *var)
 {
+	var->dumpColor();
+
 	// 注意：本方法涵盖了1. 函数形参 2. 非类成员的变量声明 3. 类成员但含有static修饰符，等等
 
 	// 引用变量的类型
@@ -383,6 +385,13 @@ bool CxxCleanASTVisitor::VisitTypedefDecl(clang::TypedefDecl *d)
 bool CxxCleanASTVisitor::VisitNamespaceDecl(clang::NamespaceDecl *d)
 {
 	m_root->DeclareNamespace(d);
+	return true;
+}
+
+// 比如：namespace s = std;
+bool CxxCleanASTVisitor::VisitNamespaceAliasDecl(clang::NamespaceAliasDecl *d)
+{
+	m_root->UseNamespaceDecl(d->getLocation(), d->getNamespace());
 	return true;
 }
 
@@ -437,11 +446,16 @@ void CxxCleanASTConsumer::HandleTranslationUnit(ASTContext& context)
 	// 用于调试：打印语法树
 	if (Project::instance.m_logLvl >= LogLvl_6)
 	{
-		HtmlLog::GetLog() << "<pre>------------ HandleTranslationUnit ------------:</pre>\n";
+		std::string log;
+		raw_string_ostream logStream(log);
+		context.getTranslationUnitDecl()->dump(logStream);
+		logStream.flush();
+
+		HtmlLog::GetLog() << "<div class=\"box\"><div><dl><dd><div><span class=\"bold\">------------ HandleTranslationUnit begin ------------</span>";
+		HtmlLog::GetLog() << m_root->DebugBeIncludeText(m_root->GetSrcMgr().getMainFileID());
 		HtmlLog::GetLog() << "<pre>";
-		context.getTranslationUnitDecl()->dump(HtmlLog::GetLog());
-		HtmlLog::GetLog() << "</pre>";
-		HtmlLog::GetLog() << "<pre>------------ HandleTranslationUnit-End ------------:</pre>\n";
+		HtmlLog::GetLog() << escape_html(log);
+		HtmlLog::GetLog() << "</pre><span class=\"bold\">------------ HandleTranslationUnit end ------------</span></div></dd></dl></div></div>\n";
 	}
 
 	// 1. 当前cpp文件分析开始
@@ -510,7 +524,8 @@ void CxxcleanDiagnosticConsumer::HandleDiagnostic(DiagnosticsEngine::Level diagL
 		return;
 	}
 
-	std::string err = m_errorTip;
+	m_log.flush();
+	std::string err = escape_html(m_errorTip);
 	Clear();
 
 	int errNum = errHistory.errors.size() + 1;

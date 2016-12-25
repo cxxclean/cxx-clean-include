@@ -165,24 +165,6 @@ ParsingFile::~ParsingFile()
 	g_nowFile = nullptr;
 }
 
-// 添加父文件关系
-inline void ParsingFile::AddParent(FileID child, FileID parent)
-{
-	if (child != parent && child.isValid() && parent.isValid())
-	{
-		m_parents[child] = parent;
-	}
-}
-
-// 添加包含文件记录
-inline void ParsingFile::AddInclude(FileID file, FileID beInclude)
-{
-	if (file != beInclude && file.isValid() && beInclude.isValid())
-	{
-		m_includes[file].insert(beInclude);
-	}
-}
-
 // 添加成员文件
 void ParsingFile::AddFile(FileID file)
 {
@@ -193,16 +175,18 @@ void ParsingFile::AddFile(FileID file)
 
 	m_files.insert(file);
 
+	// 记录文件名
 	const std::string fileName = GetAbsoluteFileName(file);
 	if (!fileName.empty())
 	{
-		const std::string lowerFileName = tolower(fileName);
+		const std::string lowerFileName = strtool::tolower(fileName);
 
 		m_fileNames.insert(std::make_pair(file, fileName));
 		m_lowerFileNames.insert(std::make_pair(file, lowerFileName));
 		m_sameFiles[lowerFileName].insert(file);
 	}
 
+	// 添加包含文件信息
 	FileID parent = m_srcMgr->getFileID(m_srcMgr->getIncludeLoc(file));
 	if (parent.isValid())
 	{
@@ -211,8 +195,13 @@ void ParsingFile::AddFile(FileID file)
 			parent = m_root;
 		}
 
-		AddParent(file, parent);
-		AddInclude(parent, file);
+		if (file != parent)
+		{
+			const std::string parentName = strtool::tolower(GetAbsoluteFileName(parent));
+
+			m_parents[file] = parent;
+			m_includes[parentName].insert(file);
+		}
 	}
 }
 
@@ -272,7 +261,7 @@ string ParsingFile::GetQuotedIncludeStr(const char *absoluteFilePath) const
 {
 	string path = pathtool::simplify_path(absoluteFilePath);
 
-	for (const HeaderSearchDir &itr :m_headerSearchPaths)
+	for (const HeaderSearchDir &itr : m_headerSearchPaths)
 	{
 		if (strtool::try_strip_left(path, itr.m_dir))
 		{
@@ -297,7 +286,7 @@ FileSet ParsingFile::GetAllSameFiles(FileID file) const
 	if (sameItr != m_sameFiles.end())
 	{
 		const FileSet &sames = sameItr->second;
-		return std::move(sames);
+		return sames;
 	}
 	else
 	{
@@ -330,16 +319,13 @@ void ParsingFile::Analyze()
 	// 2. 记录下每个外部文件的最古老的外部文件祖先（可被修改的文件视为项目内部文件，禁止被修改的文件视为外部文件）
 	GenerateOutFileAncestor();
 
-	// 3. 记录下每个文件的后代文件集合（这里需要考虑同名文件的问题，比如多个头文件同时包含同一个头文件）
-	GenerateKidBySame();
-
-	// 4. 记录下每个用户文件所使用的其他用户文件
+	// 3. 记录下每个用户文件所使用的其他用户文件
 	GenerateUserUse();
 
-	// 5. 分析出每个文件应包含的文件列表
+	// 4. 分析出每个文件应包含的文件列表
 	GenerateMinUse();
 
-	// 6. 记录下应生成的前置声明列表
+	// 5. 记录下应生成的前置声明列表
 	GenerateForwardClass();
 
 	// 将分析结果取出
@@ -353,13 +339,16 @@ void ParsingFile::Begin()
 	// 1. 生成每个文件的后代文件集（分析过程中需要用到）
 	for (FileID file : m_files)
 	{
+		const char *lowerFileName = GetLowerFileNameInCache(file);
+
 		for (FileID child = file, parent; (parent = GetParent(child)).isValid(); child = parent)
 		{
 			m_kids[parent].insert(file);
+			m_kidsByName[GetLowerFileNameInCache(parent)].insert(lowerFileName);
 		}
 	}
 
-	// 2. 保留被反复包含的文件
+	// 2. 删除只被包含一次的文件，仅保留被反复包含的文件
 	MapEraseIf(m_sameFiles, [&](const std::string&, const FileSet &sameFiles)
 	{
 		return sameFiles.size() <= 1;
@@ -387,7 +376,7 @@ FileSet ParsingFile::GetUseChain(const std::map<FileID, FileSet> &use, FileID to
 			AddIf(todo, useFiles, [&top](FileID beuse)
 			{
 				// 只扩展后代文件
-				return g_nowFile->IsAncestorBySame(beuse, top);
+				return g_nowFile->IsAncestorByName(beuse, top);
 			});
 		}
 	});
@@ -417,16 +406,12 @@ bool ParsingFile::MergeMin()
 
 		for (FileID kid : kids)
 		{
-			for (FileID forceInclude : m_forceIncludes)
+			if (IsAncestorForceInclude(kid))
 			{
-				FileID same = GetBestKid(forceInclude, kid);
-				if (same != kid)
-				{
-					LogInfoByLvl(LogLvl_3, "force includes: erase [kid](top = " << GetDebugFileName(top) << ", forceInclude = " << GetDebugFileName(forceInclude) << ", kid = " << GetDebugFileName(kid) << ")");
+				LogInfoByLvl(LogLvl_3, "force includes: erase [kid](top = " << GetDebugFileName(top) << ", kid = " << GetDebugFileName(kid) << ")");
 
-					eraseList.insert(kid);
-					break;
-				}
+				eraseList.insert(kid);
+				break;
 			}
 
 			minKids.erase(kid);
@@ -549,19 +534,6 @@ void ParsingFile::GenerateOutFileAncestor()
 	Del(m_outFileAncestor, dels);
 }
 
-void ParsingFile::GenerateKidBySame()
-{
-	m_userKids = m_kids;
-
-	for (const auto &itr : m_userKids)
-	{
-		FileID top = itr.first;
-
-		FileSet &kids = m_kidsBySame[GetLowerFileNameInCache(top)];
-		GetKidsBySame(m_userKids, top, kids);
-	}
-}
-
 void ParsingFile::GenerateUserUse()
 {
 	for (const auto &itr : m_uses)
@@ -586,7 +558,7 @@ void ParsingFile::GenerateUserUse()
 			// 忽略外部文件引用的后代文件
 			if (isByOuter)
 			{
-				if (IsAncestorBySame(beUse, by))
+				if (IsAncestorByName(beUse, by))
 				{
 					continue;
 				}
@@ -717,7 +689,7 @@ inline bool ParsingFile::HasMinKidBySameName(FileID top, FileID kid) const
 
 		for (FileID minKid : kids)
 		{
-			if (IsAncestorBySame(same, minKid))
+			if (IsAncestorByName(same, minKid))
 			{
 				return true;
 			}
@@ -753,7 +725,7 @@ inline FileID ParsingFile::GetAncestorForceInclude(FileID file) const
 {
 	for (FileID forceInclude : m_forceIncludes)
 	{
-		if (file == forceInclude || IsAncestor(file, forceInclude))
+		if (file == forceInclude || IsAncestorByName(file, forceInclude))
 		{
 			return forceInclude;
 		}
@@ -773,38 +745,6 @@ int ParsingFile::GetDepth(FileID child) const
 	}
 
 	return depth;
-}
-
-// 获取离孩子们最近的共同祖先
-FileID ParsingFile::GetCommonAncestor(const FileSet &kids) const
-{
-	FileID highestKid;
-	int minDepth = 0;
-
-	for (FileID kid : kids)
-	{
-		int depth = GetDepth(kid);
-
-		if (minDepth == 0 || depth < minDepth)
-		{
-			highestKid = kid;
-			minDepth = depth;
-		}
-	}
-
-	FileID ancestor = highestKid;
-	while (!IsCommonAncestor(kids, ancestor))
-	{
-		FileID parent = GetParent(ancestor);
-		if (parent.isInvalid())
-		{
-			return m_root;
-		}
-
-		ancestor = parent;
-	}
-
-	return ancestor;
 }
 
 // 是否应保留该位置引用的class、struct、union的前置声明
@@ -1170,62 +1110,12 @@ inline void ParsingFile::UseName(FileID file, FileID beusedFile, const char* nam
 
 	if (!found)
 	{
-		UseNameInfo info;
+		useNames.resize(useNames.size() + 1);
+
+		UseNameInfo &info = useNames.back();
 		info.file = beusedFile;
 		info.AddName(name, line);
-
-		useNames.push_back(info);
 	}
-}
-
-// 根据当前文件，查找第2层的祖先（令root为第一层），若当前文件的父文件即为主文件，则返回当前文件
-FileID ParsingFile::GetLvl2Ancestor(FileID file, FileID root) const
-{
-	FileID ancestor;
-
-	for (FileID parent; (parent = GetParent(file)).isValid(); file = parent)
-	{
-		// 要求父结点是root
-		if (parent == root)
-		{
-			ancestor = file;
-			break;
-		}
-	}
-
-	return ancestor;
-}
-
-// 根据当前文件，查找第2层的祖先（令root为第一层），若当前文件的父文件即为主文件，则返回当前文件
-inline FileID ParsingFile::GetLvl2AncestorBySame(FileID kid, FileID top) const
-{
-	auto itr = m_includes.find(top);
-	if (itr == m_includes.end())
-	{
-		return FileID();
-	}
-
-	const std::string kidFileName = GetLowerFileNameInCache(kid);
-
-	const FileSet &includes = itr->second;
-	for (FileID beInclude : includes)
-	{
-		if (kidFileName == GetLowerFileNameInCache(beInclude))
-		{
-			return beInclude;
-		}
-
-		const FileSet &sames = GetAllSameFiles(beInclude);
-		for (FileID same : sames)
-		{
-			if (IsAncestorBySame(kid, same))
-			{
-				return beInclude;
-			}
-		}
-	}
-
-	return FileID();
 }
 
 // 第2个文件是否是第1个文件的祖先
@@ -1236,80 +1126,23 @@ inline bool ParsingFile::IsAncestor(FileID young, FileID old) const
 	if (itr != m_kids.end())
 	{
 		const FileSet &children = itr->second;
-		return children.find(young) != children.end();
-	}
-
-	return false;
-}
-
-// 第2个文件是否是第1个文件的祖先
-inline bool ParsingFile::IsAncestor(FileID young, const char* old) const
-{
-	const std::string strOld = tolower(old);
-
-	for (FileID parent = GetParent(young); parent.isValid(); parent = GetParent(parent))
-	{
-		if (GetLowerFileNameInCache(parent) == strOld)
-		{
-			return true;
-		}
-	}
-
-	return false;
-}
-
-// 第2个文件是否是第1个文件的祖先
-inline bool ParsingFile::IsAncestor(const char* young, FileID old) const
-{
-	// 搜索后代文件
-	auto &itr = m_kids.find(old);
-	if (itr != m_kids.end())
-	{
-		const FileSet &kids = itr->second;
-
-		const std::string strKid = tolower(young);
-		for (FileID kid : kids)
-		{
-			if (strKid == GetLowerFileNameInCache(kid))
-			{
-				return true;
-			}
-		}
+		return Has(children, young);
 	}
 
 	return false;
 }
 
 // 第2个文件是否是第1个文件的祖先（考虑同名文件）
-inline bool ParsingFile::IsAncestorBySame(FileID young, FileID old) const
+inline bool ParsingFile::IsAncestorByName(FileID young, FileID old) const
 {
-	auto itr = m_kidsBySame.find(GetLowerFileNameInCache(old));
-	if (itr != m_kidsBySame.end())
+	auto itr = m_kidsByName.find(GetLowerFileNameInCache(old));
+	if (itr != m_kidsByName.end())
 	{
-		const FileSet &kids = itr->second;
-		return Has(kids, young);
+		const FileNameSet &kids = itr->second;
+		return Has(kids, GetLowerFileNameInCache(young));
 	}
 
 	return false;
-}
-
-// 是否为孩子文件的共同祖先
-bool ParsingFile::IsCommonAncestor(const FileSet &children, FileID old) const
-{
-	for (FileID child : children)
-	{
-		if (child == old)
-		{
-			continue;
-		}
-
-		if (!IsAncestor(child, old))
-		{
-			return false;
-		}
-	}
-
-	return true;
 }
 
 // 获取父文件（主文件没有父文件）
@@ -1347,8 +1180,6 @@ inline void ParsingFile::UseInclude(FileID a, FileID b, const char* name /* = nu
 
 	if (!IsSameName(a, b))
 	{
-		// b = GetBestKid(a, b);
-
 		m_uses[a].insert(b);
 		UseName(a, b, name, line);
 	}
@@ -1371,7 +1202,7 @@ void ParsingFile::UseContext(SourceLocation loc, const DeclContext *context)
 	{
 		const NamespaceDecl *ns = cast<NamespaceDecl>(context);
 
-		UseNamespaceDecl(loc, ns);
+		UseUsingNamespace(loc, ns);
 		context = context->getParent();
 	}
 }
@@ -1385,7 +1216,7 @@ void ParsingFile::UseQualifier(SourceLocation loc, const NestedNameSpecifier *sp
 		switch (kind)
 		{
 		case NestedNameSpecifier::Namespace:
-			UseNamespaceDecl(loc, specifier->getAsNamespace());
+			UseUsingNamespace(loc, specifier->getAsNamespace());
 			break;
 
 		case NestedNameSpecifier::NamespaceAlias:
@@ -1424,8 +1255,15 @@ void ParsingFile::UseNamespaceDecl(SourceLocation loc, const NamespaceDecl *ns)
 }
 
 // 引用using namespace声明
-void ParsingFile::UseUsingNamespace(SourceLocation loc, const NamespaceDecl*)
+void ParsingFile::UseUsingNamespace(SourceLocation loc, const NamespaceDecl *beUseNs)
 {
+	if (m_usingNamespaces.empty())
+	{
+		return;
+	}
+
+	const std::string beUseNsName = beUseNs->getQualifiedNameAsString();
+
 	for (auto itr : m_usingNamespaces)
 	{
 		SourceLocation usingLoc = itr.first;
@@ -1433,8 +1271,10 @@ void ParsingFile::UseUsingNamespace(SourceLocation loc, const NamespaceDecl*)
 
 		if (m_srcMgr->isBeforeInTranslationUnit(usingLoc, loc))
 		{
-			if (ns->getQualifiedNameAsString() == ns->getQualifiedNameAsString())
+			if (ns->getQualifiedNameAsString() == beUseNsName)
 			{
+				// LogInfo("ns = " << beUseNsName);
+
 				Use(loc, usingLoc, GetNestedNamespace(ns).c_str());
 				break;
 			}
@@ -1459,7 +1299,7 @@ void ParsingFile::UseUsing(SourceLocation loc, const NamedDecl *nameDecl)
 void ParsingFile::UseNamespaceAliasDecl(SourceLocation loc, const NamespaceAliasDecl *ns)
 {
 	UseNameDecl(loc, ns);
-	UseNamespaceDecl(ns->getAliasLoc(), ns->getNamespace());
+	// UseNamespaceDecl(ns->getAliasLoc(), ns->getNamespace());
 }
 
 // 声明了命名空间
@@ -1488,21 +1328,15 @@ void ParsingFile::UsingNamespace(const UsingDirectiveDecl *d)
 		return;
 	}
 
-	const NamespaceDecl *firstNs = nominatedNs->getOriginalNamespace();
-	if (nullptr == firstNs)
-	{
-		return;
-	}
-
 	SourceLocation usingLoc = GetSpellingLoc(d->getUsingLoc());
 	if (usingLoc.isInvalid())
 	{
 		return;
 	}
+	
+	const NamespaceDecl *bestNs = nominatedNs;
 
-	m_usingNamespaces[usingLoc] = firstNs;
-
-	for (const NamespaceDecl *ns : firstNs->redecls())
+	for (const NamespaceDecl *ns : nominatedNs->redecls())
 	{
 		SourceLocation nsLoc	= GetSpellingLoc(ns->getLocStart());
 		if (nsLoc.isInvalid())
@@ -1510,12 +1344,22 @@ void ParsingFile::UsingNamespace(const UsingDirectiveDecl *d)
 			continue;
 		}
 
-		if (m_srcMgr->isBeforeInTranslationUnit(nsLoc, usingLoc))
+		if (m_srcMgr->isWrittenInSameFile(nsLoc, usingLoc))
 		{
-			// 引用命名空间所在的文件（注意：using namespace时必须能找到对应的namespace声明，比如，using namespace A前一定要有namespace A{}否则编译会报错）
-			Use(usingLoc, nsLoc, GetNestedNamespace(ns).c_str());
+			bestNs = ns;
 			break;
 		}
+	}
+
+	if (bestNs)
+	{
+		SourceLocation nsLoc = GetSpellingLoc(bestNs->getLocStart());
+		const std::string usingNsInfo = "using [" + GetNestedNamespace(bestNs) + "]";
+
+		// 引用命名空间所在的文件（注意：using namespace时必须能找到对应的namespace声明，比如，using namespace A前一定要有namespace A{}否则编译会报错）
+		Use(usingLoc, nsLoc, usingNsInfo.c_str());
+
+		m_usingNamespaces[usingLoc] = bestNs;
 	}
 }
 
@@ -1573,103 +1417,13 @@ std::string ParsingFile::GetNestedNamespace(const NamespaceDecl *d)
 	return name;
 }
 
-// 当a使用b时，如果b对应的文件被包含多次，从b的同名文件中选取一个最好的文件
-inline FileID ParsingFile::GetBestKid(FileID a, FileID b) const
-{
-	// 如果b文件被包含多次，则在其中选择一个较合适的（注意：每个文件优先保留自己及后代文件中的#include语句）
-	auto &sameItr = m_sameFiles.find(GetLowerFileNameInCache(b));
-	if (sameItr == m_sameFiles.end())
-	{
-		return b;
-	}
-
-	// 先找到同名文件列表
-	const FileSet &sames = sameItr->second;
-
-	// 1. 优先返回直接直接包含的文件
-	auto &includeItr = m_includes.find(a);
-	if (includeItr != m_includes.end())
-	{
-		const FileSet &includes = includeItr->second;
-
-		for (FileID same :sames)
-		{
-			if (Has(includes, same))
-			{
-				return same;
-			}
-		}
-	}
-
-	// 2. 否则，搜索后代文件
-	auto &kidItr = m_kids.find(a);
-	if (kidItr != m_kids.end())
-	{
-		const FileSet &children = kidItr->second;
-		for (FileID same :sames)
-		{
-			if (Has(children, same))
-			{
-				return same;
-			}
-		}
-	}
-
-	return b;
-}
-
-inline FileID ParsingFile::GetBestKidBySame(FileID a, FileID b) const
-{
-	if (IsAncestor(b, a))
-	{
-		return b;
-	}
-
-	if (!IsAncestorBySame(b, a))
-	{
-		return b;
-	}
-
-	FileSet todo;
-	FileSet done;
-
-	todo.insert(b);
-
-	while (!todo.empty())
-	{
-		todo.erase(FileID());
-		Del(todo, done);
-
-		FileSet doing = todo;
-		todo.clear();
-
-		for (FileID f : doing)
-		{
-			const FileSet sames = GetAllSameFiles(f);
-			for (FileID same : sames)
-			{
-				if (IsAncestor(same, a))
-				{
-					return same;
-				}
-
-				todo.insert(GetParent(same));
-			}
-		}
-
-		Add(done, doing);
-	}
-
-	return b;
-}
-
 // 当a使用b时，设法找到一个最能与a搭上关系的b的外部祖先
 FileID ParsingFile::GetBestAncestor(FileID a, FileID b) const
 {
 	// 在孩子文件中找出b的祖先
 	auto SearchDirectKid = [&](FileID now, FileID b)
 	{
-		auto itr = m_includes.find(now);
+		auto itr = m_includes.find(GetLowerFileNameInCache(now));
 		if (itr == m_includes.end())
 		{
 			return FileID();
@@ -1678,7 +1432,7 @@ FileID ParsingFile::GetBestAncestor(FileID a, FileID b) const
 		const FileSet &includes = itr->second;
 		for (FileID beInclude : includes)
 		{
-			if (IsAncestorBySame(b, beInclude) || IsSameName(b, beInclude))
+			if (IsAncestorByName(b, beInclude) || IsSameName(b, beInclude))
 			{
 				return beInclude;
 			}
@@ -1697,7 +1451,7 @@ FileID ParsingFile::GetBestAncestor(FileID a, FileID b) const
 		return b;
 	}
 
-	if (IsAncestorBySame(b, a))
+	if (IsAncestorByName(b, a))
 	{
 		FileID cur = a;
 
@@ -1710,9 +1464,9 @@ FileID ParsingFile::GetBestAncestor(FileID a, FileID b) const
 			}
 
 			LogInfoByLvl(LogLvl_5, "-------------------------------------");
-			LogInfoByLvl(LogLvl_5, "cur = " << GetAbsoluteFileName(cur));
-			LogInfoByLvl(LogLvl_5, "b = " << GetAbsoluteFileName(b));
-			LogInfoByLvl(LogLvl_5, "kid = " << GetAbsoluteFileName(kid));
+			LogInfoByLvl(LogLvl_5, "cur = " << GetFileNameInCache(cur));
+			LogInfoByLvl(LogLvl_5, "b = " << GetFileNameInCache(b));
+			LogInfoByLvl(LogLvl_5, "kid = " << GetFileNameInCache(kid));
 
 			cur = kid;
 
@@ -1971,7 +1725,7 @@ inline void ParsingFile::UseForward(SourceLocation loc, const CXXRecordDecl *cxx
 	// 添加文件所使用的前置声明记录
 	m_fileUseRecordPointers[by].insert(cxxRecord);
 
-	UseUsingQualifier(loc, cxxRecord->getQualifier());
+	UseQualifier(loc, cxxRecord->getQualifier());
 	UseUsing(loc, cxxRecord);
 
 	if (Project::instance.m_logLvl >= LogLvl_3)
@@ -2016,7 +1770,7 @@ bool ParsingFile::IsForwardType(const QualType &var)
 	return true;
 }
 
-// 是否为可前置声明的类型
+// 是否所有的限定符都是命名空间（例如::std::vector<int>::中的vector就不是命名空间）
 bool ParsingFile::IsAllQualifierNamespace(const NestedNameSpecifier *specifier)
 {
 	while (specifier)
@@ -2299,6 +2053,11 @@ inline bool ParsingFile::CanClean(FileID file) const
 	return Project::CanClean(GetLowerFileNameInCache(file));
 }
 
+inline bool ParsingFile::CanClean(const char *fileName) const
+{
+	return Project::CanClean(fileName);
+}
+
 // 打印各文件的父文件
 void ParsingFile::PrintParent()
 {
@@ -2368,21 +2127,21 @@ void ParsingFile::PrintUserKids()
 	}
 }
 
-void ParsingFile::PrintKidsBySame()
+void ParsingFile::PrintKidsByName()
 {
 	HtmlDiv &div = HtmlLog::instance.m_newDiv;
-	div.AddRow(AddPrintIdx() + ". list of kids by same name : file count = " + strtool::itoa(m_kidsBySame.size()), 1);
+	div.AddRow(AddPrintIdx() + ". list of kids by same name : file count = " + strtool::itoa(m_kidsByName.size()), 1);
 
-	for (auto &itr : m_kidsBySame)
+	for (auto &itr : m_kidsByName)
 	{
 		const std::string &parent = itr.first;
-		const FileSet &kids = itr.second;
+		const FileNameSet &kids = itr.second;
 
 		div.AddRow("file = " + get_file_html(parent.c_str()) + ", kid num = " + get_number_html(kids.size()), 2);
 
-		for (FileID kid : kids)
+		for (const std::string &kid : kids)
 		{
-			div.AddRow("kid by same = " + DebugBeIncludeText(kid), 3);
+			div.AddRow("kid by same = " + get_file_html(kid.c_str()), 3);
 		}
 
 		div.AddRow("");
@@ -2534,35 +2293,35 @@ string ParsingFile::GetDebugFileName(FileID file) const
 // 获取第1个文件#include第2个文件的文本串
 std::string ParsingFile::GetRelativeIncludeStr(FileID f1, FileID f2) const
 {
-	// 若第2个文件的被包含串原本就是#include <xxx>的格式，则返回原本的#include串
+	// 1. 若第2个文件的被包含串原本就是#include <xxx>的格式，则返回原本的#include串
+	std::string rawInclude2 = GetBeIncludeLineText(f2);
+	if (rawInclude2.empty())
 	{
-		string rawInclude2 = GetBeIncludeLineText(f2);
-		if (rawInclude2.empty())
-		{
-			return "";
-		}
-
-		// 是否被尖括号包含，如：<stdio.h>
-		bool isAngled = strtool::contain(rawInclude2.c_str(), '<');
-		if (isAngled)
-		{
-			return rawInclude2;
-		}
+		return "";
 	}
 
-	string absolutePath1 = GetFileNameInCache(f1);
-	string absolutePath2 = GetFileNameInCache(f2);
+	trim(rawInclude2);
 
-	string include2;
+	// 是否被尖括号包含，如：<stdio.h>
+	bool isAngled = strtool::contain(rawInclude2.c_str(), '<');
+	if (isAngled)
+	{
+		return rawInclude2;
+	}
 
-	// 优先判断2个文件是否在同一文件夹下
+	std::string absolutePath1 = GetFileNameInCache(f1);
+	std::string absolutePath2 = GetFileNameInCache(f2);
+
+	std::string include2;
+
+	// 2. 优先判断2个文件是否在同一文件夹下
 	if (tolower(get_dir(absolutePath1)) == tolower(get_dir(absolutePath2)))
 	{
 		include2 = "\"" + strip_dir(absolutePath2) + "\"";
 	}
 	else
 	{
-		// 在头文件搜索路径中搜寻第2个文件，若成功找到，则返回基于头文件搜索路径的相对路径
+		// 3. 在头文件搜索路径中搜寻第2个文件，若成功找到，则返回基于头文件搜索路径的相对路径
 		include2 = GetQuotedIncludeStr(absolutePath2.c_str());
 
 		// 若未在头文件搜索路径搜寻到第2个文件，则返回基于第1个文件的相对路径
@@ -3003,7 +2762,7 @@ void ParsingFile::Print()
 	{
 		PrintOutFileAncestor();
 		PrintUserKids();
-		PrintKidsBySame();
+		PrintKidsByName();
 		PrintUseRecord();
 
 		PrintAllFile();
@@ -3110,9 +2869,9 @@ void ParsingFile::TakeDel(FileHistory &history, const FileSet &dels) const
 			continue;
 		}
 
-		SourceRange lineRange	= GetIncludeRange(del);
+		SourceRange lineRange = GetIncludeRange(del);
 
-		DelLine &delLine	= history.m_delLines[line];
+		DelLine &delLine = history.m_delLines[line];
 
 		delLine.beg		= m_srcMgr->getFileOffset(lineRange.getBegin());
 		delLine.end		= m_srcMgr->getFileOffset(lineRange.getEnd());
@@ -3158,63 +2917,84 @@ void ParsingFile::TakeForwardClass(FileHistory &history, FileID insertAfter, Fil
 		return;
 	}
 
+	SourceRange includeRange = GetIncludeRange(insertAfter);
+	SourceLocation insertLoc = includeRange.getEnd();
+	if (insertLoc.isInvalid())
+	{
+		LogErrorByLvl(LogLvl_2, "insertLoc.isInvalid(): " << GetDebugFileName(top));
+		return;
+	}
+
+	int line = GetLineNo(insertLoc);
+
+	ForwardLine &forwardLine = history.m_forwards[line];
+	forwardLine.offset = m_srcMgr->getFileOffset(insertLoc);
+	forwardLine.oldText = GetSourceOfLine(includeRange.getBegin());
+
+	// 开始取出前置声明信息
 	const RecordSet &cxxRecords = useRecordItr->second;
 	for (const CXXRecordDecl *cxxRecord : cxxRecords)
 	{
-		SourceRange includeRange = GetIncludeRange(insertAfter);
-		SourceLocation insertLoc = includeRange.getEnd();
-		if (insertLoc.isInvalid())
-		{
-			LogErrorByLvl(LogLvl_2, "insertLoc.isInvalid(), " << GetDebugFileName(top) << ", record = " << GetRecordName(*cxxRecord));
-			continue;
-		}
-
-		// 开始取出数据
-		int line = GetLineNo(insertLoc);
-
-		ForwardLine &forwardLine = history.m_forwards[line];
-		forwardLine.offset	= m_srcMgr->getFileOffset(insertLoc);
-		forwardLine.oldText	= GetSourceOfLine(includeRange.getBegin());
-
 		forwardLine.classes.insert(GetRecordName(*cxxRecord));
 	}
 }
 
 void ParsingFile::TakeAdd(FileHistory &history, FileID top, FileID insertAfter, const FileSet &adds) const
 {
+	if (insertAfter.isInvalid())
+	{
+		LogErrorByLvl(LogLvl_3, "insertAfter.isInvalid(): " << GetDebugFileName(top));
+		return;
+	}
+
+	if (adds.empty())
+	{
+		return;
+	}
+
+	int line = GetIncludeLineNo(insertAfter);
+
+	AddLine &addLine = history.m_adds[line];
+	if (addLine.offset <= 0)
+	{
+		addLine.offset = m_srcMgr->getFileOffset(GetIncludeRange(insertAfter).getEnd());
+		addLine.oldText = GetBeIncludeLineText(insertAfter);
+	}
+
 	for (FileID add : adds)
 	{
-		FileID lv2 = GetLvl2AncestorBySame(add, top);
-		if (lv2.isInvalid())
-		{
-			LogErrorByLvl(LogLvl_3, "lv2.isInvalid(): " << GetDebugFileName(add) << ", " << GetDebugFileName(top));
-			continue;
-		}
-
-		if (IsForceIncluded(lv2))
-		{
-			lv2 = insertAfter;
-		}
-
-		int line = GetIncludeLineNo(lv2);
-
-		AddLine &addLine = history.m_adds[line];
-		if (addLine.offset <= 0)
-		{
-			addLine.offset	= m_srcMgr->getFileOffset(GetIncludeRange(lv2).getEnd());
-			addLine.oldText	= GetBeIncludeLineText(lv2);
-		}
-
 		BeAdd beAdd;
-		beAdd.fileName	= GetFileNameInCache(add);
-		beAdd.text		= GetRelativeIncludeStr(top, add);
+		beAdd.fileName = GetFileNameInCache(add);
+		beAdd.text = GetRelativeIncludeStr(top, add);
 
 		addLine.adds.push_back(beAdd);
 	}
 }
 
+// 整理文件集，把最先出现的同名文件排在前面
+void ParsingFile::SortFilesByLocation(FileSet &files) const
+{
+	FileSet result;
+
+	for (FileID file : files)
+	{
+		FileID first = file;
+
+		auto sameItr = m_sameFiles.find(GetLowerFileNameInCache(file));
+		if (sameItr != m_sameFiles.end())
+		{
+			const FileSet &sames = sameItr->second;
+			first = *sames.begin();
+		}
+
+		result.insert(first);
+	}
+
+	files = result;
+}
+
 // 计算出应在哪个文件对应的#include后新增文本
-FileID ParsingFile::CalcInsertLoc(const FileSet &includes, const FileSet &dels, const std::map<FileID, FileID> &replaces) const
+FileID ParsingFile::CalcInsertLoc(const FileSet &includes, const FileSet &dels) const
 {
 	// 找到本文件第一个被修改的#include的位置
 	FileID firstInclude;
@@ -3235,11 +3015,6 @@ FileID ParsingFile::CalcInsertLoc(const FileSet &includes, const FileSet &dels, 
 		SearchFirstInclude(del);
 	}
 
-	for (auto &itr : replaces)
-	{
-		SearchFirstInclude(itr.first);
-	}
-
 	if (firstIncludeLineNo <= 0)
 	{
 		for (FileID a : includes)
@@ -3251,13 +3026,13 @@ FileID ParsingFile::CalcInsertLoc(const FileSet &includes, const FileSet &dels, 
 	return firstInclude;
 }
 
-// 取出记录，使得各文件仅包含自己所需要的头文件
-void ParsingFile::TakeNeed(FileID top, FileHistory &history) const
+// 取出对指定文件的分析结果
+void ParsingFile::TakeHistory(FileID top, FileHistory &history) const
 {
 	InitHistory(top, history);
 	history.m_isSkip = false;
 
-	auto includeItr = m_includes.find(top);
+	auto includeItr = m_includes.find(GetLowerFileNameInCache(top));
 	if (includeItr == m_includes.end())
 	{
 		return;
@@ -3266,39 +3041,27 @@ void ParsingFile::TakeNeed(FileID top, FileHistory &history) const
 	//--------------- 一、先分析文件中哪些#include行需要被删除、替换，及需要新增哪些#include ---------------//
 
 	// 最终应包含的文件列表
-	FileSet kids;
-
+	FileSet empty;
 	auto itr = m_min.find(top);
-	if (itr != m_min.end())
+
+	const FileSet &finalIncludes = (itr != m_min.end() ? itr->second : empty);
+	if (finalIncludes.empty())
 	{
-		kids = std::move(itr->second);
-	}
-	else
-	{
-		LogInfoByLvl(LogLvl_3, "not in m_min, don't need any include [top] = " << GetDebugFileName(top));
+		LogInfoByLvl(LogLvl_3, "don't need any include [top] = " << GetDebugFileName(top));
 	}
 
 	// 旧的包含文件列表
 	FileSet oldIncludes	= includeItr->second;
 
 	// 新的包含文件列表
-	FileSet newIncludes	= kids;
-
-	// 应添加
-	FileSet adds;
-
-	// 应删除
-	FileSet dels;
-
-	// 应替换，<被替换，应替换到>
-	std::map<FileID, FileID> replaces;
+	FileSet newIncludes	= finalIncludes;
 
 	// 1. 找到新、旧文件包含列表中[id相同、或文件名相同的文件]，一对对消除
-	for (FileID kid : kids)
+	for (FileID kid : finalIncludes)
 	{
 		bool isSame = false;
 
-		if (oldIncludes.find(kid) != oldIncludes.end())
+		if (Has(oldIncludes, kid))
 		{
 			oldIncludes.erase(kid);
 			newIncludes.erase(kid);
@@ -3318,52 +3081,27 @@ void ParsingFile::TakeNeed(FileID top, FileHistory &history) const
 			}
 		}
 	}
+	
+	SortFilesByLocation(newIncludes);
 
-	// 2. 找到新、旧文件包含列表中[存在祖先后代关系的文件]，一对对记入替换表中
-	for (FileID beInclude : oldIncludes)
-	{
-		for (FileID kid : newIncludes)
-		{
-			FileID lv2Ancestor = GetLvl2AncestorBySame(kid, beInclude);
-			if (lv2Ancestor.isValid())
-			{
-				replaces[beInclude] = kid;
-				newIncludes.erase(kid);
+	// 2. 最后，新旧文件列表可能还剩余一些文件，处理方法是：直接删掉旧的、添加新的
 
-				break;
-			}
-		}
-	}
+	// 应添加
+	const FileSet &dels = oldIncludes;
 
-	Del(oldIncludes, replaces);
-
-	// 3. 最后，新旧文件列表可能还剩余一些文件，处理方法是：直接删掉旧的、添加新的
-	dels = std::move(oldIncludes);
-	adds = std::move(newIncludes);
+	// 应删除
+	const FileSet &adds = newIncludes;
 
 	//--------------- 二、开始取出分析结果 ---------------//
 
 	// 1. 取出删除#include记录
 	TakeDel(history, dels);
 
-	// 2. 取出替换#include记录
-	for (auto &itr : replaces)
-	{
-		FileID from	= itr.first;
-		FileID to	= itr.second;
-
-		int line	= GetIncludeLineNo(from);
-
-		ReplaceLine &replaceLine = history.m_replaces[line];
-		TakeReplaceLine(replaceLine, from, to);
-	}
-
-	// 3. 取出新增前置声明记录
-	FileID insertAfter = CalcInsertLoc(includeItr->second, dels, replaces);
-
+	// 2. 取出新增前置声明记录
+	FileID insertAfter = CalcInsertLoc(includeItr->second, dels);
 	TakeForwardClass(history, insertAfter, top);
 
-	// 4. 取出新增#include记录
+	// 3. 取出新增#include记录
 	TakeAdd(history, top, insertAfter, adds);
 }
 
@@ -3380,7 +3118,7 @@ void ParsingFile::TakeHistorys(FileHistoryMap &out) const
 		const char *fileName = GetLowerFileNameInCache(top);
 		if (!Has(out, fileName))
 		{
-			TakeNeed(top, out[fileName]);
+			TakeHistory(top, out[fileName]);
 		}
 	}
 
@@ -3445,18 +3183,18 @@ void ParsingFile::PrintInclude() const
 	HtmlDiv &div = HtmlLog::instance.m_newDiv;
 	div.AddRow(AddPrintIdx() + ". list of include : include count = " + get_number_html(m_includes.size()), 1);
 
-	for (auto & includeList : m_includes)
+	for (auto &itr : m_includes)
 	{
-		FileID file = includeList.first;
+		const std::string &fileName = itr.first;
 
-		if (!CanClean(file))
+		if (!CanClean(fileName.c_str()))
 		{
 			continue;
 		}
 
-		div.AddRow(DebugParentFileText(file, includeList.second.size()), 2);
+		div.AddRow("parent = " + fileName, 2);
 
-		for (FileID beinclude : includeList.second)
+		for (FileID beinclude : itr.second)
 		{
 			div.AddRow("include = " + DebugBeIncludeText(beinclude), 3);
 		}
@@ -3651,7 +3389,6 @@ void ParsingFile::PrintHistory() const
 			continue;
 		}
 
-		/*
 		if (Project::instance.m_logLvl < LogLvl_3)
 		{
 			string ext = strtool::get_ext(history.m_filename);
@@ -3660,7 +3397,6 @@ void ParsingFile::PrintHistory() const
 				continue;
 			}
 		}
-		*/
 
 		history.Print(++i, false);
 	}
