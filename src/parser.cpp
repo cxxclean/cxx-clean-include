@@ -392,7 +392,7 @@ void ParsingFile::Begin()
 
 	uint64_t t1 = ticktool::tick();
 
-	for (int i = 0; i < 1000; ++i)
+	for (int i = 0; i < 1; ++i)
 	{
 		for (const auto &itr : m_includes)
 		{
@@ -417,7 +417,7 @@ void ParsingFile::Begin()
 
 	uint64_t t2 = ticktool::tick();
 
-	for (int i = 0; i < 1000; ++i)
+	for (int i = 0; i < 1; ++i)
 	{
 		for (const auto &itr : m_includes)
 		{
@@ -652,17 +652,30 @@ void ParsingFile::GenerateMinInclude()
 		FileSet chain;
 		GetChain(chain, top, [&](const FileSet &done, FileSet &todo, FileID cur)
 		{
-			// 1. 若当前文件不依赖其他文件，则跳过
-			auto &useItr = m_userUses.find(GetLowerFileNameInCache(cur));
+			// todo集合 += 当前文件依赖的其他文件
+			auto useItr = m_userUses.find(GetLowerFileNameInCache(cur));
 			if (useItr != m_userUses.end())
 			{
-				// 2. todo集合 += 当前文件依赖的其他文件
 				const FileSet &useFiles = useItr->second;
-				AddIf(todo, useFiles, [&top](FileID beuse)
+				for (FileID beUse : useFiles)
 				{
 					// 只扩展后代文件
-					return g_nowFile->IsAncestorByName(beuse, top);
-				});
+					if (!IsAncestorByName(beUse, top))
+					{
+						continue;
+					}
+
+					auto sameItr = m_sameFiles.find(GetLowerFileNameInCache(beUse));
+					if (sameItr != m_sameFiles.end())
+					{
+						const FileSet &sames = sameItr->second;
+						Add(todo, sames);
+					}
+					else
+					{
+						todo.insert(beUse);
+					}
+				}
 			}
 		});
 
@@ -714,30 +727,17 @@ inline bool ParsingFile::Contains(FileID top, FileID kid) const
 		return false;
 	}
 
-	const FileSet &kids = itr->second;
-	if (Has(kids, kid))
+	const FileSet &minKids = itr->second;
+	if (Has(minKids, kid))
 	{
 		return true;
 	}
 
-	for (FileID minKid : kids)
+	for (FileID minKid : minKids)
 	{
 		if (IsOuterFile(minKid) && IsAncestorByName(kid, minKid))
 		{
 			return true;
-		}
-	}
-
-	auto sameItr = m_sameFiles.find(GetLowerFileNameInCache(kid));
-	if (sameItr != m_sameFiles.end())
-	{
-		const FileSet &sames = sameItr->second;
-		for (FileID same : sames)
-		{
-			if (Has(kids, same))
-			{
-				return true;
-			}
 		}
 	}
 
