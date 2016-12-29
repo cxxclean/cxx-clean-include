@@ -484,16 +484,22 @@ private:
 	// 是否禁止改动某文件
 	bool IsSkip(FileID file) const;
 
-	// 第2个文件是否是第1个文件的祖先（考虑同名文件）
-	inline bool IsAncestorByName(FileID yound, FileID old) const;
+	// 第2个文件是否是第1个文件的祖先
+	inline bool IsAncestorByName(FileID young, FileID old) const;
 
-	// 该文件的所有同名文件是否被依赖（同一文件可被包含多次）
-	inline bool HasMinKidBySameName(FileID top, FileID kid) const;
+	// 第2个文件是否是第1个文件的祖先
+	inline bool IsAncestorByName(const char *young, const char *old) const;
+
+	// 在最终结果中，文件a是否包含了文件b
+	inline bool Contains(FileID a, FileID b) const;
+
+	FileID GetFileIDByFileName(const char *fileName) const;
 
 	// 是否应保留该位置引用的class、struct、union的前置声明
 	bool IsShouldKeepForwardClass(FileID, const CXXRecordDecl &cxxRecord) const;
 
-	FileSet GetUseChain(const std::map<FileID, FileSet> &use, FileID top) const;
+	// 删掉多余文件
+	bool CutInclude(FileID top, FileSet &done, FileSet &includes);
 
 	bool MergeMin();
 
@@ -511,7 +517,8 @@ private:
 
 	void GenerateUserUse();
 
-	void GenerateMinUse();
+	// 计算出每个文件应包含的最少文件
+	void GenerateMinInclude();
 
 	// 生成新增前置声明列表
 	void GenerateForwardClass();
@@ -520,8 +527,6 @@ private:
 	void MinimizeForwardClass();
 
 	void GetUseRecordsInKids(FileID top, const FileUseRecordsMap &recordMap, RecordSet &records);
-
-	void GetKidsBySame(const std::map<FileID, FileSet> &userKids, FileID top, FileSet &kids) const;
 
 	// 取出单个文件的可删除#include行
 	void TakeDel(FileHistory &history, const FileSet &dels) const;
@@ -572,9 +577,8 @@ public:
 	// 当前正在解析的文件
 	static ParsingFile *g_nowFile;
 
-private:
 	//================== 最终分析结果 ==================//
-
+private:
 	// [最终分析结果]. 分析当前cpp文件的结果：[c++文件名] -> [该文件的清理结果]
 	FileHistoryMap								m_historys;
 
@@ -584,78 +588,97 @@ private:
 	// 分析结果：每个文件最终应新增的前置声明
 	FileUseRecordsMap							m_fowardClass;
 
-	// 1. 各文件的后代文件（仅用户文件）：[文件ID] -> [该文件包含的全部后代文件ID（仅用户文件）]
+
+	//================== [对原始数据进行分析后的结果] ==================//
+private:
+	// 各文件的后代文件（仅用户文件）：[文件ID] -> [该文件包含的全部后代文件ID（仅用户文件）]
 	std::map<FileID, FileSet>					m_userKids;
 
-	// 2. 各文件的后代文件名列表：[文件名] -> [该文件包含的全部后代文件]
+	// 各文件的后代文件名列表：[文件名] -> [该文件包含的全部后代文件]
 	std::map<std::string, FileNameSet>			m_kidsByName;
 
-	// 3. 各文件应包含的后代文件列表：[文件ID] -> [该文件应包含的后代文件ID列表]
+	// 各文件应包含的后代文件列表：[文件ID] -> [该文件应包含的后代文件ID列表]
 	std::map<FileID, FileSet>					m_minKids;
 
-	// 4. 各个项目外文件的祖先项目外文件：[文件ID] -> [对应的祖先外部文件ID]（可被修改的文件视为项目内部文件，禁止被修改的文件视为外部文件，比如，假设某文件中有#include <vector>，因为<vector>是库文件，禁止被改动，所以vector是外部文件）
+	// 用户文件列表（可被修改的文件视为用户文件，禁止被修改的文件视为外部文件，比如，假设某文件中有#include <vector>，因为<vector>是库文件，禁止被改动，所以vector是外部文件）
+	FileSet										m_userFiles;
+
+	// 各外部文件的祖先外部文件：[文件ID] -> [对应的祖先外部文件ID]
 	std::map<FileID, FileID>					m_outFileAncestor;
 
-	// 5. 项目内文件的引用关系：[项目内文件ID] -> [所引用的项目内文件ID列表 + 项目外文件ID列表]
-	std::map<FileID, FileSet>					m_userUses;
+	// 项目内文件的引用关系：[项目内文件ID] -> [所引用的项目内文件ID列表 + 项目外文件ID列表]
+	std::map<std::string, FileSet>				m_userUses;
 
-	// 6. 被强制包含的文件ID列表
+	// 被强制包含的文件ID列表
 	FileSet										m_forceIncludes;
 
-	//================== 一些临时数据 ==================//
 
-	// 1.1 各文件引用其他文件的记录：[文件ID] -> [引用的其他文件列表]（例如，假设A.h用到了B.h中的class B，则认为A.h引用了B.h）
+	//================== [原始数据] ==================//
+private:
+	//------ 1. 依赖关系 ------//
+
+	// 各文件引用其他文件的记录：[文件ID] -> [引用的其他文件列表]（例如，假设A.h用到了B.h中的class B，则认为A.h引用了B.h）
 	std::map<FileID, FileSet>					m_uses;
 
-	// 1.2 仅用于打印：各文件所使用的类名、函数名、宏名等的名称记录：[文件ID] -> [该文件所使用的其他文件中的类名、函数名、宏名、变量名等]
+	// 仅用于打印：各文件所使用的类名、函数名、宏名等的名称记录：[文件ID] -> [该文件所使用的其他文件中的类名、函数名、宏名、变量名等]
 	std::map<FileID, std::vector<UseNameInfo>>	m_useNames;
 
-	// 2.1 各文件所包含的文件列表：[文件名] -> [所include的文件]
-	std::map<std::string, FileSet>				m_includes;
+	//------ 2. 使用类、结构体的记录 ------//
 
-	// 2.2 所有文件ID
-	FileSet										m_files;
-
-	// 2.3 父文件关系：[文件ID] -> [父文件ID]
-	std::map<FileID, FileID>					m_parents;
-
-	// 2.4 各文件的后代：[文件ID] -> [该文件包含的全部后代文件ID]
-	std::map<FileID, FileSet>					m_kids;
-
-	// 2.5 同一个文件名对应的不同文件ID：[文件名] -> [同名文件ID列表]
-	std::map<std::string, FileSet>				m_sameFiles;
-
-	// 3. 头文件搜索路径列表
-	std::vector<HeaderSearchDir>				m_headerSearchPaths;
-
-	// 4.1 每个位置所使用的class、struct（指针、引用），用于生成前置声明：[位置] -> [所使用的class、struct、union指针或引用]
+	// 每个位置所使用的class、struct（指针、引用），用于生成前置声明：[位置] -> [所使用的class、struct、union指针或引用]
 	LocUseRecordsMap							m_locUseRecordPointers;
 
-	// 4.2 每个文件所使用的class、struct（指针、引用），用于生成前置声明：[文件] -> [所使用的class、struct、union指针或引用]
+	// 每个文件所使用的class、struct（指针、引用），用于生成前置声明：[文件] -> [所使用的class、struct、union指针或引用]
 	FileUseRecordsMap							m_fileUseRecordPointers;
 
-	// 4.3 每个文件所使用的class、struct（非指针、非引用），用于避免生成多余的前置声明
+	// 每个文件所使用的class、struct（非指针、非引用），用于避免生成多余的前置声明
 	FileUseRecordsMap							m_fileUseRecords;
 
-	// 5.1 using namespace记录（例如：using namespace std;）：[using namespace的位置] -> [对应的namespace定义]
+	//------ 3. 与using有关的记录 ------//
+
+	// using namespace记录（例如：using namespace std;）：[using namespace的位置] -> [对应的namespace定义]
 	map<SourceLocation, const NamespaceDecl*>	m_usingNamespaces;
 	
-	// 5.2 using记录（例如：using std::string;）：[using的目标对应的位置] -> [using声明]
+	// using记录（例如：using std::string;）：[using的目标对应的位置] -> [using声明]
 	map<const NamedDecl*, const UsingDecl*>		m_usings;
 
-	// 5.3 仅用于打印：各文件内声明的命名空间记录：[文件] -> [该文件内的命名空间记录]
+	// 仅用于打印：各文件内声明的命名空间记录：[文件] -> [该文件内的命名空间记录]
 	std::map<FileID, std::set<std::string>>		m_namespaces;
 
-	// 6.1 所有文件ID对应的文件名：[文件ID] -> [文件名]
+	//------ 4. 文件、文件名 ------//
+
+	// 各文件所包含的文件列表：[文件名] -> [所include的文件]
+	std::map<std::string, FileSet>				m_includes;
+
+	// 所有文件ID
+	FileSet										m_files;
+
+	// 父文件关系：[文件ID] -> [父文件ID]
+	std::map<FileID, FileID>					m_parents;
+
+	// 各文件的后代：[文件ID] -> [该文件包含的全部后代文件ID]
+	std::map<FileID, FileSet>					m_kids;
+
+	// 同一个文件名对应的不同文件ID：[文件名] -> [同名文件ID列表]
+	std::map<std::string, FileSet>				m_sameFiles;
+
+	// 所有文件ID对应的文件名：[文件ID] -> [文件名]
 	std::map<FileID, std::string>				m_fileNames;
 
-	// 6.2 所有文件ID对应的文件名：[文件ID] -> [小写文件名]
+	// 文件名对应的文件ID：[文件名] -> [文件ID]
+	std::map<std::string, FileID>				m_fileNameToIDs;
+
+	// 所有文件ID对应的文件名：[文件ID] -> [小写文件名]
 	std::map<FileID, std::string>				m_lowerFileNames;
+
+	// 头文件搜索路径列表
+	std::vector<HeaderSearchDir>				m_headerSearchPaths;
 	
-private:
 	// 主文件id
 	FileID										m_root;
 
+	//================== [clang数据] ==================//
+private:
 	// 文件重写类，用来修改c++源码内容
 	clang::Rewriter								m_rewriter;
 	clang::SourceManager*						m_srcMgr;

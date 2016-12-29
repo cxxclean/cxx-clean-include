@@ -133,6 +133,12 @@ namespace strtool
 		return *text == x;
 	}
 
+	// 是否包含指定字符
+	inline bool contain(const char *text, const char *pattern)
+	{
+		return (strstr(text, pattern) != nullptr);
+	}
+
 	// 若以指定前缀开头，则移除前缀并返回剩下的字符串
 	inline bool try_strip_left(string& str, const string& prefix)
 	{
@@ -250,6 +256,14 @@ namespace cpptool
 namespace timetool
 {
 	std::string get_now(const char* format = "%04d/%02d/%02d-%02d:%02d:%02d");
+}
+
+namespace ticktool
+{
+	uint64_t tick();
+
+	// 返回两次时钟周期的秒差
+	double tickDiff(uint64_t old_tick);
 }
 
 #endif // _tool_h_

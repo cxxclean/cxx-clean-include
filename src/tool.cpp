@@ -19,6 +19,8 @@
 
 #ifdef WIN32
 	#include <direct.h>
+	#define _X86_
+	#include <profileapi.h>
 #else
 	#include <unistd.h>
 #endif
@@ -619,5 +621,37 @@ namespace timetool
 		sprintf_s(buf, sizeof(buf), format, 1900 + localnow->tm_year, 1 + localnow->tm_mon, localnow->tm_mday,
 		          localnow->tm_hour, localnow->tm_min, localnow->tm_sec);
 		return buf;
+	}
+}
+
+namespace ticktool
+{
+	// 获取CPU每秒的滴答次数
+	uint64_t GetTickFrequency()
+	{
+		static LARGE_INTEGER static_perfFreq = { 0 };
+		if (0 == static_perfFreq.QuadPart) {
+			QueryPerformanceFrequency(&static_perfFreq);
+		}
+
+		return static_perfFreq.QuadPart;
+	}
+
+	uint64_t tick()
+	{
+		LARGE_INTEGER tick_now;
+
+		QueryPerformanceCounter(&tick_now);
+		return tick_now.QuadPart;
+	}
+
+	// 返回两次时钟周期的秒差
+	double tickDiff(uint64_t old_tick)
+	{
+		uint64_t tick_now = tick();
+		uint64_t diff = tick_now - old_tick;
+
+		double s = (double)diff / GetTickFrequency();
+		return s;
 	}
 }

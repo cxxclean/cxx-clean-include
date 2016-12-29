@@ -345,8 +345,6 @@ bool CxxCleanASTVisitor::VisitCXXRecordDecl(CXXRecordDecl *r)
 // 当发现变量定义时该接口被调用
 bool CxxCleanASTVisitor::VisitVarDecl(VarDecl *var)
 {
-	var->dumpColor();
-
 	// 注意：本方法涵盖了1. 函数形参 2. 非类成员的变量声明 3. 类成员但含有static修饰符，等等
 
 	// 引用变量的类型
