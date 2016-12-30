@@ -495,21 +495,19 @@ private:
 
 	FileID GetFileIDByFileName(const char *fileName) const;
 
-	// 是否应保留该位置引用的class、struct、union的前置声明
+	// 该文件是否应保留所引用的class、struct、union的前置声明
 	bool IsShouldKeepForwardClass(FileID, const CXXRecordDecl &cxxRecord) const;
 
 	// 删掉多余文件
 	bool CutInclude(FileID top, FileSet &done, FileSet &includes);
 
-	bool MergeMin();
+	bool MergeMinInclude();
 
 	inline bool IsUserFile(FileID file) const;
 
 	inline bool IsOuterFile(FileID file) const;
 
 	inline FileID GetOuterFileAncestor(FileID file) const;
-
-	inline FileID SearchOuterFileAncestor(FileID file) const;
 
 	void GenerateForceIncludes();
 
@@ -583,7 +581,7 @@ private:
 	FileHistoryMap								m_historys;
 
 	// 分析结果：各文件的最小包含文件列表：[文件ID] -> [该文件仅应直接包含的文件ID列表]
-	std::map<FileID, FileSet>					m_min;
+	std::map<FileID, FileSet>					m_minInclude;
 
 	// 分析结果：每个文件最终应新增的前置声明
 	FileUseRecordsMap							m_fowardClass;
@@ -666,7 +664,7 @@ private:
 	std::map<FileID, std::string>				m_fileNames;
 
 	// 文件名对应的文件ID：[文件名] -> [文件ID]
-	std::map<std::string, FileID>				m_fileNameToIDs;
+	std::map<std::string, FileID>				m_fileNameToFileIDs;
 
 	// 所有文件ID对应的文件名：[文件ID] -> [小写文件名]
 	std::map<FileID, std::string>				m_lowerFileNames;

@@ -31,6 +31,21 @@ using namespace clang;
 using namespace SrcMgr;
 using llvm::MemoryBuffer;
 
+std::string ws2s(const std::wstring& ws)
+{
+	std::locale old_loc = std::locale::global(std::locale(""));
+
+	size_t buffer_size = ws.size() * 4 + 1;
+	char* dst_str = new char[buffer_size];
+	memset(dst_str, 0, buffer_size);
+	wcstombs(dst_str, ws.c_str(), buffer_size);
+	std::string s = dst_str;
+	delete[]dst_str;
+
+	std::locale::global(old_loc);
+	return s;
+}
+
 //===----------------------------------------------------------------------===//
 // SourceManager Helper Classes
 //===----------------------------------------------------------------------===//
@@ -153,20 +168,31 @@ llvm::MemoryBuffer *ContentCache::getBuffer(DiagnosticsEngine &Diag,
   StringRef BufStr = Buffer.getPointer()->getBuffer();
 
     ArrayRef<char> BufRef(BufStr.begin(), BufStr.end());
+
+	// 支持utf-16编码
 	if (hasUTF16ByteOrderMark(BufRef)) {
+		// 先把utf-16转到utf-8
 		std::string UTF8Buf;
 		if (!convertUTF16ToUTF8String(BufRef, UTF8Buf))
 			return false;
-		StringRef utf8Ref(UTF8Buf);
 
-		auto mem = llvm::MemoryBuffer::getNewMemBuffer(utf8Ref.size(), ContentsEntry->getName());
-		memcpy_s((void*)mem->getBufferStart(), mem->getBufferSize(), utf8Ref.data(), utf8Ref.size());
-		//auto mem = llvm::MemoryBuffer::getMemBuffer(utf8Ref, ContentsEntry->getName());
+		// 再把utf-8转到宽字符
+		std::wstring wideText;
+		if (!llvm::ConvertUTF8toWide(UTF8Buf.c_str(), wideText))
+			return false;
+
+		// 再把宽字符转成窄字符
+		std::string text = ws2s(wideText);
+
+		StringRef utf8Ref(text);
+
+		auto mem = llvm::MemoryBuffer::getNewMemBuffer(text.size(), ContentsEntry->getName());
+		memcpy_s((void*)mem->getBufferStart(), mem->getBufferSize(), text.data(), text.size());
 		Buffer.setPointer(mem.release());
 	}
 	else
 	{
-		  const char *InvalidBOM = llvm::StringSwitch<const char *>(BufStr)
+		const char *InvalidBOM = llvm::StringSwitch<const char *>(BufStr)
 			.StartsWith("\xFE\xFF", "UTF-16 (BE)")
 			.StartsWith("\xFF\xFE", "UTF-16 (LE)")
 			.StartsWith("\x00\x00\xFE\xFF", "UTF-32 (BE)")
@@ -179,11 +205,11 @@ llvm::MemoryBuffer *ContentCache::getBuffer(DiagnosticsEngine &Diag,
 			.StartsWith("\x84\x31\x95\x33", "GB-18030")
 			.Default(nullptr);
 
-		  if (InvalidBOM) {
+		if (InvalidBOM) {
 			Diag.Report(Loc, diag::err_unsupported_bom)
-			  << InvalidBOM << ContentsEntry->getName();
+				<< InvalidBOM << ContentsEntry->getName();
 			Buffer.setInt(Buffer.getInt() | InvalidFlag);
-		  }
+		}
 	}
   
   if (Invalid)

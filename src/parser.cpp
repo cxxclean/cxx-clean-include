@@ -224,9 +224,9 @@ void ParsingFile::AddFile(FileID file)
 		m_lowerFileNames.insert(std::make_pair(file, lowerFileName));
 		m_sameFiles[lowerFileName].insert(file);
 
-		if (!Has(m_fileNameToIDs, lowerFileName))
+		if (!Has(m_fileNameToFileIDs, lowerFileName))
 		{
-			m_fileNameToIDs.insert(std::make_pair(lowerFileName, file));
+			m_fileNameToFileIDs.insert(std::make_pair(lowerFileName, file));
 		}
 	}
 
@@ -389,7 +389,7 @@ void ParsingFile::Begin()
 			m_kids[parent].insert(file);
 		}
 	}
-
+	/*
 	uint64_t t1 = ticktool::tick();
 
 	for (int i = 0; i < 1; ++i)
@@ -416,7 +416,7 @@ void ParsingFile::Begin()
 	LogInfo("elapse1 = " << elapse1);
 
 	uint64_t t2 = ticktool::tick();
-
+	*/
 	for (int i = 0; i < 1; ++i)
 	{
 		for (const auto &itr : m_includes)
@@ -438,10 +438,10 @@ void ParsingFile::Begin()
 			});
 		}
 	}
-
+	/*
 	double elapse2 = ticktool::tickDiff(t2);
 	LogInfo("elapse2 = " << elapse2);
-
+	*/
 	// 2. 删除只被包含一次的文件，仅保留被反复包含的文件
 	MapEraseIf(m_sameFiles, [&](const std::string&, const FileSet &sameFiles)
 	{
@@ -505,16 +505,16 @@ bool ParsingFile::CutInclude(FileID top, FileSet &done, FileSet &kids)
 	return false;
 }
 
-bool ParsingFile::MergeMin()
+bool ParsingFile::MergeMinInclude()
 {
 	// 删掉空记录
-	MapEraseIf(m_min, [&](FileID, const FileSet &minIncludes)
+	MapEraseIf(m_minInclude, [&](FileID, const FileSet &minIncludes)
 	{
 		return minIncludes.empty();
 	});
 
 	// 合并
-	for (auto &itr : m_min)
+	for (auto &itr : m_minInclude)
 	{
 		FileID top		= itr.first;
 		FileSet &kids	= itr.second;
@@ -541,18 +541,6 @@ inline FileID ParsingFile::GetOuterFileAncestor(FileID file) const
 {
 	auto itr = m_outFileAncestor.find(file);
 	return itr != m_outFileAncestor.end() ? itr->second : file;
-}
-
-inline FileID ParsingFile::SearchOuterFileAncestor(FileID file) const
-{
-	FileID topSysAncestor = file;
-
-	for (FileID parent = file; IsOuterFile(parent); parent = GetParent(parent))
-	{
-		topSysAncestor = parent;
-	}
-
-	return topSysAncestor;
 }
 
 void ParsingFile::GenerateForceIncludes()
@@ -683,14 +671,14 @@ void ParsingFile::GenerateMinInclude()
 
 		if (!chain.empty())
 		{
-			Add(m_min[top], chain);
+			Add(m_minInclude[top], chain);
 		}
 	}
 
-	m_minKids = m_min;
+	m_minKids = m_minInclude;
 
 	// 2. 合并
-	while (MergeMin()) {}
+	while (MergeMinInclude()) {}
 }
 
 int ParsingFile::GetDeepth(FileID file) const
@@ -746,13 +734,13 @@ inline bool ParsingFile::Contains(FileID top, FileID kid) const
 
 FileID ParsingFile::GetFileIDByFileName(const char *fileName) const
 {
-	auto itr = m_fileNameToIDs.find(fileName);
-	if (itr == m_fileNameToIDs.end())
+	auto itr = m_fileNameToFileIDs.find(fileName);
+	if (itr != m_fileNameToFileIDs.end())
 	{
-		return FileID();
+		return itr->second;
 	}
 
-	return itr->second;
+	return FileID();
 }
 
 // a文件是否在b位置之前
@@ -803,47 +791,41 @@ int ParsingFile::GetDepth(FileID child) const
 	return depth;
 }
 
-// 是否应保留该位置引用的class、struct、union的前置声明
+// 该文件是否应保留所引用的class、struct、union的前置声明
 bool ParsingFile::IsShouldKeepForwardClass(FileID by, const CXXRecordDecl &cxxRecord) const
 {
-	auto IsAnyKidHasRecord = [&](FileID byFile, FileID recordAt) -> bool
+	auto IsAnyKidHasRecord = [&](FileID recordAtFile) -> bool
 	{
-		if (IsAncestorForceInclude(recordAt))
+		if (Contains(by, recordAtFile))
 		{
-			LogInfoByLvl(LogLvl_3, "record is force included: skip record = [" <<  GetRecordName(cxxRecord) << "], by = " << GetDebugFileName(byFile) << ", record file = " << GetDebugFileName(recordAt));
+			LogInfoByLvl(LogLvl_3, "[skip record]: record has been contained. by = " << GetDebugFileName(by) << ", file = " << GetDebugFileName(recordAtFile) << ", record = " << cxxRecord.getNameAsString());
 			return true;
 		}
 
-		if (IsSameName(byFile, recordAt))
+		if (IsAncestorForceInclude(recordAtFile))
 		{
-			LogInfoByLvl(LogLvl_3, "record is at same file: skip record = [" <<  GetRecordName(cxxRecord) << "], by = " << GetDebugFileName(byFile) << ", record file = " << GetDebugFileName(recordAt));
+			LogInfoByLvl(LogLvl_3, "[skip record]: record is force included: record = [" <<  GetRecordName(cxxRecord) << "], by = " << GetDebugFileName(by) << ", record file = " << GetDebugFileName(recordAtFile));
 			return true;
 		}
 
-		return Contains(byFile, recordAt);
-	};
-
-	auto IsAnyRecordBeInclude = [&]() -> bool
-	{
-		// 如果本文件内该位置之前已有前置声明则不再处理
-		const TagDecl *first = cxxRecord.getFirstDecl();
-		for (const TagDecl *next : first->redecls())
+		if (IsSameName(by, recordAtFile))
 		{
-			FileID recordAtFile = GetFileID(next->getLocation());
-			if (IsAnyKidHasRecord(by, recordAtFile))
-			{
-				return true;
-			}
-
-			LogErrorByLvl(LogLvl_3, "[IsAnyKidHasRecord = false]: by = " << GetDebugFileName(by) <<  ", file = " << GetDebugFileName(recordAtFile) << ", record = " << next->getNameAsString());
+			LogInfoByLvl(LogLvl_3, "[skip record]: record is at same file: record = [" <<  GetRecordName(cxxRecord) << "], by = " << GetDebugFileName(by) << ", record file = " << GetDebugFileName(recordAtFile));
+			return true;
 		}
 
 		return false;
 	};
 
-	if (IsAnyRecordBeInclude())
+	// 搜索定义类的所有文件，若其中有任意一个被包含，则不需要再加前置声明
+	const TagDecl *first = cxxRecord.getFirstDecl();
+	for (const TagDecl *next : first->redecls())
 	{
-		return false;
+		FileID recordAtFile = GetFileID(next->getLocation());
+		if (IsAnyKidHasRecord(recordAtFile))
+		{
+			return false;
+		}
 	}
 
 	return true;
@@ -893,7 +875,7 @@ void ParsingFile::MinimizeForwardClass()
 {
 	FileSet all;
 	Add(all, m_fileUseRecordPointers);
-	Add(all, m_min);
+	Add(all, m_minInclude);
 
 	FileUseRecordsMap bigRecordMap;
 
@@ -907,8 +889,8 @@ void ParsingFile::MinimizeForwardClass()
 		FileID by = itr.first;
 		RecordSet small = itr.second;	// 这里故意深拷贝
 
-		auto &useItr = m_min.find(by);
-		if (useItr != m_min.end())
+		auto &useItr = m_minInclude.find(by);
+		if (useItr != m_minInclude.end())
 		{
 			const FileSet &useList = useItr->second;
 
@@ -935,8 +917,8 @@ void ParsingFile::GetUseRecordsInKids(FileID top, const FileUseRecordsMap &recor
 	FileSet done;
 	GetChain(done, top, [&](const FileSet &done, FileSet &todo, FileID cur)
 	{
-		auto &useItr = m_min.find(cur);
-		if (useItr != m_min.end())
+		auto &useItr = m_minInclude.find(cur);
+		if (useItr != m_minInclude.end())
 		{
 			const FileSet &useFiles = useItr->second;
 			AddIf(todo, useFiles, [&done](FileID beuse)
@@ -1473,7 +1455,7 @@ std::string ParsingFile::GetNestedNamespace(const NamespaceDecl *d)
 FileID ParsingFile::GetBestAncestor(FileID a, FileID b) const
 {
 	// 在孩子文件中找出b的祖先
-	auto SearchDirectKid = [&](FileID now, FileID b)
+	auto SearchInKid = [&](FileID now, FileID b)
 	{
 		auto itr = m_includes.find(GetLowerFileNameInCache(now));
 		if (itr == m_includes.end())
@@ -1505,30 +1487,30 @@ FileID ParsingFile::GetBestAncestor(FileID a, FileID b) const
 
 	if (IsAncestorByName(b, a))
 	{
-		FileID cur = a;
+		FileID search = a;
 
-		while (cur.isValid())
+		while (search.isValid())
 		{
-			FileID kid = SearchDirectKid(cur, b);
+			FileID kid = SearchInKid(search, b);
 			if (kid.isInvalid())
 			{
 				break;
 			}
 
-			LogInfoByLvl(LogLvl_5, "-------------------------------------");
-			LogInfoByLvl(LogLvl_5, "cur = " << GetFileNameInCache(cur));
-			LogInfoByLvl(LogLvl_5, "b = " << GetFileNameInCache(b));
-			LogInfoByLvl(LogLvl_5, "kid = " << GetFileNameInCache(kid));
+			search = kid;
 
-			cur = kid;
-
-			if (IsOuterFile(cur))
+			if (IsOuterFile(search))
 			{
 				break;
 			}
 		}
 
-		return GetOuterFileAncestor(cur);
+		if (search == a)
+		{
+			search = b;
+		}
+
+		return GetOuterFileAncestor(search);
 	}
 	else
 	{
@@ -1645,15 +1627,6 @@ void ParsingFile::UseType(SourceLocation loc, const Type *t)
 		const DecltypeType *decltypeType = cast<DecltypeType>(t);
 		UseQualType(loc, decltypeType->getUnderlyingType());
 	}
-	else if (isa<DependentNameType>(t))
-	{
-	}
-	else if (isa<DependentTemplateSpecializationType>(t))
-	{
-	}
-	else if (isa<AutoType>(t))
-	{
-	}
 	else if (isa<UnaryTransformType>(t))
 	{
 		// t->dump();
@@ -1706,11 +1679,22 @@ void ParsingFile::UseType(SourceLocation loc, const Type *t)
 
 		UseNameDecl(loc, decl);
 	}
+	/*
+	else if (isa<DependentNameType>(t))
+	{
+	}
+	else if (isa<DependentTemplateSpecializationType>(t))
+	{
+	}
+	else if (isa<AutoType>(t))
+	{
+	}
 	else
 	{
-		// LogInfo(""-------------- haven't support type --------------");
-		// t->dump();
+		LogInfo(""-------------- haven't support type --------------");
+		t->dump();
 	}
+	*/
 }
 
 // 当前位置使用目标类型（注：QualType包含对某个类型的const、volatile、static等的修饰）
@@ -3094,9 +3078,9 @@ void ParsingFile::TakeHistory(FileID top, FileHistory &history) const
 
 	// 最终应包含的文件列表
 	FileSet empty;
-	auto itr = m_min.find(top);
+	auto itr = m_minInclude.find(top);
 
-	const FileSet &finalIncludes = (itr != m_min.end() ? itr->second : empty);
+	const FileSet &finalIncludes = (itr != m_minInclude.end() ? itr->second : empty);
 	if (finalIncludes.empty())
 	{
 		LogInfoByLvl(LogLvl_3, "don't need any include [top] = " << GetDebugFileName(top));
@@ -3543,9 +3527,9 @@ void ParsingFile::PrintSameFile() const
 void ParsingFile::PrintMinUse() const
 {
 	HtmlDiv &div = HtmlLog::instance.m_newDiv;
-	div.AddRow(strtool::get_text(cn_file_min_use, get_number_html(++m_printIdx).c_str(), get_number_html(m_min.size()).c_str()), 1);
+	div.AddRow(strtool::get_text(cn_file_min_use, get_number_html(++m_printIdx).c_str(), get_number_html(m_minInclude.size()).c_str()), 1);
 
-	for (auto & kidItr : m_min)
+	for (auto & kidItr : m_minInclude)
 	{
 		FileID by = kidItr.first;
 
