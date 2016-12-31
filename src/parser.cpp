@@ -1109,6 +1109,13 @@ std::string ParsingFile::GetBeIncludeLineText(FileID file) const
 // a位置的代码使用b位置的代码
 inline void ParsingFile::Use(SourceLocation a, SourceLocation b, const char* name /* = nullptr */)
 {
+	// 忽略系统头文件对其他头文件的依赖关系
+	if (IsInSystemHeader(a))
+	{
+		//LogInfo("system header = " << GetDebugFileName(GetFileID(a)));
+		return;
+	}
+
 	a = GetExpasionLoc(a);
 	b = GetExpasionLoc(b);
 
@@ -2083,13 +2090,26 @@ void ParsingFile::UseRecord(SourceLocation loc, const RecordDecl *record)
 	UseContext(loc, record->getDeclContext());
 }
 
+// 是否为系统头文件，例如<vector>、<iostream>等就是系统文件
+inline bool ParsingFile::IsSystemHeader(FileID file) const
+{
+	SourceLocation fileBeginLoc = m_srcMgr->getLocForStartOfFile(file);
+	return IsInSystemHeader(fileBeginLoc);
+}
+
+// 指定位置是否在系统头文件内（例如<vector>、<iostream>等就是系统文件）
+inline bool ParsingFile::IsInSystemHeader(SourceLocation loc) const
+{
+	return m_srcMgr->isInSystemHeader(loc);
+}
+
 // 是否允许清理该c++文件（若不允许清理，则文件内容不会有任何变化）
 inline bool ParsingFile::CanClean(FileID file) const
 {
-	return Project::CanClean(GetLowerFileNameInCache(file));
+	return !IsSystemHeader(file) && CanCleanByName(GetLowerFileNameInCache(file));
 }
 
-inline bool ParsingFile::CanClean(const char *fileName) const
+inline bool ParsingFile::CanCleanByName(const char *fileName) const
 {
 	return Project::CanClean(fileName);
 }
@@ -2644,24 +2664,6 @@ void ParsingFile::CleanByAdd(const FileHistory &history, FileID file)
 // 根据历史清理指定文件
 void ParsingFile::CleanByHistory(const FileHistoryMap &historys)
 {
-	std::map<std::string, FileID> nameToFileIDMap;
-
-	// 建立当前cpp中文件名到文件FileID的map映射（注意：同一个文件可能被包含多次，FileID是不一样的，这里只存入最小的FileID）
-	for (FileID file : m_files)
-	{
-		const char *name = GetLowerFileNameInCache(file);
-
-		if (!Project::CanClean(name))
-		{
-			continue;
-		}
-
-		if (nameToFileIDMap.find(name) == nameToFileIDMap.end())
-		{
-			nameToFileIDMap.insert(std::make_pair(name, file));
-		}
-	}
-
 	for (auto &itr : historys)
 	{
 		const string &fileName		= itr.first;
@@ -2677,24 +2679,22 @@ void ParsingFile::CleanByHistory(const FileHistoryMap &historys)
 			continue;
 		}
 
-		if (!Project::CanClean(fileName))
-		{
-			continue;
-		}
-
 		if (history.m_isSkip || history.HaveFatalError())
 		{
 			continue;
 		}
 
 		// 根据名称在当前cpp各文件中找到对应的文件ID（注意：同一个文件可能被包含多次，FileID是不一样的，这里取出来的是最小的FileID）
-		auto & findItr = nameToFileIDMap.find(fileName);
-		if (findItr == nameToFileIDMap.end())
+		FileID file	= GetFileIDByFileName(fileName.c_str());
+		if (file.isInvalid())
 		{
 			continue;
 		}
 
-		FileID file	= findItr->second;
+		if (!CanClean(file))
+		{
+			continue;
+		}
 
 		CleanByReplace(history, file);
 		CleanByForward(history, file);
@@ -3223,7 +3223,7 @@ void ParsingFile::PrintInclude() const
 	{
 		const std::string &fileName = itr.first;
 
-		if (!CanClean(fileName.c_str()))
+		if (!CanCleanByName(fileName.c_str()))
 		{
 			continue;
 		}

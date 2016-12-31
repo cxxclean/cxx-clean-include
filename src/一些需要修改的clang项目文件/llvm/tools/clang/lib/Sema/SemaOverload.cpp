@@ -4406,6 +4406,10 @@ TryReferenceInit(Sema &S, Expr *Init, QualType DeclType,
   //     -- Otherwise, the reference shall be an lvalue reference to a
   //        non-volatile const type (i.e., cv1 shall be const), or the reference
   //        shall be an rvalue reference.
+  // 下面注释掉!T1.isConstQualified()是为了与visual studio保持兼容，防止clang不能识别将临时变量作为引用的情况
+  // 例如下面在visual studio是可以编译通过的：
+  //	void func(A&){}
+  //	func(A());
   if (!isRValRef && (/* !T1.isConstQualified() || */T1.isVolatileQualified()))
     return ICS;
 

@@ -196,6 +196,9 @@ public:
 	// 根据命令行添加clang参数
 	void AddClangArgumentByOption(ClangTool &tool) const;
 
+	// 添加系统头文件搜索路径
+	bool AddSystemHeaderSearchPath(ClangTool &tool, const char *path) const;
+
 	// 根据vs工程文件调整clang的参数
 	bool AddVsArgument(const VsProject &vs, ClangTool &tool) const;
 

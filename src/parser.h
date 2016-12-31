@@ -196,6 +196,12 @@ public:
 	// 新增使用class、struct、union记录
 	void UseRecord(SourceLocation loc, const RecordDecl *record);
 
+	// 是否为系统头文件（例如<vector>、<iostream>等就是系统文件）
+	inline bool IsSystemHeader(FileID file) const;
+
+	// 指定位置是否在系统头文件内（例如<vector>、<iostream>等就是系统文件）
+	inline bool IsInSystemHeader(SourceLocation loc) const;
+
 	// a位置的代码使用b位置的代码
 	inline void Use(SourceLocation a, SourceLocation b, const char* name = nullptr);
 
@@ -370,7 +376,7 @@ private:
 
 	// 是否允许清理该c++文件（若不允许清理，则文件内容不会有任何变化）
 	inline bool CanClean(FileID file) const;
-	inline bool CanClean(const char *fileName) const;
+	inline bool CanCleanByName(const char *fileName) const;
 
 	// 获取文件信息
 	std::string DebugParentFileText(FileID file, int n) const;

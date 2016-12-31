@@ -669,6 +669,19 @@ void CxxCleanOptionsParser::AddClangArgumentByOption(ClangTool &tool) const
 	}
 }
 
+// 添加系统头文件搜索路径
+bool CxxCleanOptionsParser::AddSystemHeaderSearchPath(ClangTool &tool, const char *path) const
+{
+	if (!pathtool::exist(path))
+	{
+		return false;
+	}
+
+	const std::string arg = std::string("-isystem") + path;
+	AddClangArgument(tool, arg.c_str());
+	return true;
+}
+
 // 根据vs工程文件调整clang的参数
 bool CxxCleanOptionsParser::AddVsArgument(const VsProject &vs, ClangTool &tool) const
 {
@@ -681,8 +694,7 @@ bool CxxCleanOptionsParser::AddVsArgument(const VsProject &vs, ClangTool &tool) 
 
 	for (const std::string &dir	: vsconfig.searchDirs)
 	{
-		const std::string arg = "-I" + dir;
-		AddClangArgument(tool, arg.c_str());
+		AddSystemHeaderSearchPath(tool, dir.c_str());
 	}
 
 	for (const std::string &force_include : vsconfig.forceIncludes)
@@ -778,14 +790,8 @@ void CxxCleanOptionsParser::AddVsSearchDir(ClangTool &tool) const
 
 	for (const char *try_path : search)
 	{
-		std::string path = pathtool::append_path(vsInstallDir.c_str(), try_path);
-		if (!pathtool::exist(path))
-		{
-			continue;
-		}
-
-		std::string arg = "-I" + path;
-		AddClangArgument(tool, arg.c_str());
+		const std::string path = pathtool::append_path(vsInstallDir.c_str(), try_path);
+		AddSystemHeaderSearchPath(tool, path.c_str());
 	}
 }
 
