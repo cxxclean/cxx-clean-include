@@ -18,7 +18,7 @@ Project Project::instance;
 // 打印本次清理的文件列表
 void Project::Print() const
 {
-	if (Project::instance.m_logLvl < LogLvl_5)
+	if (Project::instance.m_logLvl < LogLvl_Max)
 	{
 		return;
 	}
@@ -65,7 +65,21 @@ std::string Project::AddPrintIdx() const
 // 该文件是否允许被清理
 bool Project::CanClean(const char* filename)
 {
-	return instance.m_canCleanFiles.find(tolower(filename)) != instance.m_canCleanFiles.end();
+	return Has(instance.m_canCleanFiles, tolower(filename));
+}
+
+// 是否应忽略该文件
+bool Project::IsSkip(const char* filename)
+{
+	for (const std::string &skip : instance.m_skips)
+	{
+		if (strtool::contain(skip.c_str(), filename))
+		{
+			return true;
+		}
+	}
+
+	return false;
 }
 
 // 移除非c++后缀的源文件

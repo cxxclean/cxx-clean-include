@@ -442,7 +442,7 @@ bool CxxCleanASTConsumer::HandleTopLevelDecl(DeclGroupRef declgroup)
 void CxxCleanASTConsumer::HandleTranslationUnit(ASTContext& context)
 {
 	// 用于调试：打印语法树
-	if (Project::instance.m_logLvl >= LogLvl_6)
+	if (Project::instance.m_logLvl >= LogLvl_Max)
 	{
 		std::string log;
 		raw_string_ostream logStream(log);
@@ -574,6 +574,7 @@ static cl::opt<bool>	g_noOverWrite	("no", cl::desc("means no overwrite, all c++ 
 static cl::opt<bool>	g_onlyCleanCpp	("onlycpp", cl::desc("only allow clean cpp file(cpp, cc, cxx), don't clean the header file(h, hxx, hh)"), cl::cat(g_optionCategory));
 static cl::opt<bool>	g_printVsConfig	("print-vs", cl::desc("print vs configuration"), cl::cat(g_optionCategory));
 static cl::opt<int>		g_logLevel		("v", cl::desc("log level(verbose level), level can be 0 ~ 6, default is 1, higher level will print more detail"), cl::cat(g_optionCategory));
+static cl::list<string>	g_skips			("skip", cl::desc("skip files"), cl::cat(g_optionCategory));
 static cl::opt<string>	g_cleanOption	("clean",
         cl::desc("format:\n"
                  "    1. clean directory: -clean ../hello/\n"
@@ -606,6 +607,9 @@ bool CxxCleanOptionsParser::ParseOptions(int &argc, const char **argv)
 		Log("cxx-clean-include: \n    try use -help argument to see more information.");
 		return 0;
 	}
+
+	// 存下忽略文件-skip选项的值
+	Add(Project::instance.m_skips, g_skips);
 
 	HtmlLog::instance.BeginLog();
 
@@ -939,9 +943,9 @@ bool CxxCleanOptionsParser::ParseLogOption()
 	int logLvl = g_logLevel;
 	Project::instance.m_logLvl = (LogLvl)logLvl;
 
-	if (logLvl < 0 || logLvl >= LogLvl_Max)
+	if (logLvl < 0 || logLvl > LogLvl_Max)
 	{
-		Log("unsupport verbose level: " << logLvl << ", must be 1 ~ " << LogLvl_Max - 1 << "!");
+		Log("unsupport verbose level: " << logLvl << ", must be 1 ~ " << LogLvl_Max << "!");
 		return false;
 	}
 

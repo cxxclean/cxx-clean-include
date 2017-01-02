@@ -240,7 +240,7 @@ void FileHistory::PrintAdd() const
 // ´òÓ¡ÈÕÖ¾
 void ProjectHistory::Print() const
 {
-	if (Project::instance.m_logLvl >= LogLvl_3)
+	if (Project::instance.m_logLvl >= LogLvl_2)
 	{
 		PrintSkip();
 	}

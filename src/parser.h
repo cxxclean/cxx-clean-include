@@ -69,6 +69,9 @@ typedef std::map<FileID, LocUseRecordsMap> UseRecordsByFileMap;
 // 文件集
 typedef std::set<FileID> FileSet;
 
+// 文件列表
+typedef std::vector<FileID> FileVec;
+
 // 文件名集
 typedef std::set<std::string> FileNameSet;
 
@@ -77,6 +80,16 @@ template <typename Container1, typename Container2>
 inline void Add(Container1 &a, const Container2 &b)
 {
 	a.insert(b.begin(), b.end());
+}
+
+// set加上map
+template <typename Key, typename Val>
+inline void Add(std::set<Key> &a, const std::map<Key, Val> &b)
+{
+	for (const auto &itr : b)
+	{
+		a.insert(itr.first);
+	}
 }
 
 template <typename Container, typename Key>
@@ -270,7 +283,7 @@ public:
 	const char* GetSourceAtLoc(SourceLocation loc) const;
 
 	// 该文件是否是被-include强制包含
-	inline bool IsForceIncluded(FileID file) const;
+	inline bool IsForceInclude(FileID file) const;
 
 	// 获取文件名（通过clang库接口，文件名未经过处理，可能是绝对路径，也可能是相对路径）
 	// 例如：可能返回：d:/hello.h，也可能返回：./hello.h
@@ -297,12 +310,6 @@ private:
 
 	// 将头文件搜索路径根据长度由长到短排列
 	std::vector<HeaderSearchDir> SortHeaderSearchPath(const IncludeDirMap& include_dirs_map) const;
-
-	// 获取同名文件列表
-	FileSet GetAllSameFiles(FileID file) const;
-
-	// 该文件是否有同名文件
-	bool HasSameFile(FileID file) const;
 
 	// 2个文件是否文件名一样
 	inline bool IsSameName(FileID a, FileID b) const;
@@ -353,10 +360,8 @@ private:
 	//	现传入第一行a.h对应的FileID，则结果 = #include "./a.h"
 	std::string GetBeIncludeLineText(FileID file) const;
 
+	// 记录下依赖名关系（比如文件a引用了文件b中某行的某个类名、函数名）
 	inline void UseName(FileID file, FileID beusedFile, const char* name = nullptr, int line = 0);
-
-	// 第2个文件是否是第1个文件的祖先（主文件是所有其他文件的祖先）
-	inline bool IsAncestor(FileID yound, FileID old) const;
 
 	// 获取父文件（主文件没有父文件）
 	FileID GetParent(FileID child) const;
@@ -367,12 +372,6 @@ private:
 
 	// 新增使用前置声明记录（对于不必要添加的前置声明将在之后进行清理）
 	inline void UseForward(SourceLocation loc, const CXXRecordDecl *cxxRecordDecl);
-
-	// 打印各文件的父文件
-	void PrintParent();
-
-	// 打印各文件的孩子文件
-	void PrintKids();
 
 	// 是否允许清理该c++文件（若不允许清理，则文件内容不会有任何变化）
 	inline bool CanClean(FileID file) const;
@@ -386,9 +385,6 @@ private:
 
 	// 获取文件所使用名称信息：文件名、所使用的类名、函数名、宏名等以及对应行号
 	void DebugUsedNames(FileID file, const std::vector<UseNameInfo> &useNames) const;
-
-	// 是否有必要打印该文件
-	bool IsNeedPrintFile(FileID) const;
 
 	// 获取拼写位置
 	inline SourceLocation GetSpellingLoc(SourceLocation loc) const;
@@ -413,7 +409,7 @@ private:
 	// 例如：假设有"abcdefg"文本，则在c处插入123的结果将是："ab123cdefg"
 	void InsertText(FileID file, int loc, const char* text);
 
-	// 移除指定范围文本，若移除文本后该行变为空行，则将该空行一并移除
+	// 移除指定范围文本
 	void RemoveText(FileID file, int beg, int end);
 
 	// 移除指定文件内的无用行
@@ -430,12 +426,6 @@ private:
 
 	// 根据历史清理指定文件
 	void CleanByHistory(const FileHistoryMap &historys);
-
-	// 打印头文件搜索路径
-	void PrintHeaderSearchPath() const;
-
-	// 用于调试：打印各文件引用的文件集相对于该文件的#include文本
-	void PrintRelativeInclude() const;
 
 	// 文件格式是否是windows格式，换行符为[\r\n]，类Unix下为[\n]
 	bool IsWindowsFormat(FileID) const;
@@ -456,6 +446,101 @@ private:
 
 	// a文件是否在b文件之前
 	bool IsFileBeforeFile(FileID a, FileID b) const;
+
+	// 将当前cpp文件产生的待清理记录与之前其他cpp文件产生的待清理记录合并
+	void MergeTo(FileHistoryMap &old) const;
+
+	// 文件是否已默认被包含
+	bool IsDefaultIncluded(FileID file) const;
+
+	// 第2个文件是否是第1个文件的祖先
+	inline bool IsAncestorByName(FileID young, FileID old) const;
+
+	// 第2个文件是否是第1个文件的祖先
+	inline bool IsAncestorByName(const char *young, const char *old) const;
+
+	// 在最终结果中，文件a是否包含了文件b
+	inline bool Contains(FileID a, FileID b) const;
+
+	// 获取该文件第一次被包含时的文件ID（同一文件可能包含多次，对应的有多个文件ID）
+	FileID GetFirstFileID(FileID file) const;
+
+	// 获取文件名对应的文件ID（同一文件可能包含多次，对应的有多个文件ID，这里取第一个）
+	FileID GetFileIDByFileName(const char *fileName) const;
+
+	// 该文件是否应保留所引用的class、struct、union的前置声明
+	bool IsShouldKeepForwardClass(FileID, const CXXRecordDecl &cxxRecord) const;
+
+	// 删掉多余文件，返回值：true本次有删除、false本次未删除
+	bool CutInclude(FileID top, FileSet &done, FileSet &includes);
+
+	// 合并包含文件（每个文件记录了应包含的所有的文件，但其中一部分已经被子文件包含过了，可以移除掉）
+	bool MergeMinInclude();
+
+	// 是否用户文件（可被修改的文件视为用户文件，其余的视为外部文件）
+	inline bool IsUserFile(FileID file) const;
+
+	// 是否外部文件（可被修改的文件视为用户文件，其余的视为外部文件）
+	inline bool IsOuterFile(FileID file) const;
+
+	// 获取外部文件祖先
+	inline FileID GetOuterFileAncestor(FileID file) const;
+
+	// 生成默认被包含的文件列表
+	void GenerateDefaultIncludes();
+
+	// 生成外部文件祖先记录
+	void GenerateOutFileAncestor();
+
+	// 生成用户文件的依赖记录
+	void GenerateUserUse();
+
+	// 计算出每个文件应包含的最少文件
+	void GenerateMinInclude();
+
+	// 生成新增前置声明列表
+	void GenerateForwardClass();
+
+	// 裁剪前置声明列表（删掉重复的）
+	void MinimizeForwardClass();
+
+	// 获取指定文件及其后代文件的新增前置声明列表
+	void GetAllForwardsInKids(FileID top, RecordSet &forwards);
+
+	// 取出单个文件的可删除#include行
+	void TakeDel(FileHistory &history, const FileSet &dels) const;
+
+	// 取出头文件替换信息
+	void TakeReplaceLine(ReplaceLine &replaceLine, FileID from, FileID to) const;
+
+	// 取出新增前置声明信息
+	void TakeForwardClass(FileHistory &history, FileID insertAfter, FileID top) const;
+
+	// 取出新增包含文件信息
+	void TakeAdd(FileHistory &history, FileID top, const std::map<FileID, FileVec> &inserts) const;
+
+	// 对新包含的文件进行排序，计算出每个文件应插入的位置
+	void SortAddFiles(FileID top, const FileSet &adds, const FileSet &keeps, FileID insertAfter, std::map<FileID, FileVec> &inserts) const;
+
+	// 计算出应在哪一行旧#include后插入新#include
+	FileID CalcInsertLoc(const FileSet &includes, const FileSet &dels) const;
+
+	// 取出对指定文件的分析结果
+	void TakeHistory(FileID top, FileHistory &out) const;
+
+	// 祖先文件是否默认被包含
+	inline bool IsAncestorDefaultInclude(FileID file) const;
+
+	// 祖先文件是否被强制忽略
+	inline bool IsAncestorSkip(FileID file) const;
+
+	// 是否有必要打印该文件
+	bool IsNeedPrintFile(FileID) const;
+
+// 打印
+private:
+	// 打印各文件的父文件
+	void PrintParent();
 
 	// 打印引用记录
 	void PrintUse() const;
@@ -484,91 +569,22 @@ private:
 	// 打印各文件内的using namespace
 	void PrintUsingNamespace() const;
 
-	// 将当前cpp文件产生的待清理记录与之前其他cpp文件产生的待清理记录合并
-	void MergeTo(FileHistoryMap &old) const;
+	// 打印头文件搜索路径
+	void PrintHeaderSearchPath() const;
 
-	// 是否禁止改动某文件
-	bool IsSkip(FileID file) const;
+	// 用于调试：打印各文件重新计算后的#include文本
+	void PrintRelativeInclude() const;
 
-	// 第2个文件是否是第1个文件的祖先
-	inline bool IsAncestorByName(FileID young, FileID old) const;
-
-	// 第2个文件是否是第1个文件的祖先
-	inline bool IsAncestorByName(const char *young, const char *old) const;
-
-	// 在最终结果中，文件a是否包含了文件b
-	inline bool Contains(FileID a, FileID b) const;
-
-	FileID GetFileIDByFileName(const char *fileName) const;
-
-	// 该文件是否应保留所引用的class、struct、union的前置声明
-	bool IsShouldKeepForwardClass(FileID, const CXXRecordDecl &cxxRecord) const;
-
-	// 删掉多余文件
-	bool CutInclude(FileID top, FileSet &done, FileSet &includes);
-
-	bool MergeMinInclude();
-
-	inline bool IsUserFile(FileID file) const;
-
-	inline bool IsOuterFile(FileID file) const;
-
-	inline FileID GetOuterFileAncestor(FileID file) const;
-
-	void GenerateForceIncludes();
-
-	void GenerateOutFileAncestor();
-
-	void GenerateUserUse();
-
-	// 计算出每个文件应包含的最少文件
-	void GenerateMinInclude();
-
-	// 生成新增前置声明列表
-	void GenerateForwardClass();
-
-	// 裁剪前置声明列表
-	void MinimizeForwardClass();
-
-	void GetUseRecordsInKids(FileID top, const FileUseRecordsMap &recordMap, RecordSet &records);
-
-	// 取出单个文件的可删除#include行
-	void TakeDel(FileHistory &history, const FileSet &dels) const;
-
-	void TakeReplaceLine(ReplaceLine &replaceLine, FileID from, FileID to) const;
-
-	void TakeForwardClass(FileHistory &history, FileID insertAfter, FileID top) const;
-
-	void TakeAdd(FileHistory &history, FileID top, FileID insertAfter, const FileSet &adds) const;
-
-	// 整理文件集，把最先出现的同名文件排在前面
-	void SortFilesByLocation(FileSet &files) const;
-
-	// 计算出应在哪个文件对应的#include后新增文本
-	FileID CalcInsertLoc(const FileSet &includes, const FileSet &dels) const;
-
-	// 取出对指定文件的分析结果
-	void TakeHistory(FileID top, FileHistory &out) const;
-
-	// 祖先文件是否被强制包含
-	inline bool IsAncestorForceInclude(FileID file) const;
-
-	// 获取被强制包含祖先文件
-	inline FileID GetAncestorForceInclude(FileID file) const;
-
-	// 打印各文件的孩子文件
-	void PrintUserKids();
-
-	// 打印
+	// 打印每个文件的原始后代文件记录
 	void PrintKidsByName();
 
 	// 打印被包含多次的文件
 	void PrintSameFile() const;
 
-	// 打印
-	void PrintMinUse() const;
+	// 打印每个文件最终应包含的文件
+	void PrintMinInclude() const;
 
-	// 打印
+	// 打印每个文件最终的后代文件
 	void PrintMinKid() const;
 
 	// 打印
@@ -595,26 +611,26 @@ private:
 
 	//================== [对原始数据进行分析后的结果] ==================//
 private:
-	// 各文件的后代文件（仅用户文件）：[文件ID] -> [该文件包含的全部后代文件ID（仅用户文件）]
-	std::map<FileID, FileSet>					m_userKids;
-
 	// 各文件的后代文件名列表：[文件名] -> [该文件包含的全部后代文件]
 	std::map<std::string, FileNameSet>			m_kidsByName;
 
 	// 各文件应包含的后代文件列表：[文件ID] -> [该文件应包含的后代文件ID列表]
 	std::map<FileID, FileSet>					m_minKids;
 
-	// 用户文件列表（可被修改的文件视为用户文件，禁止被修改的文件视为外部文件，比如，假设某文件中有#include <vector>，因为<vector>是库文件，禁止被改动，所以vector是外部文件）
+	// 用户文件列表（可被修改的文件视为用户文件，其余的视为外部文件，比如，假设某文件中有#include <vector>，因为<vector>是库文件，禁止被改动，所以vector是外部文件）
 	FileSet										m_userFiles;
 
 	// 各外部文件的祖先外部文件：[文件ID] -> [对应的祖先外部文件ID]
 	std::map<FileID, FileID>					m_outFileAncestor;
 
-	// 项目内文件的引用关系：[项目内文件ID] -> [所引用的项目内文件ID列表 + 项目外文件ID列表]
+	// 项目内文件的引用关系：[用户文件名] -> [所引用的用户文件ID列表 + 外部文件ID列表]
 	std::map<std::string, FileSet>				m_userUses;
 
-	// 被强制包含的文件ID列表
-	FileSet										m_forceIncludes;
+	// 默认被包含的文件ID列表（这些文件的所有后代文件都不允许被修改）
+	FileSet										m_defaultIncludes;
+
+	// 被强制忽略的文件ID列表（这些文件的所有后代文件都不允许被修改）
+	FileSet										m_skips;
 
 
 	//================== [原始数据] ==================//
@@ -651,7 +667,7 @@ private:
 
 	//------ 4. 文件、文件名 ------//
 
-	// 各文件所包含的文件列表：[文件名] -> [所include的文件]
+	// 各文件所包含的文件集合：[文件名] -> [所include的文件集合]
 	std::map<std::string, FileSet>				m_includes;
 
 	// 所有文件ID
@@ -660,20 +676,17 @@ private:
 	// 父文件关系：[文件ID] -> [父文件ID]
 	std::map<FileID, FileID>					m_parents;
 
-	// 各文件的后代：[文件ID] -> [该文件包含的全部后代文件ID]
-	std::map<FileID, FileSet>					m_kids;
-
 	// 同一个文件名对应的不同文件ID：[文件名] -> [同名文件ID列表]
 	std::map<std::string, FileSet>				m_sameFiles;
 
 	// 所有文件ID对应的文件名：[文件ID] -> [文件名]
 	std::map<FileID, std::string>				m_fileNames;
 
-	// 文件名对应的文件ID：[文件名] -> [文件ID]
-	std::map<std::string, FileID>				m_fileNameToFileIDs;
-
 	// 所有文件ID对应的文件名：[文件ID] -> [小写文件名]
 	std::map<FileID, std::string>				m_lowerFileNames;
+
+	// 文件名对应的文件ID：[文件名] -> [文件ID]
+	std::map<std::string, FileID>				m_fileNameToFileIDs;	
 
 	// 头文件搜索路径列表
 	std::vector<HeaderSearchDir>				m_headerSearchPaths;
