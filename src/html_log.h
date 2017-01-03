@@ -63,8 +63,8 @@ static const char* cn_file_add_line_num				= "该文件中可以新增%s行";
 static const char* cn_file_add_line					= "可在第%s行新增行，该行原来的内容 = %s";
 static const char* cn_file_add_line_new				= "新增行 = %s(对应文件 = %s)";
 
-static const char* cn_file_min_use					= "%s. 各文件的最小引用文件集，文件数 = %s";
-static const char* cn_file_min_kid					= "%s. 各文件的最小引用后代文件集，文件数 = %s";
+static const char* cn_file_min_use					= "%s. 各文件最终仅应包含的文件及应新增的前置声明，文件数 = %s";
+static const char* cn_file_min_kid					= "%s. 各文件最终的最小后代文件集，文件数 = %s";
 static const char* cn_file_sys_ancestor				= "%s. 各系统文件的祖先文件，文件数 = %s";
 static const char* cn_file_user_use					= "%s. 各用户文件的引用记录，文件数 = %s";
 

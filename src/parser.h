@@ -430,8 +430,6 @@ private:
 	// 文件格式是否是windows格式，换行符为[\r\n]，类Unix下为[\n]
 	bool IsWindowsFormat(FileID) const;
 
-	void InitHistory(FileID file, FileHistory &history) const;
-
 	// 取出对当前cpp文件的分析结果
 	void TakeHistorys(FileHistoryMap &out) const;
 
@@ -581,7 +579,7 @@ private:
 	// 打印被包含多次的文件
 	void PrintSameFile() const;
 
-	// 打印每个文件最终应包含的文件
+	// 打印每个文件最终应包含的文件和新增的前置声明
 	void PrintMinInclude() const;
 
 	// 打印每个文件最终的后代文件
@@ -696,9 +694,13 @@ private:
 
 	//================== [clang数据] ==================//
 private:
-	// 文件重写类，用来修改c++源码内容
+	// clang文件重写类，用来修改c++源码内容
 	clang::Rewriter								m_rewriter;
+
+	// clang源码管理器
 	clang::SourceManager*						m_srcMgr;
+
+	// clang编译实例
 	clang::CompilerInstance*					m_compiler;
 
 	// 本文件的编译错误历史

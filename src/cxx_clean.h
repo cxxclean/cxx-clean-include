@@ -197,7 +197,10 @@ public:
 	void AddClangArgumentByOption(ClangTool &tool) const;
 
 	// 添加系统头文件搜索路径
-	bool AddSystemHeaderSearchPath(ClangTool &tool, const char *path) const;
+	void AddSystemHeaderSearchPath(ClangTool &tool, const char *path) const;
+
+	// 添加用户头文件搜索路径
+	void AddHeaderSearchPath(ClangTool &tool, const char *path) const;
 
 	// 根据vs工程文件调整clang的参数
 	bool AddVsArgument(const VsProject &vs, ClangTool &tool) const;

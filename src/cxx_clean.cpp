@@ -674,16 +674,17 @@ void CxxCleanOptionsParser::AddClangArgumentByOption(ClangTool &tool) const
 }
 
 // 添加系统头文件搜索路径
-bool CxxCleanOptionsParser::AddSystemHeaderSearchPath(ClangTool &tool, const char *path) const
+void CxxCleanOptionsParser::AddSystemHeaderSearchPath(ClangTool &tool, const char *path) const
 {
-	if (!pathtool::exist(path))
-	{
-		return false;
-	}
-
 	const std::string arg = std::string("-isystem") + path;
 	AddClangArgument(tool, arg.c_str());
-	return true;
+}
+
+// 添加用户头文件搜索路径
+void CxxCleanOptionsParser::AddHeaderSearchPath(ClangTool &tool, const char *path) const
+{
+	const std::string arg = std::string("-I") + path;
+	AddClangArgument(tool, arg.c_str());
 }
 
 // 根据vs工程文件调整clang的参数
@@ -698,7 +699,7 @@ bool CxxCleanOptionsParser::AddVsArgument(const VsProject &vs, ClangTool &tool) 
 
 	for (const std::string &dir	: vsconfig.searchDirs)
 	{
-		AddSystemHeaderSearchPath(tool, dir.c_str());
+		AddHeaderSearchPath(tool, dir.c_str());
 	}
 
 	for (const std::string &force_include : vsconfig.forceIncludes)
