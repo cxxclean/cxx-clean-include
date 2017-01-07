@@ -57,6 +57,9 @@ typedef std::map<string, SrcMgr::CharacteristicKind> IncludeDirMap;
 // class、struct、union集合
 typedef std::set<const CXXRecordDecl*> RecordSet;
 
+// using列表
+typedef std::vector<const UsingDecl*> UsingVec;
+
 // [位置] -> [使用的class、struct引用或指针]
 typedef std::map<SourceLocation, RecordSet> LocUseRecordsMap;
 
@@ -658,7 +661,7 @@ private:
 	map<SourceLocation, const NamespaceDecl*>	m_usingNamespaces;
 	
 	// using记录（例如：using std::string;）：[using的目标对应的位置] -> [using声明]
-	map<const NamedDecl*, const UsingDecl*>		m_usings;
+	map<const NamedDecl*, UsingVec>				m_usings;
 
 	// 仅用于打印：各文件内声明的命名空间记录：[文件] -> [该文件内的命名空间记录]
 	std::map<FileID, std::set<std::string>>		m_namespaces;

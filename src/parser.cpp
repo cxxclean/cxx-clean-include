@@ -1270,15 +1270,43 @@ void ParsingFile::UseUsing(SourceLocation loc, const NamedDecl *nameDecl)
 		return;
 	}
 
-	const UsingDecl *usingDecl = itr->second;
-	Use(loc, usingDecl->getLocation(), usingDecl->getQualifiedNameAsString().c_str());
+	const UsingVec &usingVec = itr->second;
+	if (usingVec.empty())
+	{
+		return;
+	}
+
+	FileID file = GetFileID(loc);
+
+	// 尝试找到最好的using声明
+	const UsingDecl *bestUsingDecl = nullptr;
+
+	for (const UsingDecl *usingDecl : usingVec)
+	{
+		SourceLocation usingLoc = usingDecl->getLocation();
+		if (IsAncestorByName(GetFileID(usingLoc), file))
+		{
+			bestUsingDecl = usingDecl;
+			break;
+		}
+	}
+
+	if (nullptr == bestUsingDecl)
+	{
+		bestUsingDecl = usingVec[0];
+	}
+
+	std::stringstream name;
+	name << "using " << bestUsingDecl->getQualifiedNameAsString() << "[" << bestUsingDecl->getDeclKindName() << "]";
+
+	// 引用该using
+	Use(loc, bestUsingDecl->getLocation(), name.str().c_str());
 }
 
 // 引用命名空间别名
 void ParsingFile::UseNamespaceAliasDecl(SourceLocation loc, const NamespaceAliasDecl *ns)
 {
 	UseNameDecl(loc, ns);
-	// UseNamespaceDecl(ns->getAliasLoc(), ns->getNamespace());
 }
 
 // 声明了命名空间
@@ -1355,15 +1383,12 @@ void ParsingFile::UsingXXX(const UsingDecl *d)
 			continue;
 		}
 
-		m_usings[nameDecl] = d;
+		m_usings[nameDecl].push_back(d);
 
 		std::stringstream name;
 		name << "using " << shadowDecl->getQualifiedNameAsString() << "[" << nameDecl->getDeclKindName() << "]";
 
 		Use(usingLoc, nameDecl->getLocEnd(), name.str().c_str());
-
-		// 注意：这里要反向引用，因为比如我们在a文件中#include <string>，然后在b文件using std::string，那么b文件也是有用的
-		//Use(nameDecl->getLocEnd(), usingLoc);
 	}
 }
 
@@ -1853,6 +1878,7 @@ void ParsingFile::UseValueDecl(SourceLocation loc, const ValueDecl *valueDecl)
 	}
 
 	UseContext(loc, valueDecl->getDeclContext());
+	UseUsing(loc, valueDecl);
 
 	if (isa<TemplateDecl>(valueDecl))
 	{
@@ -1909,6 +1935,18 @@ void ParsingFile::UseFuncDecl(SourceLocation loc, const FunctionDecl *f)
 	if (nullptr == f)
 	{
 		return;
+	}
+
+	FileID file = GetFileID(loc);
+
+	// 有时会出现函数重复声明，这时优先引用后代文件中的函数
+	for (const FunctionDecl *redeclFunc : f->redecls())
+	{
+		if (IsAncestorByName(GetFileID(redeclFunc->getLocation()), file))
+		{
+			f = redeclFunc;
+			break;
+		}
 	}
 
 	// 嵌套名称修饰
