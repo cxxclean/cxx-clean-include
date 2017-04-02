@@ -183,7 +183,7 @@ public:
 	QualType GetPointeeType(const QualType &var);
 
 	// 新增使用变量记录
-	void UseVarType(SourceLocation loc, const QualType &var);
+	void UseVarType(SourceLocation loc, const QualType &var, const NestedNameSpecifier *specifier = nullptr);
 
 	// 引用构造函数
 	void UseConstructor(SourceLocation loc, const CXXConstructorDecl *constructor);
@@ -222,10 +222,10 @@ public:
 	inline void Use(SourceLocation a, SourceLocation b, const char* name = nullptr);
 
 	// 当前位置使用目标类型（注：QualType包含对某个类型的const、volatile、static等的修饰）
-	void UseQualType(SourceLocation loc, const QualType &t);
+	void UseQualType(SourceLocation loc, const QualType &t, const NestedNameSpecifier *specifier = nullptr);
 
 	// 当前位置使用目标类型（注：Type代表某个类型，但不含const、volatile、static等的修饰）
-	void UseType(SourceLocation loc, const Type *t);
+	inline void UseType(SourceLocation loc, const Type *t, const NestedNameSpecifier *specifier = nullptr);
 
 	// 引用上下文，如命名空间
 	void UseContext(SourceLocation loc, const DeclContext*);
@@ -233,14 +233,20 @@ public:
 	// 引用嵌套名字修饰符
 	void UseQualifier(SourceLocation loc, const NestedNameSpecifier*);
 
-	// 引用嵌套名字修饰符
-	void UseUsingQualifier(SourceLocation loc, const NestedNameSpecifier*);
-
 	// 引用命名空间声明
 	void UseNamespaceDecl(SourceLocation loc, const NamespaceDecl*);
 
 	// 引用using namespace声明
 	void UseUsingNamespace(SourceLocation loc, const NamespaceDecl*);
+
+	// 搜寻所需的using namespace声明
+	void SearchUsingNamespace(SourceLocation loc, const NestedNameSpecifier *specifier, const DeclContext *context);
+
+	// 搜寻所需的using声明
+	void SearchUsing(SourceLocation loc, const NestedNameSpecifier *specifier, const NamedDecl *nameDecl);
+
+	// 搜寻所需的using namespace或using声明
+	void SearchUsingAny(SourceLocation loc, const NestedNameSpecifier *specifier, const NamedDecl *nameDecl);
 
 	// 引用using声明
 	void UseUsing(SourceLocation loc, const NamedDecl*);
@@ -374,7 +380,7 @@ private:
 	string GetRecordName(const RecordDecl &recordDecl) const;
 
 	// 新增使用前置声明记录（对于不必要添加的前置声明将在之后进行清理）
-	inline void UseForward(SourceLocation loc, const CXXRecordDecl *cxxRecordDecl);
+	inline void UseForward(SourceLocation loc, const CXXRecordDecl *cxxRecordDecl, const NestedNameSpecifier *specifier = nullptr);
 
 	// 是否允许清理该c++文件（若不允许清理，则文件内容不会有任何变化）
 	inline bool CanClean(FileID file) const;
@@ -661,7 +667,7 @@ private:
 	map<SourceLocation, const NamespaceDecl*>	m_usingNamespaces;
 	
 	// using记录（例如：using std::string;）：[using的目标对应的位置] -> [using声明]
-	map<const NamedDecl*, UsingVec>				m_usings;
+	UsingVec									m_usings;
 
 	// 仅用于打印：各文件内声明的命名空间记录：[文件] -> [该文件内的命名空间记录]
 	std::map<FileID, std::set<std::string>>		m_namespaces;

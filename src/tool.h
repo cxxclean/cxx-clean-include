@@ -18,6 +18,7 @@ using namespace std;
 #define LogError(text)	llvm::errs() << "==>[Error][" << __FUNCTION__ << "][" << __LINE__<< "] " << text << "\n"
 #define LogInfoByLvl(logLvl, text)	if (Project::instance.m_logLvl >= logLvl) { LogInfo(text); }
 #define LogErrorByLvl(logLvl, text)	if (Project::instance.m_logLvl >= logLvl) { LogError(text); }
+#define GetNameForLog(name, text) if (Project::instance.m_logLvl >= LogLvl_2) { std::stringstream ss; ss << text << "[" << __FUNCTION__ << "][line=" << __LINE__<< "]"; name = ss.str(); }
 
 namespace strtool
 {

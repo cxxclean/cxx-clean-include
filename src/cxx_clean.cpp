@@ -144,9 +144,12 @@ bool CxxCleanASTVisitor::VisitStmt(Stmt *s)
 	else if (isa<DeclRefExpr>(s))
 	{
 		DeclRefExpr *declRefExpr = cast<DeclRefExpr>(s);
+		ValueDecl *valueDecl = declRefExpr->getDecl();
+		const NestedNameSpecifier *specifier = declRefExpr->getQualifier();
 
-		m_root->UseQualifier(loc, declRefExpr->getQualifier());
-		m_root->UseValueDecl(loc, declRefExpr->getDecl());
+		m_root->SearchUsingAny(loc, specifier, valueDecl);
+		m_root->UseQualifier(loc, specifier);
+		m_root->UseValueDecl(loc, valueDecl);
 	}
 	// 依赖当前范围取成员语句，例如：this->print();
 	else if (isa<CXXDependentScopeMemberExpr>(s))
@@ -215,7 +218,6 @@ bool CxxCleanASTVisitor::VisitStmt(Stmt *s)
 	{
 		UnaryExprOrTypeTraitExpr *unaryExprOrTypeTraitExpr = cast<UnaryExprOrTypeTraitExpr>(s);
 		m_root->UseVarType(loc, unaryExprOrTypeTraitExpr->getTypeOfArgument());
-
 	}
 	/*
 	// 注意：下面这一大段很重要，保留用于以后日志跟踪

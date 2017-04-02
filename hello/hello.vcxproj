@@ -97,6 +97,10 @@
     <ClInclude Include="k_namespace.h" />
     <ClInclude Include="l.h" />
     <ClInclude Include="l_use_template.h" />
+    <ClInclude Include="m_1.h" />
+    <ClInclude Include="m_2.h" />
+    <ClInclude Include="m_3.h" />
+    <ClInclude Include="m_4.h" />
     <ClInclude Include="m_using_namespace.h" />
     <ClInclude Include="n.h" />
     <ClInclude Include="nil.h" />
@@ -109,6 +113,7 @@
     <ClInclude Include="q.h" />
     <ClInclude Include="q_using_class.h" />
     <ClInclude Include="r_3.h" />
+    <ClInclude Include="s_5.h" />
     <ClInclude Include="test.h" />
     <ClInclude Include="type.h" />
   </ItemGroup>

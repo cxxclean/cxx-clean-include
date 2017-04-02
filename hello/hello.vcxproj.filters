@@ -44,6 +44,11 @@
     <ClInclude Include="q.h" />
     <ClInclude Include="q_using_class.h" />
     <ClInclude Include="r_3.h" />
+    <ClInclude Include="s_5.h" />
+    <ClInclude Include="m_1.h" />
+    <ClInclude Include="m_2.h" />
+    <ClInclude Include="m_3.h" />
+    <ClInclude Include="m_4.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="hello.cpp" />
