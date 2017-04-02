@@ -10,9 +10,11 @@ cxx-clean-include是一个用于清理c++文件中多余#include并自动生成�
 * 3. 如果成功的话，hello项目将被清理，且将在hello文件夹下生成清理日志（可使用浏览器查看）
 * 4. 将run.bat里面的./hello.vcxproj改成你自己的vs工程文件，就可以清理你的工程了
 
+本工具也可作为visual studio的一个插件来使用，但需要几步操作，详见[cxx-clean-include原理.pdf]文档。
+
 注意：使用前请备份你的代码
 
-（如果无法正常使用，请试着安装visual studio 2013的32位运行时组件，可到官网：https://www.microsoft.com/zh-cn/download/details.aspx?id=40784 中下载vcredist_x86.exe并安装)
+（如果无法正常使用，请试着安装visual studio 2013的32位运行时组件，可到微软官网：https://www.microsoft.com/zh-cn/download/details.aspx?id=40784 中下载vcredist_x86.exe并安装)
 
 ## cxx-clean-include的一些测试结果
 
@@ -25,7 +27,7 @@ cxx-clean-include是一个用于清理c++文件中多余#include并自动生成�
 
 ## cxx-clean-include的作用
 
-由于cxx-clean-include基于llvm+clang库编写而成，依托于clang库对现有编译器的兼容，所以本项目也支持大部分msvc、gcc/g++的语法，并完整支持c++11标准。
+由于cxx-clean-include基于llvm+clang库编写而成，依托于clang库对现有编译器的兼容，所以本项目也支持大部分msvc、gcc/g++的语法，并完整支持c++11标准。（对于clang不支持的语法将导致编译错误，此时建议不再使用本工具）
 
 cxx-clean-include可以做到
 
