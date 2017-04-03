@@ -811,12 +811,15 @@ void ParsingFile::GenerateForwardClass()
 		for (auto &forwardClassItr : m_fowardClass)
 		{
 			FileID by = forwardClassItr.first;
-			const RecordSet &records = forwardClassItr.second;
-
+			
+			// 若文件中有#include说明可以放前置声明，可以忽略
 			if (Has(m_includes, GetLowerFileNameInCache(by)))
 			{
 				continue;
 			}
+
+			// 注：这里深拷贝
+			const RecordSet records = forwardClassItr.second;
 
 			for (auto &itr : m_minInclude)
 			{
