@@ -216,7 +216,7 @@ public:
 	inline bool IsSystemHeader(FileID file) const;
 
 	// 指定位置是否在系统头文件内（例如<vector>、<iostream>等就是系统文件）
-	inline bool IsInSystemHeader(SourceLocation loc) const;
+	bool IsInSystemHeader(SourceLocation loc) const;
 
 	// a位置的代码使用b位置的代码
 	inline void Use(SourceLocation a, SourceLocation b, const char* name = nullptr);

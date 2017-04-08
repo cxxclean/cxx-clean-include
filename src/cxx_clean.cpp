@@ -94,6 +94,10 @@ CxxCleanASTVisitor::CxxCleanASTVisitor(ParsingFile *rootFile)
 bool CxxCleanASTVisitor::VisitStmt(Stmt *s)
 {
 	SourceLocation loc = s->getLocStart();
+	if (m_root->IsInSystemHeader(loc))
+	{
+		return true;
+	}
 
 	// 参见：http://clang.llvm.org/doxygen/classStmt.html
 	if (isa<CastExpr>(s))
@@ -267,8 +271,14 @@ bool CxxCleanASTVisitor::VisitStmt(Stmt *s)
 // 访问函数声明
 bool CxxCleanASTVisitor::VisitFunctionDecl(FunctionDecl *f)
 {
+	SourceLocation loc = f->getLocStart();
+	if (m_root->IsInSystemHeader(loc))
+	{
+		return true;
+	}
+
 	// 处理函数参数、返回值等
-	m_root->UseFuncDecl(f->getLocStart(), f);
+	m_root->UseFuncDecl(loc, f);
 
 	// 注意：非类函数可以反复进行声明，这里仅关注最早的函数声明
 	const FunctionDecl *oldestFunction = nullptr;
@@ -281,7 +291,7 @@ bool CxxCleanASTVisitor::VisitFunctionDecl(FunctionDecl *f)
 	if (oldestFunction)
 	{
 		// 引用函数原型
-		m_root->UseFuncDecl(f->getLocStart(), oldestFunction);
+		m_root->UseFuncDecl(loc, oldestFunction);
 	}
 
 	// 是否属于某个类的成员函数
@@ -301,7 +311,7 @@ bool CxxCleanASTVisitor::VisitFunctionDecl(FunctionDecl *f)
 		}
 
 		// 引用对应的struct/union/class.
-		m_root->UseRecord(f->getLocStart(),	record);
+		m_root->UseRecord(loc,	record);
 	}
 
 	return true;
@@ -315,30 +325,36 @@ bool CxxCleanASTVisitor::VisitCXXRecordDecl(CXXRecordDecl *r)
 		return true;
 	}
 
+	SourceLocation loc = r->getLocStart();
+	if (m_root->IsInSystemHeader(loc))
+	{
+		return true;
+	}
+
 	// 模板特化，例子如下：
 	//	template<typename T> class array;
 	//	
 	//	template<> class array<bool> { }; // class template specialization array<bool>
 	if (const ClassTemplateSpecializationDecl *Spec = dyn_cast<ClassTemplateSpecializationDecl>(r))
 	{
-		m_root->UseTemplateDecl(r->getLocStart(), Spec->getSpecializedTemplate());
+		m_root->UseTemplateDecl(loc, Spec->getSpecializedTemplate());
 	}
 
 	// 遍历所有基类
 	for (CXXRecordDecl::base_class_iterator itr = r->bases_begin(), end = r->bases_end(); itr != end; ++itr)
 	{
 		CXXBaseSpecifier &base = *itr;
-		m_root->UseQualType(r->getLocStart(), base.getType());
+		m_root->UseQualType(loc, base.getType());
 	}
 
 	// 遍历成员变量（注意：不包括static成员变量，static成员变量将在VisitVarDecl中被访问到）
 	for (CXXRecordDecl::field_iterator itr = r->field_begin(), end = r->field_end(); itr != end; ++itr)
 	{
 		FieldDecl *field = *itr;
-		m_root->UseValueDecl(r->getLocStart(), field);
+		m_root->UseValueDecl(loc, field);
 	}
 
-	m_root->UseQualifier(r->getLocStart(), r->getQualifier());
+	m_root->UseQualifier(loc, r->getQualifier());
 
 	// 成员函数不需要在这里遍历，因为VisitFunctionDecl将会访问成员函数
 	return true;
@@ -347,17 +363,23 @@ bool CxxCleanASTVisitor::VisitCXXRecordDecl(CXXRecordDecl *r)
 // 当发现变量定义时该接口被调用
 bool CxxCleanASTVisitor::VisitVarDecl(VarDecl *var)
 {
+	SourceLocation loc = var->getLocStart();
+	if (m_root->IsInSystemHeader(loc))
+	{
+		return true;
+	}
+
 	// 注意：本方法涵盖了1. 函数形参 2. 非类成员的变量声明 3. 类成员但含有static修饰符，等等
 
 	// 引用变量的类型
-	m_root->UseVarDecl(var->getLocStart(), var);
+	m_root->UseVarDecl(loc, var);
 
 	// 类的static成员变量（支持模板类的成员）
 	if (var->isCXXClassMember())
 	{
 		// 若为static成员变量的实现，则引用其声明（注：也可以用isStaticDataMember方法来判断var是否为static成员变量）
 		const VarDecl *prevVar = var->getPreviousDecl();
-		m_root->UseVarDecl(var->getLocStart(), prevVar);
+		m_root->UseVarDecl(loc, prevVar);
 	}
 
 	if (var->hasExternalStorage())
@@ -377,13 +399,25 @@ bool CxxCleanASTVisitor::VisitVarDecl(VarDecl *var)
 // 比如：typedef int A;
 bool CxxCleanASTVisitor::VisitTypedefDecl(clang::TypedefDecl *d)
 {
-	m_root->UseQualType(d->getLocStart(), d->getUnderlyingType());
+	SourceLocation loc = d->getLocStart();
+	if (m_root->IsInSystemHeader(loc))
+	{
+		return true;
+	}
+
+	m_root->UseQualType(loc, d->getUnderlyingType());
 	return true;
 }
 
 // 比如：namespace A{}
 bool CxxCleanASTVisitor::VisitNamespaceDecl(clang::NamespaceDecl *d)
 {
+	SourceLocation loc = d->getLocStart();
+	if (m_root->IsInSystemHeader(loc))
+	{
+		return true;
+	}
+
 	m_root->DeclareNamespace(d);
 	return true;
 }
@@ -391,13 +425,25 @@ bool CxxCleanASTVisitor::VisitNamespaceDecl(clang::NamespaceDecl *d)
 // 比如：namespace s = std;
 bool CxxCleanASTVisitor::VisitNamespaceAliasDecl(clang::NamespaceAliasDecl *d)
 {
-	m_root->UseNamespaceDecl(d->getLocation(), d->getNamespace());
+	SourceLocation loc = d->getLocation();
+	if (m_root->IsInSystemHeader(loc))
+	{
+		return true;
+	}
+
+	m_root->UseNamespaceDecl(loc, d->getNamespace());
 	return true;
 }
 
 // 比如：using namespace std;
 bool CxxCleanASTVisitor::VisitUsingDirectiveDecl(clang::UsingDirectiveDecl *d)
 {
+	SourceLocation loc = d->getLocation();
+	if (m_root->IsInSystemHeader(loc))
+	{
+		return true;
+	}
+
 	m_root->UsingNamespace(d);
 	return true;
 }
@@ -405,6 +451,12 @@ bool CxxCleanASTVisitor::VisitUsingDirectiveDecl(clang::UsingDirectiveDecl *d)
 // 比如：using std::string;
 bool CxxCleanASTVisitor::VisitUsingDecl(clang::UsingDecl *d)
 {
+	SourceLocation loc = d->getLocation();
+	if (m_root->IsInSystemHeader(loc))
+	{
+		return true;
+	}
+
 	m_root->UsingXXX(d);
 	return true;
 }
@@ -412,6 +464,12 @@ bool CxxCleanASTVisitor::VisitUsingDecl(clang::UsingDecl *d)
 // 访问成员变量
 bool CxxCleanASTVisitor::VisitFieldDecl(FieldDecl *decl)
 {
+	SourceLocation loc = decl->getLocStart();
+	if (m_root->IsInSystemHeader(loc))
+	{
+		return true;
+	}
+
 	m_root->UseValueDecl(decl->getLocStart(), decl);
 	return true;
 }
@@ -419,6 +477,12 @@ bool CxxCleanASTVisitor::VisitFieldDecl(FieldDecl *decl)
 // 构造声明
 bool CxxCleanASTVisitor::VisitCXXConstructorDecl(CXXConstructorDecl *constructor)
 {
+	SourceLocation loc = constructor->getLocStart();
+	if (m_root->IsInSystemHeader(loc))
+	{
+		return true;
+	}
+
 	m_root->UseConstructor(constructor->getLocStart(), constructor);
 	return true;
 }
@@ -426,6 +490,12 @@ bool CxxCleanASTVisitor::VisitCXXConstructorDecl(CXXConstructorDecl *constructor
 // 构造语句
 bool CxxCleanASTVisitor::VisitCXXConstructExpr(CXXConstructExpr *expr)
 {
+	SourceLocation loc = expr->getLocStart();
+	if (m_root->IsInSystemHeader(loc))
+	{
+		return true;
+	}
+
 	m_root->UseConstructor(expr->getLocStart(), expr->getConstructor());
 	return true;
 }

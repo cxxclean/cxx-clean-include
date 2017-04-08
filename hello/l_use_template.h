@@ -3,6 +3,8 @@
 
 #include "l.h"
 
+#define _SILENCE_STDEXT_HASH_DEPRECATION_WARNINGS
+
 #include <vector>
 #include <map>
 #include <set>

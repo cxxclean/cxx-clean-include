@@ -1204,6 +1204,11 @@ inline void ParsingFile::UseInclude(FileID a, FileID b, const char* name /* = nu
 // 当前位置使用指定的宏
 void ParsingFile::UseMacro(SourceLocation loc, const MacroDefinition &macro, const Token &macroNameTok, const MacroArgs *args /* = nullptr */)
 {
+	if (IsInSystemHeader(loc))
+	{
+		return;
+	}
+
 	MacroInfo *info = macro.getMacroInfo();
 	if (info)
 	{
@@ -1751,6 +1756,7 @@ void ParsingFile::UseQualType(SourceLocation loc, const QualType &t, const Neste
 		return;
 	}
 
+
 	const Type *pType = t.getTypePtr();
 	UseType(loc, pType, specifier);
 }
@@ -2153,7 +2159,7 @@ inline bool ParsingFile::IsSystemHeader(FileID file) const
 }
 
 // 指定位置是否在系统头文件内（例如<vector>、<iostream>等就是系统文件）
-inline bool ParsingFile::IsInSystemHeader(SourceLocation loc) const
+bool ParsingFile::IsInSystemHeader(SourceLocation loc) const
 {
 	return m_srcMgr->isInSystemHeader(loc);
 }

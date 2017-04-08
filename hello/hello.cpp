@@ -6,7 +6,6 @@
 #include <io.h>
 #include <windows.h>
 #include <math.h>
-#include <atlcomcli.h>
 
 #define TEXT_C_MACRO_H	"c_macro.h"
 #define INCLUDE_C_MACRO_H TEXT_C_MACRO_H
