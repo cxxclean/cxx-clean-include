@@ -2,7 +2,6 @@
 // 文件: main.cpp
 // 作者: 洪坤安
 // 说明: 入口文件
-// Copyright (c) 2016 game. All rights reserved.
 //------------------------------------------------------------------------------
 
 #include "cxx_clean.h"
@@ -24,6 +23,9 @@ bool Init(CxxCleanOptionsParser &optionParser, int argc, const char **argv)
 	llvm::InitializeNativeTarget();				// 初始化当前平台环境
 	llvm::InitializeNativeTargetAsmParser();	// 支持解析asm
 
+	locale &loc=locale::global(locale(locale(),"",LC_CTYPE));  // 不论以输出文件流还是输入文件流，此操作应放在其两边
+	locale::global(loc);
+	
 	// 解析命令行参数
 	bool ok = optionParser.ParseOptions(argc, argv);
 	return ok;
@@ -49,10 +51,10 @@ void Run(const CxxCleanOptionsParser &optionParser)
 	tool.setDiagnosticConsumer(new CxxcleanDiagnosticConsumer(&diagnosticOptions)); // 注意：这里用new没关系，会被释放
 
 	// 对每个文件进行语法分析
-	std::unique_ptr<FrontendActionFactory> factory = newFrontendActionFactory<CxxCleanAction>();
-	tool.run(factory.get());
+	tool.run(newFrontendActionFactory<CxxCleanAction>().get());
 
 	ProjectHistory::instance.Print();
+	HtmlLog::instance.Close();
 }
 
 int main(int argc, const char **argv)
@@ -65,6 +67,7 @@ int main(int argc, const char **argv)
 	// 初始化
 	if (!Init(optionParser, argc, argv))
 	{
+		Log("error: option is invalid!");
 		return 0;
 	}
 
@@ -74,6 +77,6 @@ int main(int argc, const char **argv)
 	Log("-- now = " << timetool::get_now() << " --!");
 	Log("-- finished --!");
 
-	system(ws2s(HtmlLog::instance.m_htmlPath).c_str());
+	_wsystem(HtmlLog::instance.m_htmlPath.c_str());
 	return 0;
 }

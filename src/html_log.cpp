@@ -2,7 +2,6 @@
 //< @file:   html_log.cpp
 //< @author: 洪坤安
 //< @brief:  html日志类，用来美化打印日志的
-//< Copyright (c) 2016 game. All rights reserved.
 ///<------------------------------------------------------------------------------
 
 #include "html_log.h"
@@ -37,7 +36,9 @@ const char* g_beginHtml = R"--(
 			.chart .row{position:relative;height:28px;line-height:28px;border-bottom:1px solid #ebebeb;white-space:nowrap;text-overflow:ellipsis;background:#FFF }
 			.chart .row:hover{background:#DDD;}
 			.chart .error_row{position:relative;line-height:20px;white-space:nowrap;text-overflow:ellipsis;background:#FFF;color:#FF0000;border-bottom:2px dashed #ebebeb;}
+			.chart .warn_row{position:relative;line-height:20px;white-space:nowrap;text-overflow:ellipsis;background:#FFF;color:#FF6600;border-bottom:2px dashed #ebebeb;}			
 			.chart .error_row:hover{background:#DDD;}
+			.chart .warn_row:hover{background:#DDD;}
 			.chart .row div{float:left;height:100%;}
 			.chart a{cursor:default;text-decoration:none }
 			.chart a:hover,.chart a:active{cursor:pointer;text-decoration:underline }
@@ -73,6 +74,9 @@ const char *g_titleHtml = R"--(
 const char* g_rowHtml = R"--(
 					<dd class="row${other_class}">${row}</dd>)--";
 
+const char* g_warnRowHtml = R"--(
+					<dd class="warn_row${other_class}">${row}</dd>)--";
+
 const char* g_errorRowHtml = R"--(
 					<dd class="error_row${other_class}">${row}</dd>)--";
 
@@ -81,53 +85,6 @@ const char* g_gridHtml = R"--(<div${class} style="${width}">${text}</div>)--";
 const char* g_errorGridHtml = R"--(<div><pre${class}>${text}</pre></div>)--";
 
 HtmlLog HtmlLog::instance;
-
-std::string escape_html(const char* html)
-{
-	return escape_html(std::string(html));
-}
-
-std::string escape_html(const std::string &html)
-{
-	std::string ret(html);
-
-	strtool::replace(ret, "<", "&lt;");
-	strtool::replace(ret, ">", "&gt;");
-
-	return ret;
-}
-
-std::string get_file_html(const char *filename)
-{
-	std::string html = R"--(<a href="#{file}">#{file}</a>)--";
-	strtool::replace(html, "#{file}", filename);
-
-	return html;
-}
-
-std::string get_short_file_name_html(const char *filename)
-{
-	std::string html = R"--(<a href="#{filepath}">#{filename}</a>)--";
-	strtool::replace(html, "#{filepath}", filename);
-	strtool::replace(html, "#{filename}", pathtool::get_file_name(filename).c_str());
-
-	return html;
-}
-
-std::string get_include_html(const std::string &text)
-{
-	return strtool::get_text(R"--(<span class="src">%s</span>)--", escape_html(text).c_str());
-}
-
-std::string get_number_html(int num)
-{
-	return strtool::get_text(R"--(<span class="num">%s</span>)--", strtool::itoa(num).c_str());
-}
-
-std::string get_warn_html(const char *text)
-{
-	return strtool::get_text(R"--(<span class="num">%s</span>)--", text);
-}
 
 void HtmlDiv::AddTitle(const char* title, int width /* = 100 */)
 {
@@ -178,7 +135,6 @@ void HtmlDiv::AddGrid(const std::string &text, int width /*= 0*/, bool needEscap
 
 HtmlLog::HtmlLog()
 	: m_log(nullptr)
-	, m_newfdLog(nullptr)
 {}
 
 bool HtmlLog::Init(const std::wstring &htmlPath, const std::string &htmlTitle, const std::string &tip)
@@ -208,18 +164,13 @@ bool HtmlLog::Init(const std::wstring &htmlPath, const std::string &htmlTitle, c
 	return true;
 }
 
-void HtmlLog::BeginLog()
+void HtmlLog::Open()
 {
 	// 文件打开方式：覆盖原有内容
 	FILE *file = _wfopen(m_htmlPath.c_str(), L"w");
 	if (file)
 	{
-		m_newfdLog = new llvm::raw_fd_ostream(_fileno(file), true, true);
-		m_log = m_newfdLog;
-	}
-	else
-	{
-		m_log = &llvm::errs();
+		m_log = new llvm::raw_fd_ostream(_fileno(file), true);
 	}
 
 	std::string beginHtml(g_beginHtml);
@@ -227,20 +178,18 @@ void HtmlLog::BeginLog()
 	strtool::replace(beginHtml, "${time}", timetool::get_now().c_str());
 	strtool::replace(beginHtml, "${tip}", m_tip.c_str());
 
-	GetLog() << beginHtml;
+	log() << beginHtml;
 }
 
-void HtmlLog::EndLog()
+void HtmlLog::Close()
 {
-	GetLog() << g_endHtml;
-	GetLog().flush();
+	log() << g_endHtml;
+	log().flush();
 
-	m_log = nullptr;
-
-	if (m_newfdLog)
+	if (m_log)
 	{
-		delete m_newfdLog;
-		m_newfdLog = nullptr;
+		delete m_log;
+		m_log = nullptr;
 	}
 }
 
@@ -264,11 +213,21 @@ void HtmlLog::AddDiv(const HtmlDiv &div)
 
 	for (const DivRow &row : div.rows)
 	{
+		std::string rowHtml = g_rowHtml;
+		if (row.rowType == Row_Error)
+		{
+			rowHtml = g_errorRowHtml;
+		}
+		else if (row.rowType == Row_Warn)
+		{
+			rowHtml = g_warnRowHtml;
+		}
+
 		std::stringstream gridsHtml;
 
 		for (const DivGrid &grid : row.grids)
 		{
-			std::string gridHtml		= (row.rowType == Row_Error ? g_errorGridHtml : g_gridHtml);
+			std::string gridHtml		= (row.rowType == Row_Error || row.rowType == Row_Warn ? g_errorGridHtml : g_gridHtml);
 			std::string widthHtml		= (grid.width == 100 || grid.width == 0) ? "" : strtool::get_text("width:%d%%;", grid.width);
 			std::string gridClassHtml	= (grid.gridType == Grid_Ok ? " class=\"ok\"" : "");
 			gridClassHtml += (grid.gridType == Grid_Error ? " class=\"err\"" : "");
@@ -291,7 +250,6 @@ void HtmlLog::AddDiv(const HtmlDiv &div)
 			}
 		}
 
-		std::string rowHtml = (row.rowType == Row_Error ? g_errorRowHtml : g_rowHtml);
 		strtool::replace(rowHtml, "${other_class}", rowClassHtml.c_str());
 		strtool::replace(rowHtml, "${row}", gridsHtml.str().c_str());
 		divRowsHtml << rowHtml;
@@ -302,8 +260,8 @@ void HtmlLog::AddDiv(const HtmlDiv &div)
 	strtool::replace(divHtml, "${div_titles}", divTitlesHtml.c_str());
 	strtool::replace(divHtml, "${div_rows}",	divRowsHtml.str().c_str());
 
-	GetLog() << divHtml;
-	GetLog().flush();
+	log() << divHtml;
+	log().flush();
 
 	m_newDiv.Clear();
 }
@@ -311,5 +269,5 @@ void HtmlLog::AddDiv(const HtmlDiv &div)
 // 添加大标题
 void HtmlLog::AddBigTitle(const std::string &title)
 {
-	GetLog() << "\n			<h1>" << title << "</h1>";
+	log() << "\n			<h1>" << title << "</h1>";
 }

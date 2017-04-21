@@ -2,7 +2,6 @@
 //< @file:   html_log.h
 //< @author: 洪坤安
 //< @brief:  html日志类，用来美化打印日志的
-//< Copyright (c) 2016 game. All rights reserved.
 ///<------------------------------------------------------------------------------
 
 #ifndef _html_log_h_
@@ -76,27 +75,15 @@ static const char* cn_parent_file_debug_text		= "文件 = %s, 子文件数 = %s";
 static const char* cn_file_debug_text				= "%s[%s](文件ID = %d)(层数 = %s){该文件来自于%s}";
 static const char* cn_file_include_line				= "[%s第%s行%s]";
 static const char* cn_main_file_debug_text			= "[%s](文件ID = %d)(层数 = %s)";
-static const char* cn_outer_file_flag				= "[外部文件]";
-
-std::string escape_html(const char* html);
-
-std::string escape_html(const std::string &html);
-
-std::string get_file_html(const char *filename);
-
-std::string get_short_file_name_html(const char *filename);
-
-std::string get_include_html(const std::string &text);
-
-std::string get_number_html(int num);
-
-std::string get_warn_html(const char *text);
+static const char* cn_outer_file_type				= "[外部文件]";
+static const char* cn_system_file_type				= "[系统文件]";
 
 // 行类型
 enum RowType
 {
 	Row_None	= 0,	// 正常
-	Row_Error	= 1,	// 错误
+	Row_Warn	= 1,	// 警告
+	Row_Error	= 2,	// 错误
 };
 
 // 格子类型
@@ -167,13 +154,11 @@ class HtmlLog
 public:
 	HtmlLog();
 
-	static inline llvm::raw_ostream& GetLog() { return *instance.m_log; }
-
 	bool Init(const std::wstring &htmlPath, const std::string &htmlTitle, const std::string &tip);
 
-	void BeginLog();
+	void Open();
 
-	void EndLog();
+	void Close();
 
 	void AddDiv(const HtmlDiv &div);
 
@@ -196,8 +181,6 @@ public:
 	HtmlDiv				m_newDiv;
 
 	llvm::raw_ostream*	m_log;
-
-	llvm::raw_ostream*	m_newfdLog;
 };
 
 #endif // _html_log_h_

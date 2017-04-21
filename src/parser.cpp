@@ -2,7 +2,6 @@
 // 文件: parser.cpp
 // 作者: 洪坤安
 // 说明: 解析当前cpp文件
-// Copyright (c) 2016 game. All rights reserved.
 //------------------------------------------------------------------------------
 
 #include "parser.h"
@@ -115,7 +114,6 @@ void GetChain(std::set<T> &chain, T top, const AddTodoFunc& expand)
 	std::set<T> &done = chain;
 
 	todo.insert(top);
-
 
 	while (!todo.empty())
 	{
@@ -334,6 +332,8 @@ void ParsingFile::Begin()
 				}
 			}
 		});
+
+		kids.erase(top);
 	}
 	
 	// 2. 删除只被包含一次的文件，仅保留被反复包含的文件
@@ -559,6 +559,22 @@ void ParsingFile::GenerateUserUse()
 void ParsingFile::GenerateMinInclude()
 {
 	// 先统计出每个用户文件依赖的所有其他文件
+	for (auto &itr : m_userUses)
+	{
+		FileSet &useFiles = itr.second;
+		FileSet copy = useFiles;
+
+		useFiles.clear();
+		for (FileID beUse : copy)
+		{
+			FileID better = GetFirstFileID(beUse);
+			if (better.isValid())
+			{
+				useFiles.insert(better);
+			}
+		}
+	}
+
 	for (const auto &itr : m_userUses)
 	{
 		const std::string &topName = itr.first;
@@ -580,11 +596,7 @@ void ParsingFile::GenerateMinInclude()
 						continue;
 					}
 
-					FileID better = GetFirstFileID(beUse);
-					if (better.isValid())
-					{
-						todo.insert(better);
-					}
+					todo.insert(beUse);
 				}
 			}
 		});
@@ -600,7 +612,7 @@ void ParsingFile::GenerateMinInclude()
 	m_minKids = m_minInclude;
 
 	// 2. 合并
-	while (MergeMinInclude()) {}
+	MergeMinInclude();
 }
 
 int ParsingFile::GetDeepth(FileID file) const
@@ -674,7 +686,7 @@ FileID ParsingFile::GetFileIDByFileName(const char *fileName) const
 bool ParsingFile::IsFileBeforeLoc(FileID a, SourceLocation b) const
 {
 	SourceLocation includeLoc = m_srcMgr->getIncludeLoc(a);
-	return m_srcMgr->isBeforeInTranslationUnit(includeLoc, b);
+	return isBeforeInTranslationUnit(includeLoc, b);
 }
 
 // a文件是否在b文件之前
@@ -682,7 +694,7 @@ bool ParsingFile::IsFileBeforeFile(FileID a, FileID b) const
 {
 	SourceLocation aIncludeLoc = m_srcMgr->getIncludeLoc(a);
 	SourceLocation bIncludeLoc = m_srcMgr->getIncludeLoc(b);
-	return m_srcMgr->isBeforeInTranslationUnit(aIncludeLoc, bIncludeLoc);
+	return isBeforeInTranslationUnit(aIncludeLoc, bIncludeLoc);
 }
 
 // 祖先文件是否默认被包含
@@ -783,22 +795,6 @@ void ParsingFile::GenerateForwardClass()
 		m_fowardClass[GetFirstFileID(by)] = records;
 	}
 
-	MapEraseIf(m_fowardClass, [&](FileID by, RecordSet &records)
-	{
-		EraseIf(records, [&](const CXXRecordDecl* record)
-		{
-			bool should_keep = g_nowFile->IsShouldKeepForwardClass(by, *record);
-			if (should_keep)
-			{
-				LogErrorByLvl(LogLvl_2, "IsShouldKeepForwardClass = true: " << GetDebugFileName(by) << "," << GetRecordName(*record));
-			}
-
-			return !should_keep;
-		});
-
-		return records.empty();
-	});
-
 	// 2. 删除重复前置声明
 	MinimizeForwardClass();
 
@@ -838,11 +834,29 @@ void ParsingFile::GenerateForwardClass()
 			break;
 		}
 	};
+
+	MinimizeForwardClass();
 }
 
 // 裁剪前置声明列表（删掉重复的）
 void ParsingFile::MinimizeForwardClass()
 {
+	MapEraseIf(m_fowardClass, [&](FileID by, RecordSet &records)
+	{
+		EraseIf(records, [&](const CXXRecordDecl* record)
+		{
+			bool should_keep = g_nowFile->IsShouldKeepForwardClass(by, *record);
+			if (should_keep)
+			{
+				LogErrorByLvl(LogLvl_2, "IsShouldKeepForwardClass = true: " << GetDebugFileName(by) << "," << GetRecordName(*record));
+			}
+
+			return !should_keep;
+		});
+
+		return records.empty();
+	});
+
 	// 1. 先统计出每个文件及其后代新增前置声明，[文件] -> [该文件及其后代新增的前置声明]
 	FileSet all;
 	Add(all, m_fileUseRecordPointers);
@@ -1017,7 +1031,7 @@ SourceRange ParsingFile::GetNextLine(SourceLocation loc) const
 	SourceLocation lineEnd		= curLine.getEnd();
 	SourceLocation fileEndLoc	= m_srcMgr->getLocForEndOfFile(GetFileID(loc));
 
-	if (m_srcMgr->isBeforeInTranslationUnit(fileEndLoc, lineEnd) || fileEndLoc == lineEnd)
+	if (isBeforeInTranslationUnit(fileEndLoc, lineEnd) || fileEndLoc == lineEnd)
 	{
 		return SourceRange(fileEndLoc, fileEndLoc);
 	}
@@ -1097,10 +1111,8 @@ std::string ParsingFile::GetBeIncludeLineText(FileID file) const
 // a位置的代码使用b位置的代码
 inline void ParsingFile::Use(SourceLocation a, SourceLocation b, const char* name /* = nullptr */)
 {
-	// 忽略系统头文件对其他头文件的依赖关系
 	if (IsInSystemHeader(a))
 	{
-		//LogInfo("system header = " << GetDebugFileName(GetFileID(a)));
 		return;
 	}
 
@@ -1259,107 +1271,284 @@ void ParsingFile::UseNamespaceDecl(SourceLocation loc, const NamespaceDecl *ns)
 	UseNameDecl(loc, ns);
 }
 
+bool ParsingFile::isBeforeInTranslationUnit(SourceLocation LHS, SourceLocation RHS) const
+{
+	if (LHS == RHS)
+		return false;
+
+	// 在孩子文件中找出b的祖先
+	auto CompareLocInSameFile = [&](bool isLeftLow, SourceLocation lowLoc, SourceLocation highLoc)
+	{
+		int lowOffset = m_srcMgr->getFileOffset(lowLoc);
+		int highOffset = m_srcMgr->getFileOffset(highLoc);
+
+		return isLeftLow ? lowOffset < highOffset : highOffset < lowOffset;
+	};
+
+	bool isLeftLow = true;
+
+	SourceLocation lowLoc = LHS;
+	SourceLocation highLoc = RHS;
+
+	FileID lowFile = GetFileID(LHS);
+	FileID highFile = GetFileID(RHS);
+
+	int low = GetDepth(lowFile);
+	int high = GetDepth(highFile);
+
+	//LogInfo("===>" << GetLowerFileNameInCache(lowFile) << ", deep = " << low);
+	//LogInfo("===>" << GetLowerFileNameInCache(highFile) << ", deep = " << high);
+
+	if (low < high)
+	{
+		isLeftLow = false;
+
+		std::swap(low, high);
+		std::swap(lowLoc, highLoc);
+		std::swap(lowFile, highFile);
+	}
+
+	if (lowFile == highFile)
+	{
+		return CompareLocInSameFile(isLeftLow, lowLoc, highLoc);
+	}
+
+	for (int up = 0; high + up < low ; ++up)
+	{
+		FileID lowParent = GetParent(lowFile);
+		if (lowParent == highFile)
+		{
+			return CompareLocInSameFile(isLeftLow, m_srcMgr->getIncludeLoc(lowFile), highLoc);
+		}
+
+		lowFile = lowParent;
+	}
+
+	for (int up = 0; up < high; ++up)
+	{
+		FileID lowParent = GetParent(lowFile);
+		FileID highParent = GetParent(highFile);
+
+		if (lowParent == highParent)
+		{
+			return CompareLocInSameFile(isLeftLow, m_srcMgr->getIncludeLoc(lowFile), m_srcMgr->getIncludeLoc(highFile));
+		}
+
+		lowFile = lowParent;
+		highFile = highParent;
+	}
+
+	return false;
+}
+
 // 引用using namespace声明
-void ParsingFile::UseUsingNamespace(SourceLocation loc, const NamespaceDecl *beUseNs)
+bool ParsingFile::UseUsingNamespace(SourceLocation loc, const NamespaceDecl *beUseNs, bool mustAncestor)
 {
 	if (m_usingNamespaces.empty())
 	{
-		return;
+		return false;
 	}
+
+	loc = GetExpasionLoc(loc);
+	
+	const char* fileName = GetLowerFileNameInCache(GetFileID(loc));
 
 	FileID file = GetFileID(loc);
 	const std::string beUseNsName = beUseNs->getQualifiedNameAsString();
 
-	auto bestItr = m_usingNamespaces.end();
-	const auto end = m_usingNamespaces.end();
+	SourceLocation bestUsingLoc;
+	const NamespaceDecl	*bestNs = nullptr;
 
-	// 优先查找同文件内的using namespace声明
-	for (auto itr = m_usingNamespaces.begin(); itr != end; ++itr)
+	// 1. 优先查找同文件内的using namespace声明
+	for (auto itr : m_usingNamespaces)
 	{
-		SourceLocation usingLoc = itr->first;
-		const NamespaceDecl	*ns = itr->second;
+		SourceLocation usingLoc = itr.first;
+		const NamespaceDecl	*ns = itr.second;
 
-		if (GetFileID(usingLoc) == file && m_srcMgr->isBeforeInTranslationUnit(usingLoc, loc))
+		if (ns->getQualifiedNameAsString() == beUseNsName && GetFileID(usingLoc) == file && isBeforeInTranslationUnit(usingLoc, loc))
 		{
-			if (ns->getQualifiedNameAsString() == beUseNsName)
+			bestUsingLoc = usingLoc;
+			bestNs = ns;
+			break;
+		}
+	}
+
+	// 2. 否则，查找后代文件的using namespace声明
+	if (bestNs == nullptr)
+	{
+		auto includeItr = m_includes.find(GetLowerFileNameInCache(file));
+		if (includeItr != m_includes.end())
+		{
+			const FileSet &includeList = includeItr->second;
+			for (FileID beInclude : includeList)
 			{
-				bestItr = itr;
+				for (auto nsByFileItr : m_usingNamespacesByFile)
+				{
+					FileID usingAtFile = nsByFileItr.first;
+
+					if (!IsAncestorByName(usingAtFile, file))
+					{
+						continue;
+					}
+
+					const UsingNamespaceLocMap &nsMap = nsByFileItr.second;
+
+					for (auto nsItr : nsMap)
+					{
+						SourceLocation usingLoc = nsItr.first;
+						const NamespaceDecl	*ns = nsItr.second;
+
+						if (ns->getQualifiedNameAsString() == beUseNsName && isBeforeInTranslationUnit(usingLoc, loc))
+						{
+							bestUsingLoc = usingLoc;
+							bestNs = ns;
+							break;
+						}
+					}
+				}
+			}
+		}
+
+		if (bestNs == nullptr)
+		{
+			if (mustAncestor)
+			{
+				return false;
+			}
+		}
+	}
+
+	// 3. 否则，查找之前文件的using namespace声明
+	if (bestNs == nullptr)
+	{
+		for (auto itr : m_usingNamespaces)
+		{
+			SourceLocation usingLoc = itr.first;
+			const NamespaceDecl	*ns = itr.second;
+
+			if (ns->getQualifiedNameAsString() == beUseNsName && isBeforeInTranslationUnit(usingLoc, loc))
+			{
+				bestUsingLoc = usingLoc;
+				bestNs = ns;
 				break;
 			}
 		}
 	}
 
-
-	// 否则，查找之前文件的using namespace声明
-	if (bestItr == end)
+	// 查找成功
+	if (bestNs)
 	{
-		for (auto itr = m_usingNamespaces.begin(); itr != end; ++itr)
-		{
-			SourceLocation usingLoc = itr->first;
-			const NamespaceDecl	*ns = itr->second;
-
-			if (m_srcMgr->isBeforeInTranslationUnit(usingLoc, loc))
-			{
-				if (ns->getQualifiedNameAsString() == beUseNsName)
-				{
-					bestItr = itr;
-					break;
-				}
-			}
-		}
-	}
-
-	if (bestItr != end)
-	{
-		SourceLocation usingLoc = bestItr->first;
-		const NamespaceDecl	*ns = bestItr->second;
-
 		std::string name;
-		GetNameForLog(name, ns->getQualifiedNameAsString() << "[" << ((Decl*)ns)->getDeclKindName() << "]");
+		GetNameForLog(name, bestNs->getQualifiedNameAsString() << "[" << ((Decl*)bestNs)->getDeclKindName() << "]");
 
-		Use(loc, usingLoc, name.c_str());
+		Use(loc, bestUsingLoc, name.c_str());
+		return true;
 	}
+
+	return false;
 }
 
 // 引用using声明
-void ParsingFile::UseUsing(SourceLocation loc, const NamedDecl *nameDecl)
+bool ParsingFile::UseUsing(SourceLocation loc, const NamedDecl *nameDecl, bool mustAncestor)
 {
 	const UsingVec &usingVec = m_usings;
 	if (usingVec.empty())
 	{
-		return;
+		return false;
 	}
 
 	FileID file = GetFileID(loc);
 
 	// 尝试找到最好的using声明
-	const UsingDecl *bestUsingDecl = nullptr;
+	const UsingShadowDecl *bestUsingDecl = nullptr;
 
-	for (const UsingDecl *usingDecl : usingVec)
+	const std::string beUseingName = nameDecl->getQualifiedNameAsString();
+
+	// 1. 优先查找同文件内的using声明
+	for (const UsingShadowDecl *usingDecl : usingVec)
 	{
+		NamedDecl *usingNameDecl = usingDecl->getTargetDecl();
 		SourceLocation usingLoc = usingDecl->getLocation();
-		if (usingDecl->getQualifiedNameAsString() != nameDecl->getQualifiedNameAsString())
-		{
-			continue;
-		}
 
-		if (IsAncestorByName(GetFileID(usingLoc), file))
+		if (usingNameDecl->getQualifiedNameAsString() == beUseingName && GetFileID(usingLoc) == file && isBeforeInTranslationUnit(usingLoc, loc))
 		{
 			bestUsingDecl = usingDecl;
 			break;
+		}		
+	}
+
+	// 2. 查找后代文件的using声明
+	if (nullptr == bestUsingDecl)
+	{
+		auto includeItr = m_includes.find(GetLowerFileNameInCache(file));
+		if (includeItr != m_includes.end())
+		{
+			const FileSet &includeList = includeItr->second;
+			for (FileID beInclude : includeList)
+			{
+				for (auto usingByFileItr : m_usingsByFile)
+				{
+					FileID usingAtFile = usingByFileItr.first;
+
+					if (!IsAncestorByName(usingAtFile, file))
+					{
+						continue;
+					}
+
+					const UsingVec &vecUsingAtFile = usingByFileItr.second;
+
+					for (const UsingShadowDecl *usingDecl : vecUsingAtFile)
+					{
+						NamedDecl *usingNameDecl = usingDecl->getTargetDecl();
+						SourceLocation usingLoc = usingDecl->getLocation();
+
+						if (usingNameDecl->getQualifiedNameAsString() == beUseingName && isBeforeInTranslationUnit(usingLoc, loc))
+						{
+							bestUsingDecl = usingDecl;
+							break;
+						}
+					}
+				}
+			}
+		}
+
+		if (nullptr == bestUsingDecl)
+		{
+			if (mustAncestor)
+			{
+				return false;
+			}
 		}
 	}
 
+	// 3. 查找之前文件的using声明
 	if (nullptr == bestUsingDecl)
 	{
-		bestUsingDecl = usingVec[0];
+		for (const UsingShadowDecl *usingDecl : usingVec)
+		{
+			NamedDecl *usingNameDecl = usingDecl->getTargetDecl();
+			SourceLocation usingLoc = usingDecl->getLocation();
+
+			if (usingNameDecl->getQualifiedNameAsString() == beUseingName && isBeforeInTranslationUnit(usingLoc, loc))
+			{
+				bestUsingDecl = usingDecl;
+				break;
+			}			
+		}
 	}
 
-	std::string name;
-	GetNameForLog(name, "using " << bestUsingDecl->getQualifiedNameAsString() << "[" << bestUsingDecl->getDeclKindName() << "]");
+	// 查找成功
+	if (bestUsingDecl)
+	{
+		std::string name;
+		GetNameForLog(name, "using " << bestUsingDecl->getQualifiedNameAsString() << "[" << bestUsingDecl->getDeclKindName() << "]");
 
-	// 引用该using
-	Use(loc, bestUsingDecl->getLocation(), name.c_str());
+		// 引用该using
+		Use(loc, bestUsingDecl->getLocation(), name.c_str());
+		return true;
+	}
+
+	return false;
 }
 
 // 引用命名空间别名
@@ -1408,7 +1597,7 @@ void ParsingFile::UsingNamespace(const UsingDirectiveDecl *d)
 	for (const NamespaceDecl *ns : nominatedNs->redecls())
 	{
 		SourceLocation nsLoc = GetSpellingLoc(ns->getLocStart());
-		if (nsLoc.isValid() && m_srcMgr->isBeforeInTranslationUnit(nsLoc, usingLoc) && m_srcMgr->isWrittenInSameFile(nsLoc, usingLoc))
+		if (nsLoc.isValid() && isBeforeInTranslationUnit(nsLoc, usingLoc) && m_srcMgr->isWrittenInSameFile(nsLoc, usingLoc))
 		{
 			bestNs = ns;
 			break;
@@ -1421,7 +1610,7 @@ void ParsingFile::UsingNamespace(const UsingDirectiveDecl *d)
 		for (const NamespaceDecl *ns : nominatedNs->redecls())
 		{
 			SourceLocation nsLoc = GetSpellingLoc(ns->getLocStart());
-			if (nsLoc.isValid() && m_srcMgr->isBeforeInTranslationUnit(nsLoc, usingLoc) && IsAncestorByName(GetFileID(nsLoc), atFileID))
+			if (nsLoc.isValid() && isBeforeInTranslationUnit(nsLoc, usingLoc) && IsAncestorByName(GetFileID(nsLoc), atFileID))
 			{
 				bestNs = ns;
 				break;
@@ -1445,6 +1634,7 @@ void ParsingFile::UsingNamespace(const UsingDirectiveDecl *d)
 		Use(usingLoc, nsLoc, name.c_str());
 
 		m_usingNamespaces[usingLoc] = bestNs;
+		m_usingNamespacesByFile[GetFileID(usingLoc)][usingLoc] = bestNs;
 	}
 }
 
@@ -1461,7 +1651,8 @@ void ParsingFile::UsingXXX(const UsingDecl *d)
 			continue;
 		}
 
-		m_usings.push_back(d);
+		m_usings.push_back(shadowDecl);
+		m_usingsByFile[GetFileID(usingLoc)].push_back(shadowDecl);
 
 		std::string name;
 		GetNameForLog(name, "using " << shadowDecl->getQualifiedNameAsString() << "[" << nameDecl->getQualifiedNameAsString() << "]" << "[" << nameDecl->getDeclKindName() << "]");
@@ -1530,7 +1721,17 @@ FileID ParsingFile::GetBestAncestor(FileID a, FileID b) const
 			const FileSet &includes = itr->second;
 			for (FileID beInclude : includes)
 			{
-				if (Has(done, beInclude))
+				bool isDone = false;
+				for (FileID doneFile : done)
+				{
+					if (IsSameName(doneFile, beInclude))
+					{
+						isDone = true;
+						break;
+					}
+				}
+
+				if (isDone)
 				{
 					continue;
 				}
@@ -1566,7 +1767,7 @@ FileID ParsingFile::GetBestAncestor(FileID a, FileID b) const
 			search = b;
 		}
 
-		return GetOuterFileAncestor(search);
+		return search;
 	}
 	else
 	{
@@ -1588,10 +1789,13 @@ void ParsingFile::UseType(SourceLocation loc, const Type *t, const NestedNameSpe
 		const TypedefType *typedefType = cast<TypedefType>(t);
 		const TypedefNameDecl *typedefNameDecl = typedefType->getDecl();
 
-		SearchUsingAny(loc, specifier, typedefNameDecl);
-		UseNameDecl(loc, typedefNameDecl);
-
 		// 注：若该typedef的原型仍然是由其他的typedef声明而成，不需要继续分解
+		if (typedefNameDecl)
+		{
+			SearchUsingAny(loc, specifier, typedefNameDecl->getUnderlyingDecl());
+			UseNameDecl(loc, typedefNameDecl);
+			//UseVarType(loc, typedefNameDecl->getUnderlyingType(), specifier);
+		}
 	}
 	// 某个类型的代号，如：struct S或N::M::type
 	else if (isa<ElaboratedType>(t))
@@ -1600,13 +1804,17 @@ void ParsingFile::UseType(SourceLocation loc, const Type *t, const NestedNameSpe
 		UseQualType(loc, elaboratedType->getNamedType(), elaboratedType->getQualifier());
 
 		// 嵌套名称修饰
-		UseQualifier(loc, elaboratedType->getQualifier());
+		// UseQualifier(loc, elaboratedType->getQualifier());
 	}
 	else if (isa<TemplateSpecializationType>(t))
 	{
 		const TemplateSpecializationType *templateType = cast<TemplateSpecializationType>(t);
+		//templateType->dump();
 		UseTemplateDecl(loc, templateType->getTemplateName().getAsTemplateDecl());
 
+		SearchUsingAny(loc, specifier, templateType->getTemplateName().getAsTemplateDecl());
+
+		//templateType->getLocallyUnqualifiedSingleStepDesugaredType().dump();
 		for (int i = 0, size = templateType->getNumArgs(); i < size; ++i)
 		{
 			const TemplateArgument &arg = templateType->getArg((unsigned)i);
@@ -1890,15 +2098,41 @@ QualType ParsingFile::GetPointeeType(const QualType &var)
 // 新增使用变量记录
 void ParsingFile::UseVarType(SourceLocation loc, const QualType &var, const NestedNameSpecifier *specifier)
 {
-	if (IsForwardType(var) /* 该类型必须可前置声明 */ && !IsOuterFile(GetFileID(loc)) /* 不考虑在外部文件中生成前置声明 */ )
+	// 若该类型可前置声明
+	if (IsForwardType(var) )
 	{		
-		QualType pointeeType = GetPointeeType(var);
-
+		QualType pointeeType = GetPointeeType(var); 
 		const CXXRecordDecl *cxxRecordDecl = pointeeType->getAsCXXRecordDecl();
-		UseForward(loc, cxxRecordDecl, specifier);
+
+		// 外部文件中不生成前置声明
+		if (IsOuterFile(GetFileID(loc)))
+		{
+			FileID at = GetFileID(loc);
+
+			for (const TagDecl *redecl : cxxRecordDecl->redecls())
+			{
+				SourceLocation recordLoc = redecl->getLocStart();
+				FileID recordFile = GetFileID(recordLoc);
+
+				if (isBeforeInTranslationUnit(recordLoc, loc))
+				{
+					if (IsAncestorByName(recordFile, at) || IsSameName(recordFile, at))
+					{
+						return;
+					}
+				}
+			}
+
+			UseRecord(loc, cxxRecordDecl);
+		}
+		else
+		{
+			UseForward(loc, cxxRecordDecl, specifier);
+		}
 	}
 	else
 	{
+		//var->dump();
 		UseQualType(loc, var, specifier);
 	}
 }
@@ -1933,26 +2167,23 @@ void ParsingFile::UseConstructor(SourceLocation loc, const CXXConstructorDecl *c
 }
 
 // 引用变量声明
-void ParsingFile::UseVarDecl(SourceLocation loc, const VarDecl *var)
+void ParsingFile::UseVarDecl(SourceLocation loc, const VarDecl *var, const NestedNameSpecifier *specifier)
 {
 	if (nullptr == var)
 	{
 		return;
 	}
 
-	UseValueDecl(loc, var);
+	UseValueDecl(loc, var, specifier);
 }
 
 // 引用：变量声明（为左值）、函数标识、enum常量
-void ParsingFile::UseValueDecl(SourceLocation loc, const ValueDecl *valueDecl)
+void ParsingFile::UseValueDecl(SourceLocation loc, const ValueDecl *valueDecl, const NestedNameSpecifier *specifier)
 {
 	if (nullptr == valueDecl)
 	{
 		return;
 	}
-
-	UseContext(loc, valueDecl->getDeclContext());
-	//UseUsing(loc, valueDecl);
 
 	if (isa<TemplateDecl>(valueDecl))
 	{
@@ -1984,7 +2215,7 @@ void ParsingFile::UseValueDecl(SourceLocation loc, const ValueDecl *valueDecl)
 		Use(loc, valueDecl->getLocEnd(), name.c_str());
 	}
 
-	UseVarType(loc, valueDecl->getType());
+	UseVarType(loc, valueDecl->getType(), specifier);
 }
 
 // 引用带有名称的声明
@@ -1999,8 +2230,6 @@ void ParsingFile::UseNameDecl(SourceLocation loc, const NamedDecl *nameDecl)
 	GetNameForLog(name, nameDecl->getQualifiedNameAsString() << "[" << nameDecl->getDeclKindName() << "]");
 
 	Use(loc, nameDecl->getLocEnd(), name.c_str());
-	UseContext(loc, nameDecl->getDeclContext());
-	//UseUsing(loc, nameDecl);
 }
 
 // 新增使用函数声明记录
@@ -2016,7 +2245,7 @@ void ParsingFile::UseFuncDecl(SourceLocation loc, const FunctionDecl *f)
 	// 有时会出现函数重复声明，这时优先引用后代文件中的函数
 	for (const FunctionDecl *redeclFunc : f->redecls())
 	{
-		if (IsAncestorByName(GetFileID(redeclFunc->getLocation()), file))
+		if (IsAncestorByName(GetFileID(redeclFunc->getLocation()), file) && isBeforeInTranslationUnit(redeclFunc->getLocation(), loc))
 		{
 			f = redeclFunc;
 			break;
@@ -2034,7 +2263,10 @@ void ParsingFile::UseFuncDecl(SourceLocation loc, const FunctionDecl *f)
 	for (FunctionDecl::param_const_iterator itr = f->param_begin(), end = f->param_end(); itr != end; ++itr)
 	{
 		ParmVarDecl *vardecl = *itr;
-		UseVarDecl(loc, vardecl);
+		//vardecl->dump();
+
+		// UseQualType(loc, vardecl->getType(), vardecl->getQualifier());
+		UseVarDecl(loc, vardecl, vardecl->getQualifier());
 	}
 
 	if (f->getTemplateSpecializationArgs())
@@ -2148,7 +2380,6 @@ void ParsingFile::UseRecord(SourceLocation loc, const RecordDecl *record)
 	GetNameForLog(name, GetRecordName(*record) << "[" << ((Decl*)record)->getDeclKindName() << "]");
 
 	Use(loc, record->getLocStart(), name.c_str());
-	UseContext(loc, record->getDeclContext());
 }
 
 // 是否为系统头文件，例如<vector>、<iostream>等就是系统文件
@@ -2209,6 +2440,11 @@ void ParsingFile::PrintKidsByName()
 	for (auto &itr : m_kidsByName)
 	{
 		const std::string &parent = itr.first;
+		if (!IsNeedPrintFile(GetFileIDByFileName(parent.c_str())))
+		{
+			continue;
+		}
+
 		const FileNameSet &kids = itr.second;
 
 		div.AddRow("file = " + get_file_html(parent.c_str()) + ", kid num = " + get_number_html(kids.size()), 2);
@@ -2250,7 +2486,17 @@ string ParsingFile::DebugBeIncludeText(FileID file) const
 			}
 		}
 
-		return strtool::get_text(cn_file_debug_text, IsOuterFile(file) ? cn_outer_file_flag : "", get_file_html(fileName).c_str(),
+		const char *str_file_type = "";
+		if (IsSystemHeader(file))
+		{
+			str_file_type = cn_system_file_type;
+		}
+		else if (IsOuterFile(file))
+		{
+			str_file_type = cn_outer_file_type;
+		}
+
+		return strtool::get_text(cn_file_debug_text, str_file_type, get_file_html(fileName).c_str(),
 		                         file.getHashValue(), get_number_html(GetDeepth(file)).c_str(), ancestors.str().c_str());
 	}
 
@@ -2258,7 +2504,7 @@ string ParsingFile::DebugBeIncludeText(FileID file) const
 }
 
 // 搜寻所需的using namespace声明
-void ParsingFile::SearchUsingNamespace(SourceLocation loc, const NestedNameSpecifier *specifier, const DeclContext *context)
+bool ParsingFile::SearchUsingNamespace(SourceLocation loc, const NestedNameSpecifier *specifier, const DeclContext *context, bool mustAncestor)
 {
 	while (specifier && context)
 	{
@@ -2269,12 +2515,14 @@ void ParsingFile::SearchUsingNamespace(SourceLocation loc, const NestedNameSpeci
 	if (context && context->isNamespace())
 	{
 		const NamespaceDecl *namespaceDecl = cast<NamespaceDecl>(context);
-		UseUsingNamespace(loc, namespaceDecl);
+		return UseUsingNamespace(loc, namespaceDecl, mustAncestor);
 	}
+
+	return false;
 }
 
 // 搜寻所需的using声明
-void ParsingFile::SearchUsing(SourceLocation loc, const NestedNameSpecifier *specifier, const NamedDecl *nameDecl)
+bool ParsingFile::SearchUsingXXX(SourceLocation loc, const NestedNameSpecifier *specifier, const NamedDecl *nameDecl, bool mustAncestor)
 {
 	const DeclContext *context = nameDecl->getDeclContext();
 	while (specifier && context)
@@ -2285,8 +2533,10 @@ void ParsingFile::SearchUsing(SourceLocation loc, const NestedNameSpecifier *spe
 
 	if (context && !context->isTranslationUnit())
 	{
-		UseUsing(loc, nameDecl);
+		return UseUsing(loc, nameDecl, mustAncestor);
 	}
+
+	return false;
 }
 
 // 搜寻所需的using namespace或using声明
@@ -2297,8 +2547,29 @@ void ParsingFile::SearchUsingAny(SourceLocation loc, const NestedNameSpecifier *
 		return;
 	}
 
-	SearchUsingNamespace(loc, specifier, nameDecl->getDeclContext());
-	SearchUsing(loc, specifier, nameDecl);
+	bool mustAncestor = true;
+
+	if (SearchUsingXXX(loc, specifier, nameDecl, mustAncestor))
+	{
+		return;
+	}
+
+	if (SearchUsingNamespace(loc, specifier, nameDecl->getDeclContext(), mustAncestor))
+	{
+		return;
+	}
+
+	mustAncestor = true;
+
+	if (SearchUsingXXX(loc, specifier, nameDecl, mustAncestor))
+	{
+		return;
+	}
+
+	if (SearchUsingNamespace(loc, specifier, nameDecl->getDeclContext(), mustAncestor))
+	{
+		return;
+	}
 }
 
 // 获取文件信息
@@ -2323,7 +2594,7 @@ string ParsingFile::DebugLocText(SourceLocation loc) const
 inline const char* ParsingFile::GetFileName(FileID file) const
 {
 	const FileEntry *fileEntry = m_srcMgr->getFileEntryForID(file);
-	return fileEntry ? fileEntry->getName().data() : "";
+	return fileEntry ? fileEntry->getName() : "";
 }
 
 // 获取拼写位置
@@ -2871,6 +3142,7 @@ void ParsingFile::Print()
 		PrintParent();
 		PrintNamespace();
 		PrintUsingNamespace();
+		PrintUsingXXX();
 	}
 
 	HtmlLog::instance.AddDiv(div);
@@ -3060,8 +3332,20 @@ void ParsingFile::TakeAdd(FileHistory &history, FileID top, const std::map<FileI
 	}
 }
 
+// 计算下一层的祖先
+FileID ParsingFile::GetSecondAncestor(FileID top, FileID child) const
+{
+	auto includeItr = m_includes.find(GetLowerFileNameInCache(top));
+	if (includeItr == m_includes.end())
+	{
+		return FileID();
+	}
+
+	return FileID();
+}
+
 // 对新包含的文件进行排序，计算出每个文件应插入的位置
-void ParsingFile::SortAddFiles(FileID top, const FileSet &adds, const FileSet &keeps, FileID insertAfter, std::map<FileID, FileVec> &inserts) const
+void ParsingFile::SortAddFiles(FileID top, FileSet &adds, FileSet &keeps, FileSet &dels, FileID insertAfter, std::map<FileID, FileVec> &inserts) const
 {
 	if (insertAfter.isInvalid())
 	{
@@ -3069,12 +3353,18 @@ void ParsingFile::SortAddFiles(FileID top, const FileSet &adds, const FileSet &k
 		return;
 	}
 
+
+	const char* topFileName = GetLowerFileNameInCache(top);
+
+	LogInfoByLvl(LogLvl_3, "top --------> " << topFileName);
+
 	// 当前已被包含的后代文件列表
 	FileSet alreadyIncludes;
 
 	auto AddAlreadyIncludes = [&](FileID file)
 	{
 		file = GetFirstFileID(file);
+		alreadyIncludes.insert(file);
 
 		auto itr = m_minKids.find(file);
 		if (itr != m_minKids.end())
@@ -3087,79 +3377,179 @@ void ParsingFile::SortAddFiles(FileID top, const FileSet &adds, const FileSet &k
 	// 当前文件是否可被插入（要求当前文件所依赖的其他文件均已被包含）
 	auto CanInsert = [&](FileID file) -> bool
 	{
-		auto itr = m_minKids.find(file);
-		if (itr != m_minKids.end())
+		auto useItr = m_userUses.find(GetLowerFileNameInCache(file));
+		auto kidItr = m_minKids.find(file);
+
+		if (useItr != m_userUses.end())
 		{
-			const FileSet &kids = itr->second;
-			for (FileID kid : kids)
+			const FileSet &useList = useItr->second;
+			for (FileID beUse : useList)
 			{
-				if (!Has(alreadyIncludes, kid))
+				bool can = Has(alreadyIncludes, beUse);
+				if (!can)
 				{
+					if (kidItr != m_minKids.end())
+					{
+						can = Has(kidItr->second, beUse);
+					}
+				}
+
+				if (!can)
+				{
+					LogInfoByLvl(LogLvl_3, "CanInsert = false, " << GetLowerFileNameInCache(file));
 					return false;
 				}
 			}
 
+			LogInfoByLvl(LogLvl_3, "CanInsert = true, " << GetLowerFileNameInCache(file));
 			return true;
 		}
 		else
 		{
-			auto useItr = m_userUses.find(GetLowerFileNameInCache(file));
-			if (useItr != m_userUses.end())
-			{
-				const FileSet &useList = useItr->second;
-				for (FileID beUse : useList)
-				{
-					if (!Has(alreadyIncludes, beUse))
-					{
-						return false;
-					}
-				}
-
-				return true;
-			}
+			LogInfoByLvl(LogLvl_3, "CanInsert = true, " << GetLowerFileNameInCache(file));
+			return true;
 		}
 
 		return false;
+	};
+
+	auto GetInsertFile = [&](FileID file, const FileSet &finalKeeps) -> FileID
+	{
+		auto useItr = m_userUses.find(GetLowerFileNameInCache(file));
+		if (useItr == m_userUses.end())
+		{
+			return FileID();
+		}
+
+		const FileSet &useList = useItr->second;
+
+		FileID insertFile;
+
+		for (FileID beUse : useList)
+		{
+			FileID sameNameFile;
+
+			for (FileID keep : finalKeeps)
+			{
+				if (IsSameName(keep, beUse))
+				{
+					LogInfoByLvl(LogLvl_3, "IsSameName = " << GetLowerFileNameInCache(keep) << ", at = " << DebugBeIncludeText(keep));
+					sameNameFile = keep;
+					break;
+				}
+
+				auto kidItr = m_minKids.find(GetFirstFileID(keep));
+				if (kidItr != m_minKids.end())
+				{
+					const FileSet &kids = kidItr->second;
+
+					for (FileID kid : kids)
+					{
+						if (IsSameName(kid, beUse))
+						{
+							LogInfoByLvl(LogLvl_3, "IsSameName kid = " << GetLowerFileNameInCache(kid) << ", at = " << DebugBeIncludeText(keep));
+							sameNameFile = keep;
+							break;
+						}
+					}
+				}
+
+				if (sameNameFile.isValid())
+				{
+					break;
+				}
+			}
+
+			if (sameNameFile.isInvalid())
+			{
+				continue;
+			}
+
+			LogInfoByLvl(LogLvl_3, "IsFileBeforeFile(insertFile, sameNameFile) = " << IsFileBeforeFile(insertFile, sameNameFile) << ", " << DebugBeIncludeText(insertFile));
+			LogInfoByLvl(LogLvl_3, "IsFileBeforeFile(insertFile, sameNameFile) = " << IsFileBeforeFile(insertFile, sameNameFile) << ", " << DebugBeIncludeText(sameNameFile));
+			
+			if (insertFile.isInvalid() || IsFileBeforeFile(insertFile, sameNameFile))
+			{
+				LogInfoByLvl(LogLvl_3, "temp insert file = " << DebugBeIncludeText(sameNameFile));
+				insertFile = sameNameFile;
+			}
+		}
+
+		return insertFile;
 	};
 
 	//------ 开始排序，每个文件有自己依赖的文件集，一个个试过去，所依赖的文件均被包含后才允许插入 ------//
 
 	bool isAfterFirstInsert = false;
 
-	FileSet remainAdds(adds);
+	FileSet &remainAdds = adds;
+
+	FileID lastInsert = insertAfter;
+	FileSet finalKeeps;
 
 	for (FileID keep : keeps)
 	{
-		AddAlreadyIncludes(keep);
-
-		if (!isAfterFirstInsert && keep >= insertAfter)
+		if (!CanInsert(keep))
 		{
-			isAfterFirstInsert = true;
+			remainAdds.insert(keep);
 		}
-
-		if (!isAfterFirstInsert)
+		else
 		{
-			continue;
+			LogInfoByLvl(LogLvl_3, "ok keep = " << GetLowerFileNameInCache(keep));
+			AddAlreadyIncludes(keep);
+			finalKeeps.insert(keep);
+			// lastInsert = keep;
 		}
-
-		EraseIf(remainAdds, [&](FileID add)
-		{
-			bool canInsert = CanInsert(add);
-			if (canInsert)
-			{
-				inserts[keep].push_back(add);
-				AddAlreadyIncludes(add);
-				return true;
-			}
-
-			return canInsert;
-		});
 	}
+
+	while (!remainAdds.empty())
+	{
+		int before_size = (int)remainAdds.size();
+		LogInfoByLvl(LogLvl_3, "before_size = " << before_size);
+
+		for (FileID add : remainAdds)
+		{
+			if (CanInsert(add))
+			{
+				FileID insertFile = GetInsertFile(add, finalKeeps);
+				if (insertFile.isValid())
+				{
+					lastInsert = insertFile;
+				}
+
+				LogInfoByLvl(LogLvl_3, "ok add = " << GetLowerFileNameInCache(add) << ", insert at = " << GetLowerFileNameInCache(lastInsert));
+
+				if (Has(keeps, add))
+				{
+					dels.insert(add);
+				}
+
+				remainAdds.erase(add);
+
+				inserts[lastInsert].push_back(add);
+				AddAlreadyIncludes(add);
+				break;
+			}
+		}
+
+		int after_size = (int)remainAdds.size();
+		LogInfoByLvl(LogLvl_3, "after_size = " << after_size);
+
+		if (after_size >= before_size)
+		{
+			break;
+		}
+	}
+
+	Del(remainAdds, keeps);
+
+	LogInfoByLvl(LogLvl_3, "");
 
 	// 随便处理残留的新增#include
 	for (FileID add : remainAdds)
 	{
-		inserts[insertAfter].push_back(add);
+		LogInfoByLvl(LogLvl_3, "remain add &&&&&&&&&&&&>" << GetLowerFileNameInCache(add));
+		inserts[lastInsert].push_back(add);
 	}
 }
 
@@ -3250,23 +3640,25 @@ void ParsingFile::TakeHistory(FileID top, FileHistory &history) const
 	// 2. 最后，新旧文件列表可能还剩余一些文件，处理方法是：直接删掉旧的、添加新的
 
 	// 应添加
-	const FileSet &dels = oldIncludes;
+	FileSet &dels = oldIncludes;
 
 	// 应删除
 	FileSet &adds = newIncludes;
 
 	//--------------- 二、开始取出分析结果 ---------------//
 
+	FileID insertAfter = CalcInsertLoc(includeItr->second, dels);
+
+	std::map<FileID, FileVec> inserts;
+	SortAddFiles(top, adds, keeps, dels, insertAfter, inserts);
+
 	// 1. 取出删除#include记录
 	TakeDel(history, dels);
 
 	// 2. 取出新增前置声明记录
-	FileID insertAfter = CalcInsertLoc(includeItr->second, dels);
 	TakeForwardClass(history, insertAfter, top);
 
 	// 3. 取出新增#include记录
-	std::map<FileID, FileVec> inserts;
-	SortAddFiles(top, adds, keeps, insertAfter, inserts);
 	TakeAdd(history, top, inserts);
 }
 
@@ -3629,6 +4021,29 @@ void ParsingFile::PrintUsingNamespace() const
 	}
 }
 
+// 打印各文件内的using
+void ParsingFile::PrintUsingXXX() const
+{
+	HtmlDiv &div = HtmlLog::instance.m_newDiv;
+	div.AddRow(AddPrintIdx() + ". each file's using xxx", 1);
+
+	for (const UsingShadowDecl* usingDecl : m_usings)
+	{
+		SourceLocation loc = usingDecl->getLocation();
+		FileID file = GetFileID(loc);
+		
+		if (!IsNeedPrintFile(file))
+		{
+			continue;
+		}
+
+		NamedDecl *usingNameDecl = usingDecl->getTargetDecl();
+
+		div.AddRow("at loc = " + DebugLocText(loc), 2);
+		div.AddRow("using xxx = " + get_include_html(usingNameDecl->getQualifiedNameAsString()), 3);
+	}
+}
+
 // 打印被包含多次的文件
 void ParsingFile::PrintSameFile() const
 {
@@ -3740,7 +4155,7 @@ void ParsingFile::PrintUserUse() const
 	{
 		const std::string &top = itr.first;
 
-		div.AddRow("fileName = " + top, 2);
+		div.AddRow("fileName = [" + top + "]", 2);
 
 		for (FileID beuse : itr.second)
 		{

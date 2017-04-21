@@ -2,7 +2,6 @@
 //< @file:   cxx_clean.h
 //< @author: 洪坤安
 //< @brief:  实现clang库中与抽象语法树有关的各种基础类
-//< Copyright (c) 2016 game. All rights reserved.
 ///<------------------------------------------------------------------------------
 
 #ifndef _cxx_clean_h_

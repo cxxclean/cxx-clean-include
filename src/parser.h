@@ -2,7 +2,6 @@
 // 文件: parser.h
 // 作者: 洪坤安
 // 说明: 解析当前cpp文件
-// Copyright (c) 2016 game. All rights reserved.
 //------------------------------------------------------------------------------
 
 #ifndef _parser_h_
@@ -49,6 +48,7 @@ namespace clang
 	class TemplateDecl;
 	class CXXConstructorDecl;
 	class DeclContext;
+	class UsingShadowDecl;
 }
 
 // [文件名] -> [路径类别：系统路径或用户路径]
@@ -58,7 +58,7 @@ typedef std::map<string, SrcMgr::CharacteristicKind> IncludeDirMap;
 typedef std::set<const CXXRecordDecl*> RecordSet;
 
 // using列表
-typedef std::vector<const UsingDecl*> UsingVec;
+typedef std::vector<const UsingShadowDecl*> UsingVec;
 
 // [位置] -> [使用的class、struct引用或指针]
 typedef std::map<SourceLocation, RecordSet> LocUseRecordsMap;
@@ -189,10 +189,10 @@ public:
 	void UseConstructor(SourceLocation loc, const CXXConstructorDecl *constructor);
 
 	// 引用变量声明
-	void UseVarDecl(SourceLocation loc, const VarDecl *var);
+	void UseVarDecl(SourceLocation loc, const VarDecl *var, const NestedNameSpecifier *specifier = nullptr);
 
 	// 引用变量声明（为左值）、函数表示、enum常量
-	void UseValueDecl(SourceLocation loc, const ValueDecl *valueDecl);
+	void UseValueDecl(SourceLocation loc, const ValueDecl *valueDecl, const NestedNameSpecifier *specifier = nullptr);
 
 	// 引用带有名称的声明
 	void UseNameDecl(SourceLocation loc, const NamedDecl *nameDecl);
@@ -236,20 +236,22 @@ public:
 	// 引用命名空间声明
 	void UseNamespaceDecl(SourceLocation loc, const NamespaceDecl*);
 
+	bool isBeforeInTranslationUnit(SourceLocation LHS, SourceLocation RHS) const;
+
 	// 引用using namespace声明
-	void UseUsingNamespace(SourceLocation loc, const NamespaceDecl*);
+	bool UseUsingNamespace(SourceLocation loc, const NamespaceDecl*, bool mustAncestor);
 
 	// 搜寻所需的using namespace声明
-	void SearchUsingNamespace(SourceLocation loc, const NestedNameSpecifier *specifier, const DeclContext *context);
+	bool SearchUsingNamespace(SourceLocation loc, const NestedNameSpecifier *specifier, const DeclContext *context, bool mustAncestor);
 
 	// 搜寻所需的using声明
-	void SearchUsing(SourceLocation loc, const NestedNameSpecifier *specifier, const NamedDecl *nameDecl);
+	bool SearchUsingXXX(SourceLocation loc, const NestedNameSpecifier *specifier, const NamedDecl *nameDecl, bool mustAncestor);
 
 	// 搜寻所需的using namespace或using声明
 	void SearchUsingAny(SourceLocation loc, const NestedNameSpecifier *specifier, const NamedDecl *nameDecl);
 
 	// 引用using声明
-	void UseUsing(SourceLocation loc, const NamedDecl*);
+	bool UseUsing(SourceLocation loc, const NamedDecl*, bool mustAncestor);
 
 	// 引用命名空间别名
 	void UseNamespaceAliasDecl(SourceLocation loc, const NamespaceAliasDecl*);
@@ -525,9 +527,12 @@ private:
 
 	// 取出新增包含文件信息
 	void TakeAdd(FileHistory &history, FileID top, const std::map<FileID, FileVec> &inserts) const;
+	
+	// 计算下一层的祖先
+	FileID GetSecondAncestor(FileID top, FileID child) const;
 
 	// 对新包含的文件进行排序，计算出每个文件应插入的位置
-	void SortAddFiles(FileID top, const FileSet &adds, const FileSet &keeps, FileID insertAfter, std::map<FileID, FileVec> &inserts) const;
+	void SortAddFiles(FileID top, FileSet &adds, FileSet &keeps, FileSet &dels, FileID insertAfter, std::map<FileID, FileVec> &inserts) const;	
 
 	// 计算出应在哪一行旧#include后插入新#include
 	FileID CalcInsertLoc(const FileSet &includes, const FileSet &dels) const;
@@ -575,6 +580,9 @@ private:
 
 	// 打印各文件内的using namespace
 	void PrintUsingNamespace() const;
+
+	// 打印各文件内的using
+	void PrintUsingXXX() const;
 
 	// 打印头文件搜索路径
 	void PrintHeaderSearchPath() const;
@@ -664,10 +672,18 @@ private:
 	//------ 3. 与using有关的记录 ------//
 
 	// using namespace记录（例如：using namespace std;）：[using namespace的位置] -> [对应的namespace定义]
+	typedef map<SourceLocation, const NamespaceDecl*> UsingNamespaceLocMap;
 	map<SourceLocation, const NamespaceDecl*>	m_usingNamespaces;
+
+	// 各文件中的using namespace记录
+	map<FileID, UsingNamespaceLocMap>			m_usingNamespacesByFile;
 	
 	// using记录（例如：using std::string;）：[using的目标对应的位置] -> [using声明]
 	UsingVec									m_usings;
+
+	// 各文件中的using记录
+	typedef std::map<FileID, UsingVec> UsingByFileMap;
+	UsingByFileMap								m_usingsByFile;
 
 	// 仅用于打印：各文件内声明的命名空间记录：[文件] -> [该文件内的命名空间记录]
 	std::map<FileID, std::set<std::string>>		m_namespaces;

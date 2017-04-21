@@ -2,7 +2,6 @@
 // 文件: history.cpp
 // 作者: 洪坤安
 // 说明: 各文件的清理历史
-// Copyright (c) 2016 game. All rights reserved.
 //------------------------------------------------------------------------------
 
 #include "history.h"
@@ -282,7 +281,6 @@ void ProjectHistory::Print() const
 	}
 
 	HtmlLog::instance.AddDiv(div);
-	HtmlLog::instance.EndLog();
 }
 
 // 打印各文件被标记为不可删除的行

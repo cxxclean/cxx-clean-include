@@ -2,7 +2,6 @@
 // 文件: tool.cpp
 // 作者: 洪坤安
 // 说明: 本工具用到的各种基础接口
-// Copyright (c) 2016 game. All rights reserved.
 //------------------------------------------------------------------------------
 
 #include "tool.h"
@@ -27,6 +26,20 @@
 
 namespace strtool
 {
+	std::string& trim(std::string &s)
+	{
+		if (s.empty())
+		{
+			return s;
+		}
+
+		s.erase(0, s.find_first_not_of(" "));
+		s.erase(0, s.find_first_not_of("\t"));
+		s.erase(s.find_last_not_of(" ") + 1);
+		s.erase(s.find_last_not_of("\t") + 1);
+		return s;
+	}
+
 	std::string itoa(int n)
 	{
 		char buf[14];
@@ -42,7 +55,8 @@ namespace strtool
 		return n;
 	}
 
-	std::string tolower(const char* str)
+	// 变小写
+	std::string tolower(const char *str)
 	{
 		std::string s(str);
 		std::transform(s.begin(), s.end(), s.begin(), ::tolower);
@@ -94,12 +108,10 @@ namespace strtool
 		return replace(str, old, len_old, to, len_to);
 	}
 
+	// 将字符串根据分隔符分割为字符串数组
 	void split(const std::string &src, std::vector<std::string> &strvec, char cut /* = ';' */)
 	{
-		std::string::size_type pos1 = 0;
-		std::string::size_type pos2 = 0;
-		std::string::size_type len = src.size();
-
+		std::string::size_type pos1 = 0, pos2 = 0;
 		while (pos2 != std::string::npos)
 		{
 			pos1 = src.find_first_not_of(cut, pos2);
@@ -111,18 +123,19 @@ namespace strtool
 			pos2 = src.find_first_of(cut, pos1 + 1);
 			if (pos2 == std::string::npos)
 			{
-				if (pos1 < len)
+				if (pos1 != src.size())
 				{
 					strvec.push_back(src.substr(pos1));
 				}
+
+				break;
 			}
-			else
-			{
-				strvec.push_back(src.substr(pos1, pos2 - pos1));
-			}
+
+			strvec.push_back(src.substr(pos1, pos2 - pos1));
 		}
 	}
 
+	// 返回文件夹路径，返回结果末尾含'/'或'\'
 	string get_dir(const string &path)
 	{
 		if(path.empty())
@@ -152,6 +165,7 @@ namespace strtool
 		return string(path.begin(), path.begin() + i);
 	}
 
+	// 移掉路径，只返回文件名称
 	string strip_dir(const string &path)
 	{
 		if(path.empty())
@@ -171,6 +185,7 @@ namespace strtool
 		return path.c_str() + (i + 1);
 	}
 
+	// 从左数起直到指定分隔符的字符串
 	string trip_at(const string &str, char delimiter)
 	{
 		string::size_type pos = str.find(delimiter);
@@ -182,6 +197,7 @@ namespace strtool
 		return string(str.begin(), str.begin() + pos);
 	}
 
+	// 从右数起直到指定分隔符的字符串
 	string r_trip_at(const string &str, char delimiter)
 	{
 		string::size_type pos = str.rfind(delimiter);
@@ -193,6 +209,7 @@ namespace strtool
 		return string(str.begin() + pos + 1, str.end());
 	}
 
+	// 获取文件后缀
 	string get_ext(const string &path)
 	{
 		string file = strip_dir(path);
@@ -204,24 +221,12 @@ namespace strtool
 		return r_trip_at(file, '.');
 	}
 
-	std::string& trim(std::string &s)
-	{
-		if (s.empty())
-		{
-			return s;
-		}
-
-		s.erase(0, s.find_first_not_of(" "));
-		s.erase(0, s.find_first_not_of("\t"));
-		s.erase(s.find_last_not_of(" ") + 1);
-		s.erase(s.find_last_not_of("\t") + 1);
-		return s;
-	}
+	// 打印
+	char g_sprintfBuf[10 * 1024] = {0};
+	wchar_t g_swprintfBuf[10 * 1024] = { 0 };
 
 	const char* get_text(const char* fmt, ...)
 	{
-		static char g_sprintfBuf[10 * 1024] = {0};
-
 		va_list args;
 		va_start(args, fmt);
 		vsprintf_s(g_sprintfBuf, sizeof(g_sprintfBuf), fmt, args);
@@ -329,6 +334,7 @@ namespace pathtool
 		return to_linux_path(relative_path.c_str());
 	}
 
+	// 将路径转成linux路径格式：将路径中的每个'\'字符均替换为'/'
 	string to_linux_path(const char *path)
 	{
 		string ret = path;
@@ -346,7 +352,8 @@ namespace pathtool
 		return ret;
 	}
 
-	string fix_path(const string& path)
+	// 强制将路径以/结尾，将路径中的每个'\'字符均替换为'/'
+	string fix_path(const string &path)
 	{
 		string ret = to_linux_path(path.c_str());
 
@@ -499,6 +506,7 @@ namespace pathtool
 		return "";
 	}
 
+	// 获取小写的文件路径
 	string get_lower_absolute_path(const char *path)
 	{
 		return tolower(get_absolute_path(path));
@@ -509,24 +517,27 @@ namespace pathtool
 		return tolower(get_absolute_path(base_path, relative_path));
 	}
 
+	// 改变当前文件夹
 	bool cd(const char *path)
 	{
 		return 0 == _chdir(path);
 	}
 
+	// 指定路径是否存在
 	bool is_dir_exist(const std::string &dir)
 	{
 		struct _stat fileStat;
 		return  ((_stat(dir.c_str(), &fileStat) == 0) && (fileStat.st_mode & _S_IFDIR));
 	}
 
+	// 指定路径是否存在，可为文件路径或者文件夹路径
 	bool exist(const std::string &path)
 	{
 		return _access(path.c_str(), 0) != -1;
 	}
 
-	typedef std::vector<string> filevec_t;
-	bool dir(const std::string &path, /* out */filevec_t &files)
+	// 列出指定文件夹下的文件名列表（子文件夹将被忽略），含义如windows命令行下的dir
+	bool dir(const std::string &path, FileNameVec &files)
 	{
 		struct _finddata_t filefind;
 
@@ -550,6 +561,12 @@ namespace pathtool
 		return true;
 	}
 
+	// 文件是否在指定文件夹下（含子文件夹）
+	bool is_at_folder(const char *folder, const char *file)
+	{
+		return start_with(file, folder);
+	}
+
 	// 列出指定文件夹下的文件名列表（含子文件夹下的文件）
 	bool ls(const string &path, FileNameVec &files)
 	{
@@ -566,7 +583,7 @@ namespace pathtool
 		struct _finddata_t fileinfo;
 
 		int handle = _findfirst(fixedPath.c_str(), &fileinfo);
-		if(-1 == handle)
+		if (-1 == handle)
 		{
 			return false;
 		}
@@ -603,9 +620,59 @@ namespace pathtool
 	}
 }
 
+namespace htmltool
+{
+	std::string escape_html(const char* html)
+	{
+		return escape_html(std::string(html));
+	}
+
+	std::string escape_html(const std::string &html)
+	{
+		std::string ret(html);
+
+		strtool::replace(ret, "<", "&lt;");
+		strtool::replace(ret, ">", "&gt;");
+
+		return ret;
+	}
+
+	std::string get_file_html(const char *filename)
+	{
+		std::string html = R"--(<a href="#{file}">#{file}</a>)--";
+		strtool::replace(html, "#{file}", filename);
+
+		return html;
+	}
+
+	std::string get_short_file_name_html(const char *filename)
+	{
+		std::string html = R"--(<a href="#{filepath}">#{filename}</a>)--";
+		strtool::replace(html, "#{filepath}", filename);
+		strtool::replace(html, "#{filename}", pathtool::get_file_name(filename).c_str());
+
+		return html;
+	}
+
+	std::string get_include_html(const std::string &text)
+	{
+		return strtool::get_text(R"--(<span class="src">%s</span>)--", htmltool::escape_html(text).c_str());
+	}
+
+	std::string get_number_html(int num)
+	{
+		return strtool::get_text(R"--(<span class="num">%s</span>)--", strtool::itoa(num).c_str());
+	}
+
+	std::string get_warn_html(const char *text)
+	{
+		return strtool::get_text(R"--(<span class="num">%s</span>)--", text);
+	}
+}
+
 namespace timetool
 {
-	std::string get_now(const char* format /* = "%04d/%02d/%02d-%02d:%02d:%02d" */)
+	std::string get_now(const char* format)
 	{
 		if (strtool::is_empty(format))
 		{
@@ -615,12 +682,29 @@ namespace timetool
 		time_t now;
 		time(&now);
 
-		tm *localnow = localtime(&now); // 转为本时区时间
+		// 转为本时区时间
+		tm *localnow = localtime(&now);
 
 		char buf[128] = { 0 };
-		sprintf_s(buf, sizeof(buf), format, 1900 + localnow->tm_year, 1 + localnow->tm_mon, localnow->tm_mday,
-		          localnow->tm_hour, localnow->tm_min, localnow->tm_sec);
+		sprintf_s(buf, sizeof(buf), format,
+				  1900 + localnow->tm_year, 1 + localnow->tm_mon, localnow->tm_mday,
+				  localnow->tm_hour, localnow->tm_min, localnow->tm_sec
+				 );
+
 		return buf;
+	}
+}
+
+namespace logtool
+{
+	llvm::raw_ostream &log()
+	{
+		if (HtmlLog::instance.m_log)
+		{
+			return *HtmlLog::instance.m_log;
+		}
+
+		return llvm::errs();
 	}
 }
 

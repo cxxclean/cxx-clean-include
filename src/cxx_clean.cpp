@@ -2,7 +2,6 @@
 //< @file  : cxx_clean.cpp
 //< @author: 洪坤安
 //< @brief : 实现clang库中与抽象语法树有关的各种基础类
-//< Copyright (c) 2016. All rights reserved.
 ///<------------------------------------------------------------------------------
 
 #include "cxx_clean.h"
@@ -260,7 +259,7 @@ bool CxxCleanASTVisitor::VisitStmt(Stmt *s)
 	else if (isa<UnresolvedMemberExpr>(s)){}
 	else
 	{
-		HtmlLog::GetLog() << "<pre>------------ havn't support stmt ------------:</pre>\n";
+		log() << "<pre>------------ havn't support stmt ------------:</pre>\n";
 		PrintStmt(s);
 	}
 	*/
@@ -372,14 +371,14 @@ bool CxxCleanASTVisitor::VisitVarDecl(VarDecl *var)
 	// 注意：本方法涵盖了1. 函数形参 2. 非类成员的变量声明 3. 类成员但含有static修饰符，等等
 
 	// 引用变量的类型
-	m_root->UseVarDecl(loc, var);
+	m_root->UseVarDecl(loc, var, var->getQualifier());
 
 	// 类的static成员变量（支持模板类的成员）
 	if (var->isCXXClassMember())
 	{
 		// 若为static成员变量的实现，则引用其声明（注：也可以用isStaticDataMember方法来判断var是否为static成员变量）
 		const VarDecl *prevVar = var->getPreviousDecl();
-		m_root->UseVarDecl(loc, prevVar);
+		m_root->UseVarDecl(loc, prevVar, var->getQualifier());
 	}
 
 	if (var->hasExternalStorage())
@@ -388,7 +387,7 @@ bool CxxCleanASTVisitor::VisitVarDecl(VarDecl *var)
 		{
 			if (!next->hasExternalStorage())
 			{
-				m_root->UseVarDecl(next->getLocStart(), var);
+				m_root->UseVarDecl(next->getLocStart(), var, var->getQualifier());
 			}
 		}
 	}
@@ -516,16 +515,16 @@ void CxxCleanASTConsumer::HandleTranslationUnit(ASTContext& context)
 	// 用于调试：打印语法树
 	if (Project::instance.m_logLvl >= LogLvl_Max)
 	{
-		std::string log;
-		raw_string_ostream logStream(log);
+		std::string strLog;
+		raw_string_ostream logStream(strLog);
 		context.getTranslationUnitDecl()->dump(logStream);
 		logStream.flush();
 
-		HtmlLog::GetLog() << "<div class=\"box\"><div><dl><dd><div><span class=\"bold\">------------ HandleTranslationUnit begin ------------</span>";
-		HtmlLog::GetLog() << m_root->DebugBeIncludeText(m_root->GetSrcMgr().getMainFileID());
-		HtmlLog::GetLog() << "<pre>";
-		HtmlLog::GetLog() << escape_html(log);
-		HtmlLog::GetLog() << "</pre><span class=\"bold\">------------ HandleTranslationUnit end ------------</span></div></dd></dl></div></div>\n";
+		log() << "<div class=\"box\"><div><dl><dd><div><span class=\"bold\">------------ HandleTranslationUnit begin ------------</span>";
+		log() << m_root->DebugBeIncludeText(m_root->GetSrcMgr().getMainFileID());
+		log() << "<pre>";
+		log() << escape_html(strLog);
+		log() << "</pre><span class=\"bold\">------------ HandleTranslationUnit end ------------</span></div></dd></dl></div></div>\n";
 	}
 
 	// 1. 当前cpp文件分析开始
@@ -645,7 +644,7 @@ static cl::opt<string>	g_vsOption		("vs", cl::desc("clean visual studio project(
 static cl::opt<bool>	g_noOverWrite	("no", cl::desc("means no overwrite, all c++ file will not be changed"), cl::cat(g_optionCategory));
 static cl::opt<bool>	g_onlyCleanCpp	("onlycpp", cl::desc("only allow clean cpp file(cpp, cc, cxx), don't clean the header file(h, hxx, hh)"), cl::cat(g_optionCategory));
 static cl::opt<bool>	g_printVsConfig	("print-vs", cl::desc("print vs configuration"), cl::cat(g_optionCategory));
-static cl::opt<int>		g_logLevel		("v", cl::desc("log level(verbose level), level can be 0 ~ 6, default is 1, higher level will print more detail"), cl::cat(g_optionCategory));
+static cl::opt<int>		g_logLevel		("v", cl::desc("log level(verbose level), level can be 0 ~ 4, default is 1, higher level will print more detail"), cl::cat(g_optionCategory));
 static cl::list<string>	g_skips			("skip", cl::desc("skip files"), cl::cat(g_optionCategory));
 static cl::opt<string>	g_cleanOption	("clean",
         cl::desc("format:\n"
@@ -683,7 +682,7 @@ bool CxxCleanOptionsParser::ParseOptions(int &argc, const char **argv)
 	// 存下忽略文件-skip选项的值
 	Add(Project::instance.m_skips, g_skips);
 
-	HtmlLog::instance.BeginLog();
+	HtmlLog::instance.Open();
 
 	if (g_printVsConfig)
 	{
@@ -1001,6 +1000,12 @@ bool CxxCleanOptionsParser::ParseCleanOption()
 		Add(project.m_canCleanFiles, project.m_cpps);
 	}
 
+	if (vsOption == clean_option && !vsOption.empty())
+	{
+		Log("error! need select c++ file of visual studio project <" << vsOption << ">!");
+		return false;
+	}
+
 	return true;
 }
 
@@ -1034,10 +1039,10 @@ static cl::extrahelp MoreHelp(
     "\n    1. for msvc project(visual studio 2005 and upper)"
     "\n"
     "\n        -> clean the whole msvc project:"
-    "\n            cxxclean -clean hello.vcproj"
+    "\n            cxxclean -vs hello.vcproj"
     "\n"
     "\n        -> only want to clean a single c++ file, and using the vs configuration:"
-    "\n            cxxclean -clean hello.vcproj -src hello.cpp"
+    "\n            cxxclean -vs hello.vcproj -clean hello.cpp"
     "\n"
     "\n    2. for a directory"
     "\n"
@@ -1045,5 +1050,5 @@ static cl::extrahelp MoreHelp(
     "\n            cxxclean -clean ./hello"
     "\n"
     "\n        -> only clean a single c++ file, you can use:"
-    "\n            cxxclean -clean ./hello -src hello.cpp"
+    "\n            cxxclean -clean hello.cpp"
 );

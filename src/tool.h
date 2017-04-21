@@ -2,7 +2,6 @@
 // 文件: tool.h
 // 作者: 洪坤安
 // 说明: 本工具用到的各种基础接口
-// Copyright (c) 2016 game. All rights reserved.
 //------------------------------------------------------------------------------
 
 #ifndef _tool_h_
@@ -11,13 +10,18 @@
 #include <iterator>
 #include <vector>
 
+namespace llvm
+{
+	class raw_ostream;
+}
+
 using namespace std;
 
-#define Log(text)		llvm::errs() << text << "\n"
 #define LogInfo(text)	llvm::errs() << "==>[Info][" << __FUNCTION__ << "][" << __LINE__<< "] " << text << "\n"
 #define LogError(text)	llvm::errs() << "==>[Error][" << __FUNCTION__ << "][" << __LINE__<< "] " << text << "\n"
 #define LogInfoByLvl(logLvl, text)	if (Project::instance.m_logLvl >= logLvl) { LogInfo(text); }
 #define LogErrorByLvl(logLvl, text)	if (Project::instance.m_logLvl >= logLvl) { LogError(text); }
+#define Log(text)		llvm::errs() << text << "\n"
 #define GetNameForLog(name, text) if (Project::instance.m_logLvl >= LogLvl_2) { std::stringstream ss; ss << text << "[" << __FUNCTION__ << "][line=" << __LINE__<< "]"; name = ss.str(); }
 
 namespace strtool
@@ -54,6 +58,7 @@ namespace strtool
 		return 0 == strnicmp(a, b, strlen(a));
 	}
 
+	std::string& trim(std::string &s);
 	std::string itoa(int n);
 
 	int atoi(const char*);
@@ -73,7 +78,7 @@ namespace strtool
 	// 将字符串根据分隔符分割为字符串数组
 	void split(const std::string &src, std::vector<std::string> &strvec, char cut = ';');
 
-	// 返回文件夹路径，返回结果末尾含/或\
+	// 返回文件夹路径，返回结果末尾含'/'或'\'
 	// 例如：get_dir(../../xxxx.txt) = ../../
 	string get_dir(const string &path);
 
@@ -139,6 +144,12 @@ namespace strtool
 	{
 		return (strstr(text, pattern) != nullptr);
 	}
+	
+	// 是否包含指定字符串
+	inline bool contain(const std::string &text, const char *x)
+	{
+		return text.find(x) != std::string::npos;
+	}
 
 	// 若以指定前缀开头，则移除前缀并返回剩下的字符串
 	inline bool try_strip_left(string& str, const string& prefix)
@@ -151,8 +162,6 @@ namespace strtool
 
 		return false;
 	}
-
-	std::string& trim(std::string &s);
 
 	// 字符串 -> 宽字符串
 	std::wstring s2ws(const std::string& s);
@@ -181,14 +190,17 @@ namespace pathtool
 
 	std::string append_path(const char* a, const char* b);
 
-	// 令path_1为当前路径，返回path_2的相对路径
-	// 例如：
-	//		get_relative_path("d:/a/b/c/hello1.cpp", "d:/a/b/c/d/e/f/g/hello2.cpp") = d/e/f/g/hello2.cpp
-	//		get_relative_path("d:/a/b/c/d/e/f/g/hello2.cpp", "d:/a/b/c/hello1.cpp") = ../../../../hello1.cpp
+	/*
+		令path_1为当前路径，返回path_2的相对路径
+		例如：
+			get_relative_path("d:/a/b/c/hello1.cpp", "d:/a/b/c/d/e/f/g/hello2.cpp") = d/e/f/g/hello2.cpp
+			get_relative_path("d:/a/b/c/d/e/f/g/hello2.cpp", "d:/a/b/c/hello1.cpp") = ../../../../hello1.cpp
+
+	*/
 	std::string get_relative_path(const char *path_1, const char *path_2);
 	
 	// 返回简化后的绝对路径，若传入相对路径，则结果 = 简化（当前路径 + 相对路径），若传入绝对路径，结果 = 简化后的绝对路径
-	// 例如：令当前路径为：d:/a/b/c/，则
+	// 例如：假设当前路径为：d:/a/b/c/，则
 	//		get_absolute_path("../../d/e/hello2.cpp") = "d:/a/b/d/e/hello2.cpp"
 	//		get_absolute_path("d:/a/b/c/../../d/") = "d:/a/d/"
 	string get_absolute_path(const char *path);
@@ -222,20 +234,22 @@ namespace pathtool
 	// 列出指定文件夹下的文件名列表（子文件夹将被忽略），含义如windows命令行下的dir
 	// 例如：path = ../../*.*,   则 files = { "a.txt", "b.txt", "c.exe" }
 	// 又如：path = ../../*.txt, 则 files = { "a.txt", "b.txt" }
-	typedef std::vector<string> filevec_t;
-	bool dir(const std::string &path, /* out */filevec_t &files);
+	typedef std::vector<string> FileNameVec;
+	bool dir(const std::string &path, FileNameVec &files);
+
+	// 文件是否在指定文件夹下（含子文件夹）
+	bool is_at_folder(const char *folder, const char *file);
 
 	// 列出指定文件夹下的文件名列表（含子文件夹下的文件）
 	// 例如，假设../../下有文件"a", "b", "c", "a.txt", "b.txt", "c.exe"
 	//     若path = ../../*.*,   则 files = { "a.txt", "b.txt", "c.exe" }
 	//     若path = ../../*.txt, 则 files = { "a.txt", "b.txt" }
-	typedef std::vector<string> FileNameVec;
 	bool ls(const string &path, FileNameVec &files);
 }
 
 namespace cpptool
 {
-	// 是否是c++头文件
+	// 是否是c++头文件后缀
 	inline bool is_header(const std::string &file)
 	{
 		string ext = strtool::get_ext(file);
@@ -244,7 +258,7 @@ namespace cpptool
 		return (ext == "h" || ext == "hpp" || ext == "hh");
 	}
 
-	// 是否是c++源文件
+	// 是否是c++源文件后缀
 	inline bool is_cpp(const std::string &file)
 	{
 		string ext = strtool::get_ext(file);
@@ -254,17 +268,34 @@ namespace cpptool
 	}
 }
 
+namespace htmltool
+{
+	std::string escape_html(const char *html);
+
+	std::string escape_html(const std::string &html);
+
+	std::string get_file_html(const char *filename);
+
+	std::string get_short_file_name_html(const char *filename);
+
+	std::string get_include_html(const std::string &text);
+
+	std::string get_number_html(int num);
+
+	std::string get_warn_html(const char *text);
+}
+
 namespace timetool
 {
 	std::string get_now(const char* format = "%04d/%02d/%02d-%02d:%02d:%02d");
 }
 
-namespace ticktool
+namespace logtool
 {
-	uint64_t tick();
-
-	// 返回两次时钟周期的秒差
-	double tickDiff(uint64_t old_tick);
+	llvm::raw_ostream &log();
 }
+
+using namespace htmltool;
+using namespace logtool;
 
 #endif // _tool_h_

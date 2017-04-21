@@ -2,7 +2,6 @@
 //< @file:   project.h
 //< @author: 洪坤安
 //< @brief:  本次清理c++的任务内容
-//< Copyright (c) 2016. All rights reserved.
 ///<------------------------------------------------------------------------------
 
 #ifndef _project_h_

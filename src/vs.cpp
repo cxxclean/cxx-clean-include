@@ -2,7 +2,6 @@
 // 文件: vs.cpp
 // 作者: 洪坤安
 // 说明: visual studio有关的类和接口
-// Copyright (c) 2016 game. All rights reserved.
 //------------------------------------------------------------------------------
 
 #include "vs.h"
@@ -32,12 +31,12 @@ namespace vstool
 
 			string file(file_attr->value());
 
-			// c++头文件：h、hpp、hh
+			// c++头文件的后缀：h、hpp、hh
 			if (cpptool::is_header(file))
 			{
 				vs2005.m_headers.push_back(file);
 			}
-			// c++源文件：c、cc、cpp、c++、cxx、m、mm
+			// c++源文件的后缀：c、cc、cpp、c++、cxx、m、mm
 			else if (cpptool::is_cpp(file))
 			{
 				vs2005.m_cpps.push_back(file);
@@ -74,8 +73,8 @@ void VsConfig::Fix()
 		const std::string &last_dir = searchDirs.back();
 
 		bool clean_last_option =
-		    (last_dir.find_first_of('%') != string::npos) ||
-		    (last_dir.find_first_of('$') != string::npos);
+			(last_dir.find_first_of('%') != string::npos) ||
+			(last_dir.find_first_of('$') != string::npos);
 
 		if (clean_last_option)
 		{
@@ -154,45 +153,45 @@ VsConfig* VsProject::GetVsconfigByMode(const std::string &mode_and_platform)
 
 void VsConfig::Print() const
 {
-	HtmlLog::GetLog() << "\n////////////////////////////////\n";
-	HtmlLog::GetLog() << "\nvs configuration of: " << mode << "\n";
-	HtmlLog::GetLog() << "////////////////////////////////\n";
+	log() << "\n////////////////////////////////\n";
+	log() << "\nvs configuration of: " << mode << "\n";
+	log() << "////////////////////////////////\n";
 
-	HtmlLog::GetLog() << "\n    predefine: " << mode << "\n";
+	log() << "\n    predefine: " << mode << "\n";
 	for (auto & pre_define : preDefines)
 	{
-		HtmlLog::GetLog() << "        #define " << pre_define << "\n";
+		log() << "        #define " << pre_define << "\n";
 	}
 
-	HtmlLog::GetLog() << "\n    force includes: \n";
+	log() << "\n    force includes: \n";
 	for (auto & force_include : forceIncludes)
 	{
-		HtmlLog::GetLog() << "        #include \"" << force_include << "\"\n";
+		log() << "        #include \"" << force_include << "\"\n";
 	}
 
-	HtmlLog::GetLog() << "\n    search directorys: \n";
+	log() << "\n    search directorys: \n";
 	for (auto & search_dir : searchDirs)
 	{
-		HtmlLog::GetLog() << "        search = \"" << search_dir << "\"\n";
+		log() << "        search = \"" << search_dir << "\"\n";
 	}
 
-	HtmlLog::GetLog() << "\n    additional options: \n";
+	log() << "\n    additional options: \n";
 	for (auto & extra_option : extraOptions)
 	{
-		HtmlLog::GetLog() << "        option = \"" << extra_option << "\"\n";
+		log() << "        option = \"" << extra_option << "\"\n";
 	}
 }
 
 // 打印vs工程配置
 void VsProject::Print() const
 {
-	HtmlLog::GetLog() << "\n////////////////////////////////\n";
-	HtmlLog::GetLog() << "print vs configuration of: " << m_project_full_path << "\n";
-	HtmlLog::GetLog() << "////////////////////////////////\n";
+	log() << "\n////////////////////////////////\n";
+	log() << "print vs configuration of: " << m_project_full_path << "\n";
+	log() << "////////////////////////////////\n";
 
 	if (m_configs.empty())
 	{
-		HtmlLog::GetLog() << "can not print vs configuration,  configuration is empty!\n";
+		log() << "can not print vs configuration,  configuration is empty!\n";
 		return;
 	}
 
@@ -201,10 +200,10 @@ void VsProject::Print() const
 		m_configs[i].Print();
 	}
 
-	HtmlLog::GetLog() << "all file in project:\n";
+	log() << "all file in project:\n";
 	for (const string &file : m_all)
 	{
-		HtmlLog::GetLog() << "    file = " << file << "\n";
+		log() << "    file = " << file << "\n";
 	}
 }
 
@@ -231,7 +230,7 @@ bool VsProject::ParseVs2005(const std::string &vcproj, VsProject &vs2005)
 	rapidxml::xml_document<> doc;
 	if (!xml_file.data())
 	{
-		HtmlLog::GetLog() << "err: load vs2005 project " << vcproj << " failed, please check the file path\n";
+		log() << "err: load vs2005 project " << vcproj << " failed, please check the file path\n";
 		return false;
 	}
 
@@ -240,21 +239,21 @@ bool VsProject::ParseVs2005(const std::string &vcproj, VsProject &vs2005)
 	rapidxml::xml_node<>* root = doc.first_node("VisualStudioProject");
 	if (!root)
 	{
-		HtmlLog::GetLog() << "err: parse vs2005 project <" << vcproj << "> failed, not found <VisualStudioProject> node\n";
+		log() << "err: parse vs2005 project <" << vcproj << "> failed, not found <VisualStudioProject> node\n";
 		return false;
 	}
 
 	rapidxml::xml_node<>* configs_node = root->first_node("Configurations");
 	if (!configs_node)
 	{
-		HtmlLog::GetLog() << "err: parse vs2005 project <" << vcproj << "> failed, not found <Configurations> node\n";
+		log() << "err: parse vs2005 project <" << vcproj << "> failed, not found <Configurations> node\n";
 		return false;
 	}
 
 	rapidxml::xml_node<>* files_node = root->first_node("Files");
 	if (!files_node)
 	{
-		HtmlLog::GetLog() << "err: parse vs2005 project <" << vcproj << "> failed, not found <Files> node\n";
+		log() << "err: parse vs2005 project <" << vcproj << "> failed, not found <Files> node\n";
 		return false;
 	}
 
@@ -340,7 +339,7 @@ bool VsProject::ParseVs2008AndUppper(const std::string &vcxproj, VsProject &vs20
 	rapidxml::xml_document<> doc;
 	if (!xml_file.data())
 	{
-		HtmlLog::GetLog() << "err: load " << vcxproj << " failed, please check the file path\n";
+		log() << "err: load " << vcxproj << " failed, please check the file path\n";
 		return false;
 	}
 
@@ -349,7 +348,7 @@ bool VsProject::ParseVs2008AndUppper(const std::string &vcxproj, VsProject &vs20
 	rapidxml::xml_node<>* root = doc.first_node("Project");
 	if (!root)
 	{
-		HtmlLog::GetLog() << "err: parse <" << vcxproj << "> failed, not found <Project> node\n";
+		log() << "err: parse <" << vcxproj << "> failed, not found <Project> node\n";
 		return false;
 	}
 
