@@ -5,7 +5,6 @@
 //------------------------------------------------------------------------------
 
 #include "tool.h"
-
 #include <sys/stat.h>
 #include <io.h>
 #include <fstream>
@@ -13,7 +12,6 @@
 #include <llvm/Support/FileSystem.h>
 #include <llvm/Support/Path.h>
 #include <llvm/Support/raw_ostream.h>
-
 #include "html_log.h"
 
 #ifdef WIN32

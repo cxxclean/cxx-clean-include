@@ -6,18 +6,16 @@
 
 #include "cxx_clean.h"
 #include <sstream>
-
-#include "clang/Lex/HeaderSearch.h"
-#include "llvm/Option/ArgList.h"
-#include "clang/Basic/Version.h"
-#include "clang/Driver/ToolChain.h"
-#include "clang/Driver/Driver.h"
-#include "clang/Parse/ParseDiagnostic.h"
-#include "lib/Driver/ToolChains.h"
-#include "clang/ASTMatchers/ASTMatchers.h"
-#include "clang/ASTMatchers/ASTMatchFinder.h"
-#include "clang/Analysis/CFG.h"
-
+#include <llvm/Option/ArgList.h>
+#include <lib/Driver/ToolChains.h>
+#include <clang/Lex/HeaderSearch.h>
+#include <clang/Basic/Version.h>
+#include <clang/Driver/ToolChain.h>
+#include <clang/Driver/Driver.h>
+#include <clang/Parse/ParseDiagnostic.h>
+#include <clang/ASTMatchers/ASTMatchers.h>
+#include <clang/ASTMatchers/ASTMatchFinder.h>
+#include <clang/Analysis/CFG.h>
 #include "tool.h"
 #include "vs.h"
 #include "parser.h"

@@ -5,14 +5,8 @@
 //------------------------------------------------------------------------------
 
 #include "parser.h"
-
 #include <sstream>
 #include <fstream>
-
-// 下面3个#include是_chmod函数需要用的
-#include <io.h>
-#include <sys/stat.h>
-#include <sys/types.h>
 
 #include <clang/AST/DeclTemplate.h>
 #include <clang/Lex/HeaderSearch.h>
@@ -21,6 +15,11 @@
 #include <clang/Lex/Preprocessor.h>
 #include <clang/Rewrite/Core/Rewriter.h>
 #include "clang/Frontend/CompilerInstance.h"
+
+// 下面3个#include是_chmod函数需要用的
+#include <io.h>
+#include <sys/stat.h>
+#include <sys/types.h>
 
 #include "tool.h"
 #include "project.h"
@@ -1351,76 +1350,74 @@ bool ParsingFile::UseUsingNamespace(SourceLocation loc, const NamespaceDecl *beU
 
 	loc = GetExpasionLoc(loc);
 	
-	const char* fileName = GetLowerFileNameInCache(GetFileID(loc));
-
 	FileID file = GetFileID(loc);
 	const std::string beUseNsName = beUseNs->getQualifiedNameAsString();
 
 	SourceLocation bestUsingLoc;
 	const NamespaceDecl	*bestNs = nullptr;
 
-	// 1. 优先查找同文件内的using namespace声明
-	for (auto itr : m_usingNamespaces)
+	if (mustAncestor)
 	{
-		SourceLocation usingLoc = itr.first;
-		const NamespaceDecl	*ns = itr.second;
-
-		if (ns->getQualifiedNameAsString() == beUseNsName && GetFileID(usingLoc) == file && isBeforeInTranslationUnit(usingLoc, loc))
+		// 1. 优先查找同文件内的using namespace声明
+		auto itr = m_usingNamespacesByFile.find(file);
+		if (itr != m_usingNamespacesByFile.end())
 		{
-			bestUsingLoc = usingLoc;
-			bestNs = ns;
-			break;
-		}
-	}
+			const UsingNamespaceLocMap &nsMap = itr->second;
 
-	// 2. 否则，查找后代文件的using namespace声明
-	if (bestNs == nullptr)
-	{
-		auto includeItr = m_includes.find(GetLowerFileNameInCache(file));
-		if (includeItr != m_includes.end())
-		{
-			const FileSet &includeList = includeItr->second;
-			for (FileID beInclude : includeList)
+			for (auto nsItr : nsMap)
 			{
-				for (auto nsByFileItr : m_usingNamespacesByFile)
+				SourceLocation usingLoc = nsItr.first;
+				const NamespaceDecl	*ns = nsItr.second;
+
+				if (ns->getQualifiedNameAsString() == beUseNsName && isBeforeInTranslationUnit(usingLoc, loc))
 				{
-					FileID usingAtFile = nsByFileItr.first;
+					bestUsingLoc = usingLoc;
+					bestNs = ns;
+					break;
+				}
+			}
+		}
 
-					if (!IsAncestorByName(usingAtFile, file))
+		// 2. 否则，查找后代文件的using namespace声明
+		if (bestNs == nullptr)
+		{
+			auto includeItr = m_includes.find(GetLowerFileNameInCache(file));
+			if (includeItr != m_includes.end())
+			{
+				const FileSet &includeList = includeItr->second;
+				for (FileID beInclude : includeList)
+				{
+					for (auto nsByFileItr : m_usingNamespacesByFile)
 					{
-						continue;
-					}
+						FileID usingAtFile = nsByFileItr.first;
 
-					const UsingNamespaceLocMap &nsMap = nsByFileItr.second;
-
-					for (auto nsItr : nsMap)
-					{
-						SourceLocation usingLoc = nsItr.first;
-						const NamespaceDecl	*ns = nsItr.second;
-
-						if (ns->getQualifiedNameAsString() == beUseNsName && isBeforeInTranslationUnit(usingLoc, loc))
+						if (!IsAncestorByName(usingAtFile, file))
 						{
-							bestUsingLoc = usingLoc;
-							bestNs = ns;
-							break;
+							continue;
+						}
+
+						const UsingNamespaceLocMap &nsMap = nsByFileItr.second;
+
+						for (auto nsItr : nsMap)
+						{
+							SourceLocation usingLoc = nsItr.first;
+							const NamespaceDecl	*ns = nsItr.second;
+
+							if (ns->getQualifiedNameAsString() == beUseNsName && isBeforeInTranslationUnit(usingLoc, loc))
+							{
+								bestUsingLoc = usingLoc;
+								bestNs = ns;
+								break;
+							}
 						}
 					}
 				}
 			}
 		}
-
-		if (bestNs == nullptr)
-		{
-			if (mustAncestor)
-			{
-				return false;
-			}
-		}
 	}
-
-	// 3. 否则，查找之前文件的using namespace声明
-	if (bestNs == nullptr)
+	else
 	{
+		// 查找之前文件的using namespace声明
 		for (auto itr : m_usingNamespaces)
 		{
 			SourceLocation usingLoc = itr.first;
@@ -1462,78 +1459,78 @@ bool ParsingFile::UseUsing(SourceLocation loc, const NamedDecl *nameDecl, bool m
 	// 尝试找到最好的using声明
 	const UsingShadowDecl *bestUsingDecl = nullptr;
 
-	const std::string beUseingName = nameDecl->getQualifiedNameAsString();
+	const std::string beUsingName = nameDecl->getQualifiedNameAsString();
 
-	// 1. 优先查找同文件内的using声明
-	for (const UsingShadowDecl *usingDecl : usingVec)
+	if (mustAncestor)
 	{
-		NamedDecl *usingNameDecl = usingDecl->getTargetDecl();
-		SourceLocation usingLoc = usingDecl->getLocation();
-
-		if (usingNameDecl->getQualifiedNameAsString() == beUseingName && GetFileID(usingLoc) == file && isBeforeInTranslationUnit(usingLoc, loc))
+		// 1. 优先查找同文件内的using声明
+		auto itr = m_usingsByFile.find(file);
+		if (itr != m_usingsByFile.end())
 		{
-			bestUsingDecl = usingDecl;
-			break;
-		}		
-	}
+			const UsingVec &vecUsingAtFile = itr->second;
 
-	// 2. 查找后代文件的using声明
-	if (nullptr == bestUsingDecl)
-	{
-		auto includeItr = m_includes.find(GetLowerFileNameInCache(file));
-		if (includeItr != m_includes.end())
-		{
-			const FileSet &includeList = includeItr->second;
-			for (FileID beInclude : includeList)
+			for (const UsingShadowDecl *usingDecl : vecUsingAtFile)
 			{
-				for (auto usingByFileItr : m_usingsByFile)
+				NamedDecl *usingNameDecl = usingDecl->getTargetDecl();
+				SourceLocation usingLoc = usingDecl->getLocation();
+
+				if (usingNameDecl->getQualifiedNameAsString() == beUsingName && isBeforeInTranslationUnit(usingLoc, loc))
 				{
-					FileID usingAtFile = usingByFileItr.first;
+					bestUsingDecl = usingDecl;
+					break;
+				}
+			}
+		}
 
-					if (!IsAncestorByName(usingAtFile, file))
+		// 2. 查找后代文件的using声明
+		if (nullptr == bestUsingDecl)
+		{
+			auto includeItr = m_includes.find(GetLowerFileNameInCache(file));
+			if (includeItr != m_includes.end())
+			{
+				const FileSet &includeList = includeItr->second;
+				for (FileID beInclude : includeList)
+				{
+					for (auto usingByFileItr : m_usingsByFile)
 					{
-						continue;
-					}
+						FileID usingAtFile = usingByFileItr.first;
 
-					const UsingVec &vecUsingAtFile = usingByFileItr.second;
-
-					for (const UsingShadowDecl *usingDecl : vecUsingAtFile)
-					{
-						NamedDecl *usingNameDecl = usingDecl->getTargetDecl();
-						SourceLocation usingLoc = usingDecl->getLocation();
-
-						if (usingNameDecl->getQualifiedNameAsString() == beUseingName && isBeforeInTranslationUnit(usingLoc, loc))
+						if (!IsAncestorByName(usingAtFile, file))
 						{
-							bestUsingDecl = usingDecl;
-							break;
+							continue;
+						}
+
+						const UsingVec &vecUsingAtFile = usingByFileItr.second;
+
+						for (const UsingShadowDecl *usingDecl : vecUsingAtFile)
+						{
+							NamedDecl *usingNameDecl = usingDecl->getTargetDecl();
+							SourceLocation usingLoc = usingDecl->getLocation();
+
+							if (usingNameDecl->getQualifiedNameAsString() == beUsingName && isBeforeInTranslationUnit(usingLoc, loc))
+							{
+								bestUsingDecl = usingDecl;
+								break;
+							}
 						}
 					}
 				}
 			}
 		}
-
-		if (nullptr == bestUsingDecl)
-		{
-			if (mustAncestor)
-			{
-				return false;
-			}
-		}
 	}
-
-	// 3. 查找之前文件的using声明
-	if (nullptr == bestUsingDecl)
+	else
 	{
+		// 查找之前文件的using声明
 		for (const UsingShadowDecl *usingDecl : usingVec)
 		{
 			NamedDecl *usingNameDecl = usingDecl->getTargetDecl();
 			SourceLocation usingLoc = usingDecl->getLocation();
 
-			if (usingNameDecl->getQualifiedNameAsString() == beUseingName && isBeforeInTranslationUnit(usingLoc, loc))
+			if (usingNameDecl->getQualifiedNameAsString() == beUsingName && isBeforeInTranslationUnit(usingLoc, loc))
 			{
 				bestUsingDecl = usingDecl;
 				break;
-			}			
+			}
 		}
 	}
 
@@ -2559,7 +2556,7 @@ void ParsingFile::SearchUsingAny(SourceLocation loc, const NestedNameSpecifier *
 		return;
 	}
 
-	mustAncestor = true;
+	mustAncestor = false;
 
 	if (SearchUsingXXX(loc, specifier, nameDecl, mustAncestor))
 	{
@@ -2594,7 +2591,7 @@ string ParsingFile::DebugLocText(SourceLocation loc) const
 inline const char* ParsingFile::GetFileName(FileID file) const
 {
 	const FileEntry *fileEntry = m_srcMgr->getFileEntryForID(file);
-	return fileEntry ? fileEntry->getName() : "";
+	return fileEntry ? fileEntry->getName().data() : "";
 }
 
 // 获取拼写位置

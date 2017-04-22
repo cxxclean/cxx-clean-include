@@ -5,9 +5,7 @@
 ///<------------------------------------------------------------------------------
 
 #include "project.h"
-
 #include <llvm/Support/raw_ostream.h>
-
 #include "tool.h"
 #include "parser.h"
 #include "html_log.h"

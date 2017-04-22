@@ -4,8 +4,7 @@
 //< @brief:  实现clang库中与抽象语法树有关的各种基础类
 ///<------------------------------------------------------------------------------
 
-#ifndef _cxx_clean_h_
-#define _cxx_clean_h_
+#pragma once
 
 #include "clang/AST/ASTConsumer.h"
 #include "clang/AST/RecursiveASTVisitor.h"
@@ -221,5 +220,3 @@ public:
 private:
 	std::unique_ptr<CompilationDatabase> m_compilation;
 };
-
-#endif // _cxx_clean_h_

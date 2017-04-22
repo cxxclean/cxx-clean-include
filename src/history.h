@@ -4,8 +4,7 @@
 // 说明: 各文件的清理历史
 //------------------------------------------------------------------------------
 
-#ifndef _history_h_
-#define _history_h_
+#pragma once
 
 #include <iterator>
 #include <vector>
@@ -15,9 +14,6 @@
 using namespace std;
 
 class ParsingFile;
-
-// 各文件中应保留的行，[文件] -> [该文件中哪些行禁止被删]
-typedef std::map<string, std::set<int>> FileSkipLineMap;
 
 // 应删除的行（无用的#include行）
 struct DelLine
@@ -75,7 +71,6 @@ struct ReplaceTo
 	int							line;				// 该#include所在的行
 	string						oldText;			// 该#include原串，如: #include "../b/../b/../a.h"
 	string						newText;			// 原#include串经过路径搜索后计算出的新#include串，如: #include "../b/../b/../a.h" -> #include "../a.h"
-	FileSkipLineMap				m_rely;				// 本行替换依赖于其他文件中的哪几行
 };
 
 // 可替换#include的行
@@ -190,8 +185,7 @@ typedef std::map<string, FileHistory> FileHistoryMap;
 class ProjectHistory
 {
 	ProjectHistory()
-		: m_printIdx(0)
-		, g_fileNum(0)
+		: g_fileNum(0)
 	{}
 
 public:
@@ -210,23 +204,11 @@ public:
 		return m_files.find(file) != m_files.end();
 	}
 
-	// 将指定文件中指定行标记成禁止被改动
-	void AddSkipLine(const string &file, int line);
-
-	// 指定文件中是否有一些行禁止被改动
-	bool IsAnyLineSkip(const string &file);
-
-	// 打印索引 + 1
-	std::string AddPrintIdx() const;
-
 	// 修正
 	void Fix();
 
 	// 打印日志
 	void Print() const;
-
-	// 打印各文件被标记为不可删除的行
-	void PrintSkip() const;
 
 public:
 	static ProjectHistory instance;
@@ -235,18 +217,9 @@ public:
 	// 对所有c++文件的分析历史（注：其中也包含c++头文件）
 	FileHistoryMap		m_files;
 
-	// 各文件中应保留的行（不允许删除这些行）
-	FileSkipLineMap		m_skips;
-
 	// 已清理过的文件（注：已被清理的文件将不再重复清理）
 	std::set<string>	m_cleanedFiles;
 
 	// 仅用于打印：当前正在处理第几个文件
 	int					g_fileNum;
-
-private:
-	// 当前内部打印索引，仅用于日志打印
-	mutable int			m_printIdx;
 };
-
-#endif // _history_h_

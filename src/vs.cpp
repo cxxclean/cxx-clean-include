@@ -5,10 +5,8 @@
 //------------------------------------------------------------------------------
 
 #include "vs.h"
-
 #include <llvm/Support/raw_ostream.h>
 #include <llvm/Support/FileSystem.h>
-
 #include "tool.h"
 #include "project.h"
 #include "parser.h"

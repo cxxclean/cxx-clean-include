@@ -4,8 +4,7 @@
 // 说明: visual studio有关的类和接口
 //------------------------------------------------------------------------------
 
-#ifndef _vs_h_
-#define _vs_h_
+#pragma once
 
 #include <iterator>
 #include <vector>
@@ -73,5 +72,3 @@ public:
 
 	std::set<std::string>			m_all;					// 工程内所有c++文件
 };
-
-#endif // _vs_h_

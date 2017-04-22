@@ -8,7 +8,6 @@
 
 #include <llvm/Support/Signals.h>
 #include <llvm/Support/TargetSelect.h>
-
 #include "project.h"
 #include "vs.h"
 #include "history.h"

@@ -4,8 +4,7 @@
 // 说明: 本工具用到的各种基础接口
 //------------------------------------------------------------------------------
 
-#ifndef _tool_h_
-#define _tool_h_
+#pragma once
 
 #include <iterator>
 #include <vector>
@@ -297,5 +296,3 @@ namespace logtool
 
 using namespace htmltool;
 using namespace logtool;
-
-#endif // _tool_h_

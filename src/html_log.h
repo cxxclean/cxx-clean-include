@@ -4,10 +4,8 @@
 //< @brief:  html日志类，用来美化打印日志的
 ///<------------------------------------------------------------------------------
 
-#ifndef _html_log_h_
-#define _html_log_h_
+#pragma once
 
-#include <iterator>
 #include <vector>
 
 namespace llvm
@@ -182,5 +180,3 @@ public:
 
 	llvm::raw_ostream*	m_log;
 };
-
-#endif // _html_log_h_

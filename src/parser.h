@@ -4,20 +4,16 @@
 // 说明: 解析当前cpp文件
 //------------------------------------------------------------------------------
 
-#ifndef _parser_h_
-#define _parser_h_
+#pragma once
 
 #include <string>
 #include <vector>
 #include <set>
 #include <map>
-
 #include <clang/Basic/SourceLocation.h>
 #include <clang/Basic/SourceManager.h>
 #include <clang/Rewrite/Core/Rewriter.h>
-
 #include "history.h"
-#include <unordered_set>
 
 using namespace std;
 using namespace clang;
@@ -49,6 +45,7 @@ namespace clang
 	class CXXConstructorDecl;
 	class DeclContext;
 	class UsingShadowDecl;
+	class SourceManager;
 }
 
 // [文件名] -> [路径类别：系统路径或用户路径]
@@ -734,5 +731,3 @@ private:
 	// 当前打印索引，仅用于日志打印
 	mutable int									m_printIdx;
 };
-
-#endif // _parser_h_

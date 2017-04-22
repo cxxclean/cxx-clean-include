@@ -4,8 +4,7 @@
 //< @brief:  本次清理c++的任务内容
 ///<------------------------------------------------------------------------------
 
-#ifndef _project_h_
-#define _project_h_
+#pragma once
 
 #include <iterator>
 #include <set>
@@ -81,5 +80,3 @@ public:
 	// 当前打印索引，仅用于日志打印
 	mutable int					m_printIdx;
 };
-
-#endif // _project_h_

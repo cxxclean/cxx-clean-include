@@ -7,7 +7,6 @@
 #include "html_log.h"
 #include "tool.h"
 #include <sstream>
-
 #include <llvm/Support/raw_ostream.h>
 
 const char* g_beginHtml = R"--(

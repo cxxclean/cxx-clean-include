@@ -5,7 +5,6 @@
 //------------------------------------------------------------------------------
 
 #include "history.h"
-
 #include "parser.h"
 #include "project.h"
 #include "html_log.h"
@@ -239,11 +238,6 @@ void FileHistory::PrintAdd() const
 // 打印日志
 void ProjectHistory::Print() const
 {
-	if (Project::instance.m_logLvl >= LogLvl_2)
-	{
-		PrintSkip();
-	}
-
 	if (m_files.empty())
 	{
 		return;
@@ -281,46 +275,4 @@ void ProjectHistory::Print() const
 	}
 
 	HtmlLog::instance.AddDiv(div);
-}
-
-// 打印各文件被标记为不可删除的行
-void ProjectHistory::PrintSkip() const
-{
-	HtmlDiv &div = HtmlLog::instance.m_newDiv;
-	div.AddRow(AddPrintIdx() + ". list of skip : count = " + get_number_html(m_skips.size()), 1);
-
-	for (auto &itr : m_skips)
-	{
-		const std::string &file = itr.first;
-
-		div.AddRow("file = " + get_file_html(file.c_str()), 2);
-
-		for (int relyLineNo : itr.second)
-		{
-			div.AddRow("include = " + get_number_html(relyLineNo), 3);
-		}
-
-		div.AddRow("");
-	}
-
-	div.AddRow("");
-	HtmlLog::instance.AddDiv(div);
-}
-
-// 打印索引 + 1
-std::string ProjectHistory::AddPrintIdx() const
-{
-	return strtool::itoa(++m_printIdx);
-}
-
-// 将指定文件中指定行标记成禁止被改动
-void ProjectHistory::AddSkipLine(const string &file, int line)
-{
-	m_skips[file].insert(line);
-}
-
-// 指定文件中是否有一些行禁止被改动
-bool ProjectHistory::IsAnyLineSkip(const string &file)
-{
-	return m_skips.find(file) != m_skips.end();
 }
