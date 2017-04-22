@@ -6,8 +6,8 @@ cxx-clean-include是一个用于清理c++文件中多余#include并自动生成�
 ## 使用方法
 
 * 1. 下载本项目
-* 2. 双击运行hello文件夹下的run.bat
-* 3. 如果成功的话，hello项目将被清理，且将在hello文件夹下生成清理日志（可使用浏览器查看）
+* 2. 双击运行hello\run.bat
+* 3. 如果成功的话，hello项目将被清理，且在文件夹下生成html清理日志（可使用浏览器查看）
 * 4. 将run.bat里面的./hello.vcxproj改成你自己的vs工程文件，就可以清理你的工程了
 
 本工具也可作为visual studio的一个插件来使用，但需要几步操作，详见[cxx-clean-include原理.pdf]文档。
@@ -102,10 +102,10 @@ cxxclean -clean 文件夹路径
 但很多情况下需要指定更详细的编译条件，如指定头文件路径、预定义宏等，clang库已内置提供了相应的命令行参数供使用，可使用如下方式（注意添加--号）：
 
 ```cpp
-cxxclean -clean 文件夹路径 -- -I"你的头文件搜索路径" -D 需要预定义的宏 -include 需要强制包含的文件
-（其中：-I、-D、-include均可使用多次）
+cxxclean -clean 文件夹路径 -- -isystem "你的头文件搜索路径" -D 需要预定义的宏 -include 需要强制包含的文件
+（其中：-isystem、-D、-include均可使用多次）
 
-// 例如：cxxclean -clean d:/a/b/hello/ -- -I"../../" -I"../" -I"./" -I"../include" -D DEBUG -D WIN32 -include platform.h
+// 例如：cxxclean -clean d:/a/b/hello/ -- -isystem "../../" -isystem "../" -D DEBUG -D WIN32 -include platform.h
 ```
 
 ## cxx-clean-include的命令行参数
