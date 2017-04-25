@@ -2551,22 +2551,7 @@ void ParsingFile::SearchUsingAny(SourceLocation loc, const NestedNameSpecifier *
 		return;
 	}
 
-	if (SearchUsingNamespace(loc, specifier, nameDecl->getDeclContext(), mustAncestor))
-	{
-		return;
-	}
-
-	mustAncestor = false;
-
-	if (SearchUsingXXX(loc, specifier, nameDecl, mustAncestor))
-	{
-		return;
-	}
-
-	if (SearchUsingNamespace(loc, specifier, nameDecl->getDeclContext(), mustAncestor))
-	{
-		return;
-	}
+	SearchUsingNamespace(loc, specifier, nameDecl->getDeclContext(), mustAncestor);
 }
 
 // 获取文件信息

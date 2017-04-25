@@ -76,6 +76,8 @@ int main(int argc, const char **argv)
 	Log("-- now = " << timetool::get_now() << " --!");
 	Log("-- finished --!");
 
-	_wsystem(HtmlLog::instance.m_htmlPath.c_str());
+	// 打开日志
+	const std::wstring open_html = L"start " + HtmlLog::instance.m_htmlPath;
+	_wsystem(open_html.c_str());
 	return 0;
 }
