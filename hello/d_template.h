@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cctype>
+#include <string>
 
 static std::string &ltrim(std::string &s)
 {
