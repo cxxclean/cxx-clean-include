@@ -7,10 +7,9 @@
 #include "cxx_clean.h"
 #include <sstream>
 #include <llvm/Option/ArgList.h>
-#include <lib/Driver/ToolChains.h>
+#include <clang/Driver/ToolChain.h>
 #include <clang/Lex/HeaderSearch.h>
 #include <clang/Basic/Version.h>
-#include <clang/Driver/ToolChain.h>
 #include <clang/Driver/Driver.h>
 #include <clang/Parse/ParseDiagnostic.h>
 #include <clang/ASTMatchers/ASTMatchers.h>
@@ -60,7 +59,7 @@ void CxxCleanPreprocessor::Defined(const Token &macroName, const MacroDefinition
 void CxxCleanPreprocessor::MacroDefined(const Token &macroName, const MacroDirective *direct) {}
 
 // 宏被#undef
-void CxxCleanPreprocessor::MacroUndefined(const Token &macroName, const MacroDefinition &definition)
+void CxxCleanPreprocessor::MacroUndefined(const Token &macroName, const MacroDefinition &definition, const MacroDirective *Undef)
 {
 	m_root->UseMacro(macroName.getLocation(), definition, macroName);
 }
@@ -90,7 +89,15 @@ CxxCleanASTVisitor::CxxCleanASTVisitor(ParsingFile *rootFile)
 // 访问单条语句
 bool CxxCleanASTVisitor::VisitStmt(Stmt *s)
 {
-	SourceLocation loc = s->getLocStart();
+	SourceLocation loc = s->getBeginLoc();
+	if (!loc.isValid()) {
+		loc = s->getEndLoc();
+	}
+
+	if (!loc.isValid()) {
+		return true;
+	}
+
 	if (m_root->IsInSystemHeader(loc))
 	{
 		return true;
@@ -268,7 +275,7 @@ bool CxxCleanASTVisitor::VisitStmt(Stmt *s)
 // 访问函数声明
 bool CxxCleanASTVisitor::VisitFunctionDecl(FunctionDecl *f)
 {
-	SourceLocation loc = f->getLocStart();
+	SourceLocation loc = f->getBeginLoc();
 	if (m_root->IsInSystemHeader(loc))
 	{
 		return true;
@@ -322,7 +329,7 @@ bool CxxCleanASTVisitor::VisitCXXRecordDecl(CXXRecordDecl *r)
 		return true;
 	}
 
-	SourceLocation loc = r->getLocStart();
+	SourceLocation loc = r->getBeginLoc();
 	if (m_root->IsInSystemHeader(loc))
 	{
 		return true;
@@ -360,7 +367,7 @@ bool CxxCleanASTVisitor::VisitCXXRecordDecl(CXXRecordDecl *r)
 // 当发现变量定义时该接口被调用
 bool CxxCleanASTVisitor::VisitVarDecl(VarDecl *var)
 {
-	SourceLocation loc = var->getLocStart();
+	SourceLocation loc = var->getBeginLoc();
 	if (m_root->IsInSystemHeader(loc))
 	{
 		return true;
@@ -385,7 +392,7 @@ bool CxxCleanASTVisitor::VisitVarDecl(VarDecl *var)
 		{
 			if (!next->hasExternalStorage())
 			{
-				m_root->UseVarDecl(next->getLocStart(), var, var->getQualifier());
+				m_root->UseVarDecl(next->getBeginLoc(), var, var->getQualifier());
 			}
 		}
 	}
@@ -396,7 +403,7 @@ bool CxxCleanASTVisitor::VisitVarDecl(VarDecl *var)
 // 比如：typedef int A;
 bool CxxCleanASTVisitor::VisitTypedefDecl(clang::TypedefDecl *d)
 {
-	SourceLocation loc = d->getLocStart();
+	SourceLocation loc = d->getBeginLoc();
 	if (m_root->IsInSystemHeader(loc))
 	{
 		return true;
@@ -409,7 +416,7 @@ bool CxxCleanASTVisitor::VisitTypedefDecl(clang::TypedefDecl *d)
 // 比如：namespace A{}
 bool CxxCleanASTVisitor::VisitNamespaceDecl(clang::NamespaceDecl *d)
 {
-	SourceLocation loc = d->getLocStart();
+	SourceLocation loc = d->getBeginLoc();
 	if (m_root->IsInSystemHeader(loc))
 	{
 		return true;
@@ -461,39 +468,39 @@ bool CxxCleanASTVisitor::VisitUsingDecl(clang::UsingDecl *d)
 // 访问成员变量
 bool CxxCleanASTVisitor::VisitFieldDecl(FieldDecl *decl)
 {
-	SourceLocation loc = decl->getLocStart();
+	SourceLocation loc = decl->getBeginLoc();
 	if (m_root->IsInSystemHeader(loc))
 	{
 		return true;
 	}
 
-	m_root->UseValueDecl(decl->getLocStart(), decl);
+	m_root->UseValueDecl(decl->getBeginLoc(), decl);
 	return true;
 }
 
 // 构造声明
 bool CxxCleanASTVisitor::VisitCXXConstructorDecl(CXXConstructorDecl *constructor)
 {
-	SourceLocation loc = constructor->getLocStart();
+	SourceLocation loc = constructor->getBeginLoc();
 	if (m_root->IsInSystemHeader(loc))
 	{
 		return true;
 	}
 
-	m_root->UseConstructor(constructor->getLocStart(), constructor);
+	m_root->UseConstructor(constructor->getBeginLoc(), constructor);
 	return true;
 }
 
 // 构造语句
 bool CxxCleanASTVisitor::VisitCXXConstructExpr(CXXConstructExpr *expr)
 {
-	SourceLocation loc = expr->getLocStart();
+	SourceLocation loc = expr->getBeginLoc();
 	if (m_root->IsInSystemHeader(loc))
 	{
 		return true;
 	}
 
-	m_root->UseConstructor(expr->getLocStart(), expr->getConstructor());
+	m_root->UseConstructor(expr->getBeginLoc(), expr->getConstructor());
 	return true;
 }
 
@@ -612,8 +619,9 @@ void CxxcleanDiagnosticConsumer::HandleDiagnostic(DiagnosticsEngine::Level diagL
 }
 
 // 开始文件处理
-bool CxxCleanAction::BeginSourceFileAction(CompilerInstance &compiler, StringRef filename)
+bool CxxCleanAction::BeginSourceFileAction(CompilerInstance &compiler)
 {
+	string filename = "";
 	++ProjectHistory::instance.g_fileNum;
 	Log("cleaning file: " << ProjectHistory::instance.g_fileNum << "/" << Project::instance.m_cpps.size() << ". " << filename << " ...");
 	return true;
@@ -632,8 +640,8 @@ std::unique_ptr<ASTConsumer> CxxCleanAction::CreateASTConsumer(CompilerInstance 
 {
 	m_root = new ParsingFile(compiler);
 
-	compiler.getPreprocessor().addPPCallbacks(llvm::make_unique<CxxCleanPreprocessor>(m_root));
-	return llvm::make_unique<CxxCleanASTConsumer>(m_root);
+	compiler.getPreprocessor().addPPCallbacks(std::make_unique<CxxCleanPreprocessor>(m_root));
+	return std::make_unique<CxxCleanASTConsumer>(m_root);
 }
 
 static llvm::cl::OptionCategory g_optionCategory("cxx-clean-include category");
@@ -650,8 +658,7 @@ static cl::opt<string>	g_cleanOption	("clean",
                  "    2. clean a c++ file: -clean ./hello.cpp\n"
                 ), cl::cat(g_optionCategory));
 
-void PrintVersion()
-{
+void PrintVersion(raw_ostream &o) {
 	llvm::outs() << clang::getClangToolFullVersion("clang lib version: ") << '\n';
 }
 
@@ -680,7 +687,7 @@ bool CxxCleanOptionsParser::ParseOptions(int &argc, const char **argv)
 	// 存下忽略文件-skip选项的值
 	Add(Project::instance.m_skips, g_skips);
 
-	HtmlLog::instance.Open();
+	HtmlLog::instance->Open();
 
 	if (g_printVsConfig)
 	{
@@ -698,7 +705,7 @@ FixedCompilationDatabase *CxxCleanOptionsParser::SplitCommandLine(int &argc, con
 	const char *const *doubleDash = std::find(argv, argv + argc, StringRef("--"));
 	if (doubleDash == argv + argc)
 	{
-		return new FixedCompilationDatabase(directory, std::vector<std::string>());
+		return new clang::tooling::FixedCompilationDatabase(directory, std::vector<std::string>());
 	}
 
 	std::vector<const char *> commandLine(doubleDash + 1, argv + argc);
@@ -802,7 +809,7 @@ std::string CxxCleanOptionsParser::GetVsInstallDir() const
 {
 	std::string vsInstallDir;
 
-#if defined(LLVM_ON_WIN32)
+#if defined(LLVM_ON_WIN64)
 	DiagnosticsEngine engine(IntrusiveRefCntPtr<clang::DiagnosticIDs>(new DiagnosticIDs()), nullptr, nullptr, false);
 
 	clang::driver::Driver d("", "", engine);
@@ -879,6 +886,8 @@ bool CxxCleanOptionsParser::ParseCleanOption()
 	std::string vsOption		= g_vsOption;
 	std::string clean_option	= g_cleanOption;
 
+	HtmlLog::instance = new HtmlLog();
+
 	// 解析-vs参数（-vs指定了应清理的visual studio工程文件）
 	if (!vsOption.empty())
 	{
@@ -898,9 +907,10 @@ bool CxxCleanOptionsParser::ParseCleanOption()
 
 			std::string vsPath = llvm::sys::path::stem(vsOption).str();
 
-			HtmlLog::instance.Init(strtool::get_wide_text(cn_log_name_project, strtool::s2ws(vsPath).c_str()),
-			                       strtool::get_text(cn_project, vsOption.c_str()),
-			                       strtool::get_text(cn_project, get_file_html(vsOption.c_str()).c_str()));
+			std::wstring htmlPath = strtool::s2ws(vsPath) + std::wstring(cn_log_name_project);
+			std::string htmlTitle = string(cn_project1) + vsOption + cn_project2;
+			std::string tip = string(cn_project1) + get_file_html(vsOption.c_str()) + cn_project2;
+			HtmlLog::instance->Init(htmlPath, htmlTitle, tip);
 		}
 		else
 		{
@@ -952,9 +962,10 @@ bool CxxCleanOptionsParser::ParseCleanOption()
 				strtool::replace(logFile, "/", "_");
 				strtool::replace(logFile, ".", "_");
 
-				HtmlLog::instance.Init(strtool::get_wide_text(cn_log_name_folder, strtool::s2ws(logFile).c_str()),
-				                       strtool::get_text(strtool::ws2s(cn_log_name_folder).c_str(), directory.c_str()),
-				                       strtool::get_text(strtool::ws2s(cn_log_name_folder).c_str(), get_file_html(directory.c_str()).c_str()));
+				
+				HtmlLog::instance->Init(cn_log_name_folder1 + strtool::s2ws(logFile) + cn_log_name_folder2,
+					strtool::ws2s(cn_log_name_folder1) + directory + strtool::ws2s(cn_log_name_folder2),
+					strtool::ws2s(cn_log_name_folder1) + get_file_html(directory.c_str()) + strtool::ws2s(cn_log_name_folder2));
 			}
 			// 已有-vs参数
 			else
@@ -983,9 +994,9 @@ bool CxxCleanOptionsParser::ParseCleanOption()
 
 			std::string fileName = pathtool::get_file_name(filePath.c_str());
 
-			HtmlLog::instance.Init(strtool::get_wide_text(cn_log_name_cpp_file, strtool::s2ws(fileName).c_str()),
-			                       strtool::get_text(strtool::ws2s(cn_log_name_cpp_file).c_str(), filePath.c_str()),
-			                       strtool::get_text(strtool::ws2s(cn_log_name_cpp_file).c_str(), get_file_html(filePath.c_str()).c_str()));
+			HtmlLog::instance->Init(cn_log_name_cpp_file1 + strtool::s2ws(fileName) + cn_log_name_cpp_file2,
+				strtool::ws2s(cn_log_name_cpp_file1) + filePath + strtool::ws2s(cn_log_name_cpp_file2),
+				strtool::ws2s(cn_log_name_cpp_file1) + get_file_html(filePath.c_str()) + strtool::ws2s(cn_log_name_cpp_file2));
 		}
 
 		project.Fix();

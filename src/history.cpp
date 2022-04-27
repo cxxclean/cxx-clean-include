@@ -20,7 +20,7 @@ void CompileErrorHistory::Print() const
 		return;
 	}
 
-	HtmlDiv &div = HtmlLog::instance.m_newDiv;
+	HtmlDiv &div = HtmlLog::instance->m_newDiv;
 	div.AddRow(" ", 1, 100, false, Row_Error);
 
 	div.AddRow(cn_error, 1, 100, false, Row_Error, Grid_Error);
@@ -77,7 +77,7 @@ void FileHistory::Print(int id /* ÎÄ¼þÐòºÅ */, bool isPrintCompiliError /* = tru
 		return;
 	}
 
-	HtmlDiv &div = HtmlLog::instance.m_newDiv;
+	HtmlDiv &div = HtmlLog::instance->m_newDiv;
 
 	bool isError	= m_compileErrorHistory.HaveFatalError();
 	const char *tip = (isError ? cn_file_history_compile_error : cn_file_history);
@@ -110,7 +110,7 @@ void FileHistory::PrintUnusedInclude() const
 		return;
 	}
 
-	HtmlDiv &div = HtmlLog::instance.m_newDiv;
+	HtmlDiv &div = HtmlLog::instance->m_newDiv;
 
 	div.AddRow(strtool::get_text(cn_file_unused_count, get_number_html(m_delLines.size()).c_str()), 2);
 
@@ -135,7 +135,7 @@ void FileHistory::PrintForwardClass() const
 		return;
 	}
 
-	HtmlDiv &div = HtmlLog::instance.m_newDiv;
+	HtmlDiv &div = HtmlLog::instance->m_newDiv;
 
 	div.AddRow(strtool::get_text(cn_file_add_forward_num, get_number_html(m_forwards.size()).c_str()), 2);
 
@@ -164,7 +164,7 @@ void FileHistory::PrintReplace() const
 		return;
 	}
 
-	HtmlDiv &div = HtmlLog::instance.m_newDiv;
+	HtmlDiv &div = HtmlLog::instance->m_newDiv;
 
 	div.AddRow(strtool::get_text(cn_file_can_replace_num, get_number_html(m_replaces.size()).c_str()), 2);
 
@@ -214,7 +214,7 @@ void FileHistory::PrintAdd() const
 		return;
 	}
 
-	HtmlDiv &div = HtmlLog::instance.m_newDiv;
+	HtmlDiv &div = HtmlLog::instance->m_newDiv;
 
 	div.AddRow(strtool::get_text(cn_file_add_line_num, get_number_html(m_adds.size()).c_str()), 2);
 
@@ -255,9 +255,9 @@ void ProjectHistory::Print() const
 		}
 	}
 
-	HtmlLog::instance.AddBigTitle(cn_project_history_title);
+	HtmlLog::instance->AddBigTitle(cn_project_history_title);
 
-	HtmlDiv &div = HtmlLog::instance.m_newDiv;
+	HtmlDiv &div = HtmlLog::instance->m_newDiv;
 	div.AddTitle(strtool::get_text(cn_project_history_clean_count,	get_number_html(canCleanFileCount).c_str()), 40);
 	div.AddTitle(strtool::get_text(cn_project_history_src_count,	get_number_html(Project::instance.m_cpps.size()).c_str()), 59);
 
@@ -274,5 +274,5 @@ void ProjectHistory::Print() const
 		history.Print(++i);
 	}
 
-	HtmlLog::instance.AddDiv(div);
+	HtmlLog::instance->AddDiv(div);
 }

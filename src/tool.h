@@ -8,6 +8,7 @@
 
 #include <iterator>
 #include <vector>
+#include <string>
 
 namespace llvm
 {
@@ -99,9 +100,6 @@ namespace strtool
 
 	// 获取指定格式的文本串
 	const char* get_text(const char* fmt, ...);
-
-	// 获取指定格式的宽文本串
-	const wchar_t* get_wide_text(const wchar_t* fmt, ...);
 
 	// 是否以指定字符串开头（不区分大小写）
 	inline bool start_with(const string &text, const char *prefix)

@@ -50,7 +50,7 @@ void Project::Print() const
 		div.AddRow("");
 	}
 
-	HtmlLog::instance.AddDiv(div);
+	HtmlLog::instance->AddDiv(div);
 }
 
 // ´òÓ¡Ë÷Òý + 1

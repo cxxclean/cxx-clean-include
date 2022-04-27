@@ -9,6 +9,7 @@
 #include <iterator>
 #include <vector>
 #include <set>
+#include <string>
 
 class Project;
 

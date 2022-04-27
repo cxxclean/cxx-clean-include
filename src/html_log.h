@@ -7,6 +7,7 @@
 #pragma once
 
 #include <vector>
+#include <string>
 
 namespace llvm
 {
@@ -14,13 +15,18 @@ namespace llvm
 }
 
 // 1. 中文
-static const wchar_t* cn_log_name_project			= L"%s工程";
-static const wchar_t* cn_log_name_folder			= L"[ %s ] 文件夹";
-static const wchar_t* cn_log_name_cpp_file			= L"[ %s ] c++ 文件";
-static const wchar_t* cn_log						= L"清理%s的日志-%s.html";
+static const std::wstring cn_log_name_project = L"工程";
+static const std::wstring cn_log_name_folder1 = L"[ ";
+static const std::wstring cn_log_name_folder2 = L" ] 文件夹";
+static const std::wstring cn_log_name_cpp_file1 = L"[ ";
+static const std::wstring cn_log_name_cpp_file2 = L" ] c++ 文件";
+static const std::wstring cn_log1 = L"清理";
+static const std::wstring cn_log2 = L"的日志-";
+static const std::wstring cn_log3 = L".html";
 
 static const char* cn_time							= "%04d年%02d月%02d日%02d时%02d分%02d秒";
-static const char* cn_project						= "[ %s ] visual studio工程";
+static const char* cn_project1						= "[ ";
+static const char* cn_project2						= " ] visual studio工程";
 static const char* cn_clean							= "本页面是对 %s 的分析日志，最终结果以本页面最底部的统计结果为准";
 static const char* cn_project_text					= "允许清理的c++文件列表以及待分析的c++源文件列表";
 static const char* cn_project_allow_files			= "允许清理的c++文件列表：文件个数 = %s（不属于该列表的c++文件不允许被改动）";
@@ -164,7 +170,7 @@ public:
 	void AddBigTitle(const std::string &title);
 
 public:
-	static HtmlLog instance;
+	static HtmlLog* instance;
 
 public:
 	std::wstring		m_htmlPath;

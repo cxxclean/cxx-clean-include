@@ -13,14 +13,8 @@
 #include <llvm/Support/Path.h>
 #include <llvm/Support/raw_ostream.h>
 #include "html_log.h"
-
-#ifdef WIN32
-	#include <direct.h>
-	#define _X86_
-	#include <profileapi.h>
-#else
-	#include <unistd.h>
-#endif
+#include <stdlib.h>
+#include <direct.h>
 
 namespace strtool
 {
@@ -232,18 +226,6 @@ namespace strtool
 		return g_sprintfBuf;
 	}
 
-	// 获取指定格式的宽文本串
-	const wchar_t* get_wide_text(const wchar_t* fmt, ...)
-	{
-		static wchar_t g_swprintfBuf[10 * 1024] = { 0 };
-
-		va_list args;
-		va_start(args, fmt);
-		vswprintf_s(g_swprintfBuf, sizeof(g_swprintfBuf), fmt, args);
-		va_end(args);
-		return g_swprintfBuf;
-	}
-
 	std::wstring s2ws(const std::string& s)
 	{
 		std::locale old_loc = std::locale::global(std::locale(""));
@@ -366,7 +348,8 @@ namespace pathtool
 	// 根据路径获取文件名
 	string get_file_name(const char *path)
 	{
-		return llvm::sys::path::filename(path);
+        auto f = llvm::sys::path::filename(path);
+        return f.str();
 	}
 
 	// 简化路径
@@ -480,8 +463,8 @@ namespace pathtool
 			return "";
 		}
 
-		filepath = simplify_path(filepath.c_str());
-		return filepath.str();
+		string simplifyFilepath = simplify_path(filepath.c_str());
+        return simplifyFilepath;
 	}
 
 	string get_absolute_path(const char *base_path, const char* relative_path)
@@ -614,7 +597,7 @@ namespace pathtool
 	{
 		llvm::SmallString<2048> path;
 		std::error_code err = llvm::sys::fs::current_path(path);
-		return err ? "" : path.str();
+		return err.value() > 0 ? "" : path.c_str();
 	}
 }
 
@@ -697,43 +680,11 @@ namespace logtool
 {
 	llvm::raw_ostream &log()
 	{
-		if (HtmlLog::instance.m_log)
+		if (HtmlLog::instance->m_log)
 		{
-			return *HtmlLog::instance.m_log;
+            return *HtmlLog::instance->m_log;
 		}
 
 		return llvm::errs();
-	}
-}
-
-namespace ticktool
-{
-	// 获取CPU每秒的滴答次数
-	uint64_t GetTickFrequency()
-	{
-		static LARGE_INTEGER static_perfFreq = { 0 };
-		if (0 == static_perfFreq.QuadPart) {
-			QueryPerformanceFrequency(&static_perfFreq);
-		}
-
-		return static_perfFreq.QuadPart;
-	}
-
-	uint64_t tick()
-	{
-		LARGE_INTEGER tick_now;
-
-		QueryPerformanceCounter(&tick_now);
-		return tick_now.QuadPart;
-	}
-
-	// 返回两次时钟周期的秒差
-	double tickDiff(uint64_t old_tick)
-	{
-		uint64_t tick_now = tick();
-		uint64_t diff = tick_now - old_tick;
-
-		double s = (double)diff / GetTickFrequency();
-		return s;
 	}
 }

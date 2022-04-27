@@ -15,6 +15,7 @@
 #include "clang/Frontend/FrontendAction.h"
 #include "clang/Frontend/CompilerInstance.h"
 #include "clang/Tooling/Tooling.h"
+#include <clang/Tooling/CompilationDatabase.h>
 
 using namespace std;
 using namespace clang;
@@ -48,7 +49,7 @@ public:
 	void MacroDefined(const Token &macroName, const MacroDirective *direct) override;
 
 	// 宏被#undef
-	void MacroUndefined(const Token &macroName, const MacroDefinition &definition) override;
+	void MacroUndefined(const Token &macroName, const MacroDefinition &definition, const MacroDirective *Undef) override;
 
 	// 宏扩展
 	void MacroExpands(const Token &macroName, const MacroDefinition &definition, SourceRange range, const MacroArgs *args) override;
@@ -159,7 +160,7 @@ public:
 	{}
 
 	// 开始文件处理
-	bool BeginSourceFileAction(CompilerInstance &compiler, StringRef filename) override;
+	bool BeginSourceFileAction(CompilerInstance &compiler) override;
 
 	// 结束文件处理
 	void EndSourceFileAction() override;

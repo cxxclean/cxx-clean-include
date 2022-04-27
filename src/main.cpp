@@ -6,6 +6,7 @@
 
 #include "cxx_clean.h"
 
+#include <locale>
 #include <llvm/Support/Signals.h>
 #include <llvm/Support/TargetSelect.h>
 #include "project.h"
@@ -22,7 +23,7 @@ bool Init(CxxCleanOptionsParser &optionParser, int argc, const char **argv)
 	llvm::InitializeNativeTarget();				// 初始化当前平台环境
 	llvm::InitializeNativeTargetAsmParser();	// 支持解析asm
 
-	locale &loc=locale::global(locale(locale(),"",LC_CTYPE));  // 不论以输出文件流还是输入文件流，此操作应放在其两边
+	locale loc=locale::global(locale(locale(),"",LC_CTYPE));  // 不论以输出文件流还是输入文件流，此操作应放在其两边
 	locale::global(loc);
 	
 	// 解析命令行参数
@@ -53,7 +54,7 @@ void Run(const CxxCleanOptionsParser &optionParser)
 	tool.run(newFrontendActionFactory<CxxCleanAction>().get());
 
 	ProjectHistory::instance.Print();
-	HtmlLog::instance.Close();
+	HtmlLog::instance->Close();
 }
 
 int main(int argc, const char **argv)
@@ -77,7 +78,7 @@ int main(int argc, const char **argv)
 	Log("-- finished --!");
 
 	// 打开日志
-	const std::wstring open_html = L"start " + HtmlLog::instance.m_htmlPath;
+	const std::wstring open_html = L"start " + HtmlLog::instance->m_htmlPath;
 	_wsystem(open_html.c_str());
 	return 0;
 }

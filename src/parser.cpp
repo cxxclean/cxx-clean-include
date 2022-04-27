@@ -96,7 +96,7 @@ inline void MapEraseIf(Container& container, const Op& op)
 template <typename Container, typename Key1, typename Key2>
 inline bool HasInMap(const Container &container, const Key1 &a, const Key2 &b)
 {
-	auto &itr = container.find(a);
+	auto itr = container.find(a);
 	if (itr == container.end())
 	{
 		return false;
@@ -205,7 +205,7 @@ void ParsingFile::AddFile(FileID file)
 // 获取头文件搜索路径
 vector<ParsingFile::HeaderSearchDir> ParsingFile::TakeHeaderSearchPaths(const clang::HeaderSearch &headerSearch) const
 {
-	typedef clang::HeaderSearch::search_dir_iterator search_iterator;
+	typedef clang::ConstSearchDirIterator search_iterator;
 
 	IncludeDirMap dirs;
 
@@ -216,7 +216,7 @@ vector<ParsingFile::HeaderSearchDir> ParsingFile::TakeHeaderSearchPaths(const cl
 		{
 			if (const DirectoryEntry* entry = itr->getDir())
 			{
-				const string path = pathtool::fix_path(entry->getName());
+				const string path = pathtool::fix_path(entry->getName().data());
 				dirs.insert(make_pair(path, includeKind));
 			}
 		}
@@ -640,7 +640,7 @@ inline bool ParsingFile::Contains(FileID top, FileID kid) const
 		return true;
 	}
 
-	auto &itr = m_minKids.find(top);
+	auto itr = m_minKids.find(top);
 	if (itr == m_minKids.end())
 	{
 		return false;
@@ -784,7 +784,7 @@ void ParsingFile::GenerateForwardClass()
 		FileID by = itr.first;
 		RecordSet &records = itr.second;
 
-		auto &beUseItr = m_fileUseRecords.find(by);
+		auto beUseItr = m_fileUseRecords.find(by);
 		if (beUseItr != m_fileUseRecords.end())
 		{
 			const RecordSet &beUseRecords = beUseItr->second;
@@ -878,14 +878,14 @@ void ParsingFile::MinimizeForwardClass()
 		RecordSet smallForwards = itr.second;	// 这里故意深拷贝
 
 		// 本文件应新增的前置声明 = [本文件新增的前置声明]减去[后代新增的前置声明]
-		auto &includeItr = m_minInclude.find(by);
+		auto includeItr = m_minInclude.find(by);
 		if (includeItr != m_minInclude.end())
 		{
 			const FileSet &minIncludes = includeItr->second;
 
 			for (FileID minInclude : minIncludes)
 			{
-				auto &recordItr = bigForwards.find(minInclude);
+				auto recordItr = bigForwards.find(minInclude);
 				if (recordItr != bigForwards.end())
 				{
 					const RecordSet &records = recordItr->second;
@@ -913,7 +913,7 @@ void ParsingFile::GetAllForwardsInKids(FileID top, RecordSet &forwards)
 	FileSet chain;
 	GetChain(chain, top, [&](const FileSet &done, FileSet &todo, FileID cur)
 	{
-		auto &useItr = m_minInclude.find(cur);
+		auto useItr = m_minInclude.find(cur);
 		if (useItr != m_minInclude.end())
 		{
 			const FileSet &minIncludes = useItr->second;
@@ -927,7 +927,7 @@ void ParsingFile::GetAllForwardsInKids(FileID top, RecordSet &forwards)
 	// 2. 把这些后代文件新增的前置声明合到一起
 	for (FileID file : chain)
 	{
-		auto &itr = m_fowardClass.find(file);
+		auto itr = m_fowardClass.find(file);
 		if (itr != m_fowardClass.end())
 		{
 			Add(forwards, itr->second);
@@ -943,7 +943,7 @@ std::string ParsingFile::GetSourceOfRange(SourceRange range) const
 		return "";
 	}
 
-	range = m_srcMgr->getExpansionRange(range);
+	range = m_srcMgr->getExpansionRange(range).getAsRange();
 
 	if (range.getEnd() < range.getBegin())
 	{
@@ -1180,7 +1180,7 @@ inline FileID ParsingFile::GetParent(FileID child) const
 		return FileID();
 	}
 
-	auto &itr = m_parents.find(child);
+	auto itr = m_parents.find(child);
 	if (itr != m_parents.end())
 	{
 		return itr->second;
@@ -1593,7 +1593,7 @@ void ParsingFile::UsingNamespace(const UsingDirectiveDecl *d)
 	// 优先找本文件内的namespace声明
 	for (const NamespaceDecl *ns : nominatedNs->redecls())
 	{
-		SourceLocation nsLoc = GetSpellingLoc(ns->getLocStart());
+          SourceLocation nsLoc = GetSpellingLoc(ns->getBeginLoc());
 		if (nsLoc.isValid() && isBeforeInTranslationUnit(nsLoc, usingLoc) && m_srcMgr->isWrittenInSameFile(nsLoc, usingLoc))
 		{
 			bestNs = ns;
@@ -1606,7 +1606,7 @@ void ParsingFile::UsingNamespace(const UsingDirectiveDecl *d)
 	{
 		for (const NamespaceDecl *ns : nominatedNs->redecls())
 		{
-			SourceLocation nsLoc = GetSpellingLoc(ns->getLocStart());
+            SourceLocation nsLoc = GetSpellingLoc(ns->getBeginLoc());
 			if (nsLoc.isValid() && isBeforeInTranslationUnit(nsLoc, usingLoc) && IsAncestorByName(GetFileID(nsLoc), atFileID))
 			{
 				bestNs = ns;
@@ -1622,7 +1622,7 @@ void ParsingFile::UsingNamespace(const UsingDirectiveDecl *d)
 
 	if (bestNs)
 	{
-		SourceLocation nsLoc = GetSpellingLoc(bestNs->getLocStart());
+		SourceLocation nsLoc = GetSpellingLoc(bestNs->getBeginLoc());
 
 		std::string name;
 		GetNameForLog(name, bestNs->getQualifiedNameAsString());
@@ -1654,7 +1654,7 @@ void ParsingFile::UsingXXX(const UsingDecl *d)
 		std::string name;
 		GetNameForLog(name, "using " << shadowDecl->getQualifiedNameAsString() << "[" << nameDecl->getQualifiedNameAsString() << "]" << "[" << nameDecl->getDeclKindName() << "]");
 
-		Use(usingLoc, nameDecl->getLocEnd(), name.c_str());
+		Use(usingLoc, nameDecl->getEndLoc(), name.c_str());
 	}
 }
 
@@ -2008,28 +2008,44 @@ inline void ParsingFile::UseForward(SourceLocation loc, const CXXRecordDecl *cxx
 	{
 		return;
 	}
-
+	
 	FileID by = GetFileID(loc);
 	if (by.isInvalid())
 	{
 		return;
 	}
 
-	// 添加文件所使用的前置声明记录
-	m_fileUseRecordPointers[by].insert(cxxRecord);
-
-	SearchUsingAny(loc, specifier, cxxRecord);
-	UseQualifier(loc, cxxRecord->getQualifier());
-
-	if (Project::instance.m_logLvl >= LogLvl_2)
+	bool isOpenForward = false;
+    if (isOpenForward)
 	{
-		m_locUseRecordPointers[loc].insert(cxxRecord);
+		// 添加文件所使用的前置声明记录
+		m_fileUseRecordPointers[by].insert(cxxRecord);
+
+		SearchUsingAny(loc, specifier, cxxRecord);
+		UseQualifier(loc, cxxRecord->getQualifier());
+
+		if (Project::instance.m_logLvl >= LogLvl_2)
+		{
+			m_locUseRecordPointers[loc].insert(cxxRecord);
+		}  
 	}
+	else
+	{
+		SearchUsingAny(loc, specifier, cxxRecord);
+		UseQualifier(loc, cxxRecord->getQualifier());
+
+		if (Project::instance.m_logLvl >= LogLvl_2)
+		{
+			m_locUseRecordPointers[loc].insert(cxxRecord);
+		}
+    }
 }
 
 // 是否为可前置声明的类型
 bool ParsingFile::IsForwardType(const QualType &var)
 {
+	return false;
+
 	if (!var->isPointerType() && !var->isReferenceType())
 	{
 		return false;
@@ -2108,7 +2124,7 @@ void ParsingFile::UseVarType(SourceLocation loc, const QualType &var, const Nest
 
 			for (const TagDecl *redecl : cxxRecordDecl->redecls())
 			{
-				SourceLocation recordLoc = redecl->getLocStart();
+				SourceLocation recordLoc = redecl->getBeginLoc();
 				FileID recordFile = GetFileID(recordLoc);
 
 				if (isBeforeInTranslationUnit(recordLoc, loc))
@@ -2209,7 +2225,7 @@ void ParsingFile::UseValueDecl(SourceLocation loc, const ValueDecl *valueDecl, c
 		std::string name;
 		GetNameForLog(name, valueDecl->getQualifiedNameAsString() << "[" << valueDecl->getDeclKindName() << "]");
 
-		Use(loc, valueDecl->getLocEnd(), name.c_str());
+		Use(loc, valueDecl->getEndLoc(), name.c_str());
 	}
 
 	UseVarType(loc, valueDecl->getType(), specifier);
@@ -2226,7 +2242,7 @@ void ParsingFile::UseNameDecl(SourceLocation loc, const NamedDecl *nameDecl)
 	std::string name;
 	GetNameForLog(name, nameDecl->getQualifiedNameAsString() << "[" << nameDecl->getDeclKindName() << "]");
 
-	Use(loc, nameDecl->getLocEnd(), name.c_str());
+	Use(loc, nameDecl->getEndLoc(), name.c_str());
 }
 
 // 新增使用函数声明记录
@@ -2282,7 +2298,7 @@ void ParsingFile::UseFuncDecl(SourceLocation loc, const FunctionDecl *f)
 	if (templatedKind != FunctionDecl::TK_NonTemplate)
 	{
 		// [调用模板处] 引用 [模板定义处]
-		Use(f->getLocStart(), f->getLocation(), name.c_str());
+		Use(f->getBeginLoc(), f->getLocation(), name.c_str());
 	}
 }
 
@@ -2301,7 +2317,7 @@ void ParsingFile::UseTemplateArgument(SourceLocation loc, const TemplateArgument
 		break;
 
 	case TemplateArgument::Expression:
-		Use(loc, arg.getAsExpr()->getLocStart(), "[ParsingFile::UseTemplateArgument][case TemplateArgument::Expression]");
+		Use(loc, arg.getAsExpr()->getBeginLoc(), "[ParsingFile::UseTemplateArgument][case TemplateArgument::Expression]");
 		break;
 
 	case TemplateArgument::Template:
@@ -2376,7 +2392,7 @@ void ParsingFile::UseRecord(SourceLocation loc, const RecordDecl *record)
 	std::string name;
 	GetNameForLog(name, GetRecordName(*record) << "[" << ((Decl*)record)->getDeclKindName() << "]");
 
-	Use(loc, record->getLocStart(), name.c_str());
+	Use(loc, record->getBeginLoc(), name.c_str());
 }
 
 // 是否为系统头文件，例如<vector>、<iostream>等就是系统文件
@@ -2406,7 +2422,7 @@ inline bool ParsingFile::CanCleanByName(const char *fileName) const
 // 打印各文件的父文件
 void ParsingFile::PrintParent()
 {
-	HtmlDiv &div = HtmlLog::instance.m_newDiv;
+	HtmlDiv &div = HtmlLog::instance->m_newDiv;
 	div.AddRow(AddPrintIdx() + ". list of parent id: has parent file count = " + get_number_html(m_parents.size()), 1);
 
 	for (auto &itr : m_parents)
@@ -2431,7 +2447,7 @@ void ParsingFile::PrintParent()
 // 打印每个文件的原始后代文件记录
 void ParsingFile::PrintKidsByName()
 {
-	HtmlDiv &div = HtmlLog::instance.m_newDiv;
+	HtmlDiv &div = HtmlLog::instance->m_newDiv;
 	div.AddRow(AddPrintIdx() + ". list of kids by same name : file count = " + strtool::itoa(m_kidsByName.size()), 1);
 
 	for (auto &itr : m_kidsByName)
@@ -3030,7 +3046,7 @@ void ParsingFile::PrintHeaderSearchPath() const
 		return;
 	}
 
-	HtmlDiv &div = HtmlLog::instance.m_newDiv;
+	HtmlDiv &div = HtmlLog::instance->m_newDiv;
 	div.AddRow(AddPrintIdx() + ". header search path list : path count = " + get_number_html(m_headerSearchPaths.size()), 1);
 
 	for (const HeaderSearchDir &path : m_headerSearchPaths)
@@ -3044,7 +3060,7 @@ void ParsingFile::PrintHeaderSearchPath() const
 // 用于调试：打印各文件重新计算后的#include文本
 void ParsingFile::PrintRelativeInclude() const
 {
-	HtmlDiv &div = HtmlLog::instance.m_newDiv;
+	HtmlDiv &div = HtmlLog::instance->m_newDiv;
 	div.AddRow(AddPrintIdx() + ". relative include list : use = " + get_number_html(m_uses.size()), 1);
 
 	for (auto &itr : m_uses)
@@ -3085,7 +3101,7 @@ void ParsingFile::Print()
 		return;
 	}
 
-	HtmlDiv &div = HtmlLog::instance.m_newDiv;
+	HtmlDiv &div = HtmlLog::instance->m_newDiv;
 
 	div.AddTitle(strtool::get_text(cn_file_history_title,
 	                               get_number_html(ProjectHistory::instance.g_fileNum).c_str(),
@@ -3127,7 +3143,7 @@ void ParsingFile::Print()
 		PrintUsingXXX();
 	}
 
-	HtmlLog::instance.AddDiv(div);
+	HtmlLog::instance->AddDiv(div);
 }
 
 // 将当前cpp文件产生的待清理记录与之前其他cpp文件产生的待清理记录合并
@@ -3155,7 +3171,7 @@ void ParsingFile::MergeTo(FileHistoryMap &oldFiles) const
 		const string &fileName	= fileItr.first;
 		const FileHistory &newFile	= fileItr.second;
 
-		auto &findItr = oldFiles.find(fileName);
+		auto findItr = oldFiles.find(fileName);
 
 		bool found = (findItr != oldFiles.end());
 		if (!found)
@@ -3258,7 +3274,7 @@ void ParsingFile::TakeReplaceLine(ReplaceLine &replaceLine, FileID from, FileID 
 // 取出新增前置声明信息
 void ParsingFile::TakeForwardClass(FileHistory &history, FileID insertAfter, FileID top) const
 {
-	auto &useRecordItr = m_fowardClass.find(top);
+	auto useRecordItr = m_fowardClass.find(top);
 	if (useRecordItr == m_fowardClass.end())
 	{
 		return;
@@ -3461,8 +3477,6 @@ void ParsingFile::SortAddFiles(FileID top, FileSet &adds, FileSet &keeps, FileSe
 	};
 
 	//------ 开始排序，每个文件有自己依赖的文件集，一个个试过去，所依赖的文件均被包含后才允许插入 ------//
-
-	bool isAfterFirstInsert = false;
 
 	FileSet &remainAdds = adds;
 
@@ -3693,7 +3707,7 @@ void ParsingFile::TakeCompileErrorHistory(FileHistoryMap &out) const
 // 打印引用记录
 void ParsingFile::PrintUse() const
 {
-	HtmlDiv &div = HtmlLog::instance.m_newDiv;
+	HtmlDiv &div = HtmlLog::instance->m_newDiv;
 	div.AddRow(AddPrintIdx() + ". list of use : use count = " + get_number_html(m_uses.size()), 1);
 
 	for (const auto &itr : m_uses)
@@ -3719,7 +3733,7 @@ void ParsingFile::PrintUse() const
 // 打印#include记录
 void ParsingFile::PrintInclude() const
 {
-	HtmlDiv &div = HtmlLog::instance.m_newDiv;
+	HtmlDiv &div = HtmlLog::instance->m_newDiv;
 	div.AddRow(AddPrintIdx() + ". list of include : include count = " + get_number_html(m_includes.size()), 1);
 
 	for (auto &itr : m_includes)
@@ -3745,7 +3759,7 @@ void ParsingFile::PrintInclude() const
 // 打印引用类名、函数名、宏名等的记录
 void ParsingFile::PrintUseName() const
 {
-	HtmlDiv &div = HtmlLog::instance.m_newDiv;
+	HtmlDiv &div = HtmlLog::instance->m_newDiv;
 	div.AddRow(AddPrintIdx() + ". list of use name : use count = " + get_number_html(m_useNames.size()), 1);
 
 	for (auto & useItr : m_useNames)
@@ -3765,7 +3779,7 @@ void ParsingFile::PrintUseName() const
 // 获取文件所使用名称信息：文件名、所使用的类名、函数名、宏名等以及对应行号
 void ParsingFile::DebugUsedNames(FileID file, const std::vector<UseNameInfo> &useNames) const
 {
-	HtmlDiv &div = HtmlLog::instance.m_newDiv;
+	HtmlDiv &div = HtmlLog::instance->m_newDiv;
 	div.AddRow(DebugParentFileText(file, useNames.size()), 2);
 
 	for (const UseNameInfo &beuse : useNames)
@@ -3776,7 +3790,7 @@ void ParsingFile::DebugUsedNames(FileID file, const std::vector<UseNameInfo> &us
 		{
 			std::stringstream linesStream;
 
-			auto & linesItr = beuse.nameMap.find(name);
+			auto linesItr = beuse.nameMap.find(name);
 			if (linesItr != beuse.nameMap.end())
 			{
 				const std::set<int> &lines = linesItr->second;
@@ -3833,7 +3847,7 @@ void ParsingFile::PrintUseRecord() const
 	recordMap.erase(FileID());
 
 	// 2. 打印
-	HtmlDiv &div = HtmlLog::instance.m_newDiv;
+	HtmlDiv &div = HtmlLog::instance->m_newDiv;
 	div.AddRow(AddPrintIdx() + ". use records list: file count = " + get_number_html(recordMap.size()), 1);
 
 	for (auto &itr : recordMap)
@@ -3868,7 +3882,7 @@ void ParsingFile::PrintForwardClass() const
 		return;
 	}
 
-	HtmlDiv &div = HtmlLog::instance.m_newDiv;
+	HtmlDiv &div = HtmlLog::instance->m_newDiv;
 	div.AddRow(AddPrintIdx() + ". final forward class list: file count = " + get_number_html(m_fowardClass.size()), 1);
 
 	for (auto &itr : m_fowardClass)
@@ -3890,7 +3904,7 @@ void ParsingFile::PrintForwardClass() const
 // 打印允许被清理的所有文件列表
 void ParsingFile::PrintAllFile() const
 {
-	HtmlDiv &div = HtmlLog::instance.m_newDiv;
+	HtmlDiv &div = HtmlLog::instance->m_newDiv;
 	div.AddRow(AddPrintIdx() + ". list of all file: file count = " + get_number_html(m_files.size()), 1);
 
 	for (FileID file : m_files)
@@ -3909,8 +3923,6 @@ void ParsingFile::PrintAllFile() const
 // 打印清理日志
 void ParsingFile::PrintHistory() const
 {
-	HtmlDiv &div = HtmlLog::instance.m_newDiv;
-
 	m_compileErrorHistory.Print();
 
 	int i = 0;
@@ -3943,7 +3955,7 @@ void ParsingFile::PrintHistory() const
 // 打印各文件内的命名空间
 void ParsingFile::PrintNamespace() const
 {
-	HtmlDiv &div = HtmlLog::instance.m_newDiv;
+	HtmlDiv &div = HtmlLog::instance->m_newDiv;
 	div.AddRow(AddPrintIdx() + ". each file's namespace: file count = " + get_number_html(m_namespaces.size()), 1);
 
 	for (auto &itr : m_namespaces)
@@ -3979,7 +3991,7 @@ void ParsingFile::PrintUsingNamespace() const
 		nsByFile[GetFileID(loc)].insert(ns->getQualifiedNameAsString());
 	}
 
-	HtmlDiv &div = HtmlLog::instance.m_newDiv;
+	HtmlDiv &div = HtmlLog::instance->m_newDiv;
 	div.AddRow(AddPrintIdx() + ". each file's using namespace: file count = " + get_number_html(nsByFile.size()), 1);
 
 	for (auto &itr : nsByFile)
@@ -4006,7 +4018,7 @@ void ParsingFile::PrintUsingNamespace() const
 // 打印各文件内的using
 void ParsingFile::PrintUsingXXX() const
 {
-	HtmlDiv &div = HtmlLog::instance.m_newDiv;
+	HtmlDiv &div = HtmlLog::instance->m_newDiv;
 	div.AddRow(AddPrintIdx() + ". each file's using xxx", 1);
 
 	for (const UsingShadowDecl* usingDecl : m_usings)
@@ -4029,7 +4041,7 @@ void ParsingFile::PrintUsingXXX() const
 // 打印被包含多次的文件
 void ParsingFile::PrintSameFile() const
 {
-	HtmlDiv &div = HtmlLog::instance.m_newDiv;
+	HtmlDiv &div = HtmlLog::instance->m_newDiv;
 	div.AddRow(AddPrintIdx() + ". same file list: file count = " + get_number_html(m_sameFiles.size()), 1);
 
 	for (auto &itr : m_sameFiles)
@@ -4055,7 +4067,7 @@ void ParsingFile::PrintMinInclude() const
 	Add(all, m_minInclude);
 	Add(all, m_fowardClass);
 
-	HtmlDiv &div = HtmlLog::instance.m_newDiv;
+	HtmlDiv &div = HtmlLog::instance->m_newDiv;
 	div.AddRow(strtool::get_text(cn_file_min_use, get_number_html(++m_printIdx).c_str(), get_number_html(all.size()).c_str()), 1);	
 
 	for (FileID by : all)
@@ -4093,7 +4105,7 @@ void ParsingFile::PrintMinInclude() const
 
 void ParsingFile::PrintMinKid() const
 {
-	HtmlDiv &div = HtmlLog::instance.m_newDiv;
+	HtmlDiv &div = HtmlLog::instance->m_newDiv;
 	div.AddRow(strtool::get_text(cn_file_min_kid, get_number_html(++m_printIdx).c_str(), get_number_html(m_minKids.size()).c_str()), 1);
 
 	for (auto & kidItr : m_minKids)
@@ -4114,7 +4126,7 @@ void ParsingFile::PrintMinKid() const
 // 打印
 void ParsingFile::PrintOutFileAncestor() const
 {
-	HtmlDiv &div = HtmlLog::instance.m_newDiv;
+	HtmlDiv &div = HtmlLog::instance->m_newDiv;
 	div.AddRow(strtool::get_text(cn_file_sys_ancestor, get_number_html(++m_printIdx).c_str(), get_number_html(m_outFileAncestor.size()).c_str()), 1);
 
 	for (auto &itr : m_outFileAncestor)
@@ -4130,7 +4142,7 @@ void ParsingFile::PrintOutFileAncestor() const
 
 void ParsingFile::PrintUserUse() const
 {
-	HtmlDiv &div = HtmlLog::instance.m_newDiv;
+	HtmlDiv &div = HtmlLog::instance->m_newDiv;
 	div.AddRow(strtool::get_text(cn_file_user_use, get_number_html(++m_printIdx).c_str(), get_number_html(m_userUses.size()).c_str()), 1);
 
 	for (auto &itr : m_userUses)

@@ -83,7 +83,7 @@ const char* g_gridHtml = R"--(<div${class} style="${width}">${text}</div>)--";
 
 const char* g_errorGridHtml = R"--(<div><pre${class}>${text}</pre></div>)--";
 
-HtmlLog HtmlLog::instance;
+HtmlLog* HtmlLog::instance = nullptr;
 
 void HtmlDiv::AddTitle(const char* title, int width /* = 100 */)
 {
@@ -155,7 +155,7 @@ bool HtmlLog::Init(const std::wstring &htmlPath, const std::string &htmlTitle, c
 	std::string str_now = timetool::get_now(cn_time);
 	std::wstring wstr_now = strtool::s2ws(str_now);
 
-	m_htmlPath = strtool::get_wide_text(cn_log, m_htmlPath.c_str(), wstr_now.c_str());
+	m_htmlPath = cn_log1 + m_htmlPath + cn_log2 + wstr_now + cn_log3;
 	m_htmlTitle = strtool::get_text(cn_clean, htmlTitle.c_str());
 	m_tip = strtool::get_text(cn_clean, tip.c_str());
 
