@@ -7,7 +7,7 @@ windows下使用vs编译本工具流程，主要参考官方教程 http://clang.
 
 	https://github.com/llvm/llvm-project.git （官方库，网速慢）
 
-2. 将tools文件夹覆盖到llvm-project\clang\tools下
+2. 将tools文件夹覆盖到llvm-project\clang\tools下（所以tools\CMakeLists.txt将覆盖llvm-project\clang\tools\CMakeLists.txt）
 
 3. 在llvm-project文件夹下， 执行cmake -DLLVM_ENABLE_PROJECTS=clang -S llvm -B build -G "Visual Studio 16 2019"
 
