@@ -1,0 +1,14 @@
+windows下使用vs编译本工具流程，主要参考官方教程 http://clang.llvm.org/get_started.html
+
+## 源码对应的llvm版本：2022年4月27的版本
+
+1. 导出llvm官方源码到llvm-project文件夹
+	https://gitee.com/mirrors/LLVM （镜像库，网速快）
+
+	https://github.com/llvm/llvm-project.git （官方库，网速慢）
+
+2. 将tools文件夹覆盖到llvm-project\clang\tools下
+
+3. 在llvm-project文件夹下， 执行cmake -DLLVM_ENABLE_PROJECTS=clang -S llvm -B build -G "Visual Studio 16 2019"
+
+4. 打开llvm-project\Build\LLVM.sln，编译其中的cxxclean项目
